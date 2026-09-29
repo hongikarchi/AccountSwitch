@@ -59,3 +59,7 @@ npm run format
 ## 출처
 
 [VIDE](https://github.com/hongikarchi/VIDE)의 AI 계정 기능에서 분리했습니다.
+
+## 라이선스
+
+[MIT](LICENSE)
