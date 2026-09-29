@@ -13,7 +13,9 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountProfiles } from '../src/core/account-profiles.ts';
-test('profile metadata persists, provider identities stay separate and busy switch drains', () => {
+const swaps = [];
+const swap = (from, to) => swaps.push([from, to]);
+test('profile metadata persists, provider identities stay separate and a switch moves the login', () => {
   const root = mkdtempSync(join(tmpdir(), 'accountswitch-profiles-'));
   let busy = true;
   try {
@@ -22,16 +24,54 @@ test('profile metadata persists, provider identities stay separate and busy swit
     const b = profiles.add('claude-cli', 'Claude');
     assert.throws(() => profiles.directory('codex-cli', b.id), /NOT_FOUND/);
     assert.throws(() => profiles.directory('codex-cli', '../outside'), /NOT_FOUND/);
-    profiles.select('codex-cli', a.id);
-    assert.throws(() => profiles.selected('codex-cli'), /PENDING/);
-    assert.equal(profiles.list().active['codex-cli'], 'default');
+    swaps.length = 0;
+    assert.throws(() => profiles.select('codex-cli', a.id, swap), { code: 'PROFILE_IN_USE' });
+    assert.equal(swaps.length, 0);
     busy = false;
-    assert.equal(profiles.selected('codex-cli'), a.id);
+    profiles.select('codex-cli', a.id, swap);
+    assert.deepEqual(swaps, [[join(root, 'default-codex-cli'), join(root, a.id)]]);
+    profiles.select('codex-cli', a.id, swap);
+    assert.equal(swaps.length, 1);
     const restored = new AccountProfiles(root, () => false);
     assert.equal(restored.selected('codex-cli'), a.id);
-    assert.equal(restored.directory('codex-cli', 'default'), undefined);
-    assert.equal(restored.directory('codex-cli', a.id), join(root, a.id));
+    // The active login is the default one; the original one rests in its own folder.
+    assert.equal(restored.directory('codex-cli', a.id), undefined);
+    assert.equal(restored.directory('codex-cli', 'default'), join(root, 'default-codex-cli'));
+    assert.equal(restored.directory('claude-cli', 'default'), undefined);
+    assert.equal(restored.directory('claude-cli', b.id), join(root, b.id));
     assert.equal(readFileSync(join(root, 'profiles.json'), 'utf8').includes(root), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a failed swap keeps the choice, and a version 1 choice goes back to the default login', () => {
+  const root = mkdtempSync(join(tmpdir(), 'accountswitch-profiles-v1-'));
+  try {
+    const profiles = new AccountProfiles(root, () => false);
+    const a = profiles.add('claude-cli', 'A');
+    assert.throws(() =>
+      profiles.select('claude-cli', a.id, () => {
+        throw new Error('DEFAULT_LOGIN_LOCKED');
+      }),
+    );
+    assert.equal(profiles.selected('claude-cli'), 'default');
+    const file = join(root, 'profiles.json');
+    const data = JSON.parse(readFileSync(file, 'utf8'));
+    writeFileSync(
+      file,
+      JSON.stringify({
+        ...data,
+        version: 1,
+        active: { 'claude-cli': a.id, 'codex-cli': 'default' },
+        pending: { 'claude-cli': null, 'codex-cli': null },
+      }),
+    );
+    const migrated = new AccountProfiles(root, () => false);
+    assert.equal(migrated.selected('claude-cli'), 'default');
+    const saved = JSON.parse(readFileSync(file, 'utf8'));
+    assert.equal(saved.version, 2);
+    assert.equal('pending' in saved, false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -47,7 +87,9 @@ test('removal cleans only an idle managed profile and persists default selection
     const directory = profiles.directory('codex-cli', row.id);
     mkdirSync(join(directory, 'history'));
     writeFileSync(join(directory, 'history', 'synthetic.txt'), 'test');
-    profiles.select('codex-cli', row.id);
+    profiles.select('codex-cli', row.id, swap);
+    assert.throws(() => profiles.remove('codex-cli', row.id), { code: 'PROFILE_ACTIVE' });
+    profiles.select('codex-cli', 'default', swap);
     busy = true;
     assert.throws(() => profiles.remove('codex-cli', row.id), { code: 'PROFILE_IN_USE' });
     assert.equal(existsSync(directory), true);

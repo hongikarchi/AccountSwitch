@@ -25,12 +25,14 @@ const profile = z
   .strict();
 const schema = z
   .object({
-    version: z.literal(1),
+    /** 1: `active` was only a choice inside the app. 2: it is the login in ~/.claude / ~/.codex. */
+    version: z.union([z.literal(1), z.literal(2)]),
     profiles: z.array(profile).max(30),
     active: z.object({ 'claude-cli': z.string(), 'codex-cli': z.string() }).strict(),
     pending: z
       .object({ 'claude-cli': z.string().nullable(), 'codex-cli': z.string().nullable() })
-      .strict(),
+      .strict()
+      .optional(),
     /** User-chosen names of the default (existing CLI) logins. */
     defaultLabels: z
       .object({
@@ -62,17 +64,25 @@ export class AccountProfiles {
     this.data = existsSync(file)
       ? schema.parse(JSON.parse(readFileSync(file, 'utf8')))
       : {
-          version: 1,
+          version: 2,
           profiles: [],
           active: { 'claude-cli': 'default', 'codex-cli': 'default' },
-          pending: { 'claude-cli': null, 'codex-cli': null },
         };
     this.saved = structuredClone(this.data);
     if (new Set(this.data.profiles.map((p) => p.id)).size !== this.data.profiles.length)
       fail('INVALID_PROFILE_DATA');
     for (const provider of providers)
-      for (const id of [this.data.active[provider], this.data.pending[provider]])
-        if (id && id !== 'default') this.find(provider, id);
+      if (this.data.active[provider] !== 'default') this.find(provider, this.data.active[provider]);
+    if (this.data.version === 1) {
+      // A version 1 choice never changed the default login, which is still the CLI's own one.
+      this.data = {
+        ...this.data,
+        version: 2,
+        active: { 'claude-cli': 'default', 'codex-cli': 'default' },
+      };
+      delete this.data.pending;
+      this.save();
+    }
   }
   private save() {
     const temporary = join(this.root, 'profiles-' + randomUUID() + '.tmp');
@@ -93,12 +103,6 @@ export class AccountProfiles {
     );
   }
   list() {
-    for (const provider of providers)
-      if (this.data.pending[provider] && !this.busy(provider)) {
-        this.data.active[provider] = this.data.pending[provider]!;
-        this.data.pending[provider] = null;
-        this.save();
-      }
     return structuredClone(this.data);
   }
   assertIdle(provider: Provider) {
@@ -128,26 +132,28 @@ export class AccountProfiles {
     this.save();
     return this.list();
   }
-  select(provider: Provider, id: string) {
+  /**
+   * Make an account the default login: `swap` moves the installed login back to the folder of
+   * `from` and installs the one in `to`, then the choice is saved.
+   */
+  select(provider: Provider, id: string, swap: (from: string, to: string) => void) {
     if (id !== 'default') this.find(provider, id);
-    if (this.data.active[provider] === id) this.data.pending[provider] = null;
-    else if (this.busy(provider)) this.data.pending[provider] = id;
-    else {
-      this.data.active[provider] = id;
-      this.data.pending[provider] = null;
-    }
+    const current = this.data.active[provider];
+    if (current === id) return this.list();
+    this.assertIdle(provider);
+    swap(this.folder(provider, current), this.folder(provider, id));
+    this.data.active[provider] = id;
     this.save();
     return this.list();
   }
   selected(provider: Provider) {
-    const data = this.list();
-    if (data.pending[provider]) fail('PROFILE_SWITCH_PENDING');
-    return data.active[provider];
+    return this.data.active[provider];
   }
   remove(provider: Provider, id: string) {
     this.assertIdle(provider);
     this.find(provider, id); // Never remove the compatible default login.
-    const directory = this.directory(provider, id)!;
+    if (this.data.active[provider] === id) fail('PROFILE_ACTIVE');
+    const directory = this.folder(provider, id);
     const inspect = (path: string) => {
       for (const entry of readdirSync(path, { withFileTypes: true })) {
         const child = join(path, entry.name);
@@ -170,17 +176,22 @@ export class AccountProfiles {
       fail('PROFILE_CLEANUP_FAILED');
     }
     this.data.profiles = this.data.profiles.filter((row) => row.id !== id);
-    if (this.data.active[provider] === id) {
-      this.data.active[provider] = 'default';
-      this.data.pending[provider] = null;
-    } else if (this.data.pending[provider] === id) this.data.pending[provider] = null;
     this.save();
     return this.list();
   }
+  /**
+   * The CLI folder an account's login is in now: undefined for the active one (the default
+   * ~/.claude / ~/.codex), else its own folder, where the original login rests while another
+   * account is active.
+   */
   directory(provider: Provider, id: string) {
-    if (id === 'default') return undefined;
-    this.find(provider, id);
-    const path = join(this.root, id);
+    if (id !== 'default') this.find(provider, id);
+    return this.data.active[provider] === id ? undefined : this.folder(provider, id);
+  }
+  /** An account's own folder, active or not. */
+  private folder(provider: Provider, id: string) {
+    if (id !== 'default') this.find(provider, id);
+    const path = join(this.root, id === 'default' ? 'default-' + provider : id);
     if (!existsSync(path)) mkdirSync(path);
     if (
       lstatSync(path).isSymbolicLink() ||

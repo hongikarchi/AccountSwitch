@@ -6,7 +6,6 @@ import type { Provider } from '../core/providers.ts';
 const schema = z.object({
   profiles: z.array(z.object({ id: z.string(), provider: z.enum(providers), label: z.string() })),
   active: z.record(z.string(), z.string()),
-  pending: z.record(z.string(), z.string().nullable()),
   defaultLabels: z.record(z.string(), z.string()).optional(),
 });
 const loginSchema = z.array(
@@ -370,15 +369,12 @@ export function AccountSettings({ provider }: { provider: Provider }) {
                 <span className="account-name">
                   {row.label}
                   {active ? <span className="account-badge">사용 중</span> : null}
-                  {data?.pending[provider] === row.id ? (
-                    <span className="account-badge">전환 대기</span>
-                  ) : null}
                   {who[row.id] ? <small>{who[row.id].text}</small> : null}
                 </span>
               )}
               {renaming !== row.id && (
                 <span className="account-actions">
-                  {row.id !== 'default' && signedIn === false && !(mine && loggingIn) ? (
+                  {row.id !== 'default' && !active && signedIn === false && !(mine && loggingIn) ? (
                     <button
                       className="primary-button"
                       disabled={busy || loggingIn}
@@ -389,6 +385,7 @@ export function AccountSettings({ provider }: { provider: Provider }) {
                   ) : null}
                   {!active ? (
                     <button
+                      title="터미널·VS Code의 기본 로그인을 이 계정으로 바꿉니다"
                       disabled={busy || loggingIn}
                       onClick={() =>
                         void action(async () => {
@@ -414,7 +411,7 @@ export function AccountSettings({ provider }: { provider: Provider }) {
                       >
                         이름 변경
                       </button>
-                      {row.id !== 'default' && (
+                      {row.id !== 'default' && !active && (
                         <>
                           <button
                             disabled={busy || loggingIn}

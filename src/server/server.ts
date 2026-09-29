@@ -10,6 +10,7 @@ import { AccountUsageService } from '../core/account-usage.ts';
 import { DomainError } from '../core/errors.ts';
 import { providers } from '../core/providers.ts';
 import { executable, status } from '../core/cli.ts';
+import { DefaultLogin } from '../core/default-login.ts';
 
 // A local web app on 127.0.0.1 only. The page gets a session cookie from the one-time token in
 // its launch link (#token); every API call needs that cookie and, for writes, this origin.
@@ -67,11 +68,19 @@ export async function startServer({ directory, port = 0 }: Options) {
     profiles,
     file: join(directory, 'profiles', 'usage-settings.json'),
   });
+  const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
   const bootstrap = randomBytes(32).toString('base64url');
   const session = randomBytes(32).toString('base64url');
   let authority = '';
   const accountStatus = (p: z.infer<typeof provider>, id: string) =>
     status(p, executable(p), profiles.directory(p, id));
+  /** An added account's own folder, to sign in or out; the active one's login is the default. */
+  const ownFolder = (p: z.infer<typeof provider>, id: string) => {
+    if (id === 'default') throw new DomainError('INVALID_INPUT');
+    const folder = profiles.directory(p, id);
+    if (!folder) throw new DomainError('PROFILE_ACTIVE');
+    return folder;
+  };
 
   async function handle(request: IncomingMessage, response: ServerResponse) {
     const send = (code: number, data: unknown) => {
@@ -168,7 +177,7 @@ export async function startServer({ directory, port = 0 }: Options) {
           .strict()
           .parse(await body(request));
         profiles.assertIdle(input.provider);
-        profiles.directory(input.provider, input.id);
+        ownFolder(input.provider, input.id);
         const now = await accountStatus(input.provider, input.id);
         if (now.available || now.reason !== 'SUBSCRIPTION_LOGIN_REQUIRED')
           throw new DomainError('PROFILE_LOGOUT_REQUIRED');
@@ -189,9 +198,20 @@ export async function startServer({ directory, port = 0 }: Options) {
           .strict()
           .parse(await body(request));
         if (accountLogin.busy(input.provider)) throw new DomainError('PROFILE_LOGIN_IN_PROGRESS');
+        if (profiles.selected(input.provider) === input.id) {
+          send(200, profiles.list());
+          return;
+        }
         if (!(await accountStatus(input.provider, input.id)).available)
           throw new DomainError('SUBSCRIPTION_LOGIN_REQUIRED');
-        send(200, profiles.select(input.provider, input.id));
+        // The chosen account becomes the login of the terminal and VS Code.
+        await defaultLogin.assertReady(input.provider);
+        send(
+          200,
+          profiles.select(input.provider, input.id, (from, to) =>
+            defaultLogin.swap(input.provider, from, to),
+          ),
+        );
         return;
       }
       if (url.pathname === '/api/v1/accounts/login-command' && request.method === 'POST') {
@@ -200,8 +220,7 @@ export async function startServer({ directory, port = 0 }: Options) {
           .strict()
           .parse(await body(request));
         profiles.assertIdle(input.provider);
-        const folder = profiles.directory(input.provider, input.id);
-        if (!folder) throw new DomainError('INVALID_INPUT');
+        const folder = ownFolder(input.provider, input.id);
         const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
         const key = input.provider === 'codex-cli' ? 'CODEX_HOME' : 'CLAUDE_CONFIG_DIR';
         send(200, {
@@ -230,8 +249,7 @@ export async function startServer({ directory, port = 0 }: Options) {
           .strict()
           .parse(await body(request));
         profiles.assertIdle(input.provider);
-        const folder = profiles.directory(input.provider, input.id);
-        if (!folder) throw new DomainError('INVALID_INPUT');
+        const folder = ownFolder(input.provider, input.id);
         const program = executable(input.provider);
         if (!program) throw new DomainError('CLI_UNAVAILABLE');
         send(

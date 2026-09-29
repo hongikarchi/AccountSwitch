@@ -90,7 +90,7 @@ export class AccountUsageService {
     renameSync(temporary, this.options.file);
     return value;
   }
-  /** The CLI folder of an account ('default' = the user's own CLI login). */
+  /** The CLI folder of an account (the active one is in the user's own ~/.claude / ~/.codex). */
   private folder(provider: Provider, id: string) {
     return (
       this.options.profiles.directory(provider, id) ??
@@ -99,6 +99,7 @@ export class AccountUsageService {
   }
   /** Who is signed in, from the CLI's own files (no network). */
   private identity(provider: Provider, id: string) {
+    const relocated = this.options.profiles.directory(provider, id) !== undefined;
     const folder = this.folder(provider, id);
     if (provider === 'claude-cli') {
       const credentials = z
@@ -119,9 +120,7 @@ export class AccountUsageService {
         .passthrough()
         .safeParse(
           readJson(
-            id === 'default'
-              ? join(this.options.home, '.claude.json')
-              : join(folder, '.claude.json'),
+            relocated ? join(folder, '.claude.json') : join(this.options.home, '.claude.json'),
           ),
         ).data?.oauthAccount;
       return {
