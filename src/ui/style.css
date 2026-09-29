@@ -1,0 +1,536 @@
+/* Palette and controls follow VIDE's settings screen. */
+:root {
+  font:
+    12px 'Pretendard',
+    'Noto Sans KR',
+    'Malgun Gothic',
+    Arial,
+    sans-serif;
+  color: #292c2d;
+  --line: #dde1de;
+  --muted: #737b7d;
+  --coral: #d97660;
+  --soft: #f6f7f4;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #edf0ec;
+}
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+button,
+summary,
+select {
+  cursor: pointer;
+}
+button {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: transparent;
+  padding: 6px 9px;
+}
+button:hover {
+  background: #edf0ec;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button:focus-visible,
+summary:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+}
+[hidden] {
+  display: none !important;
+}
+
+.primary-button {
+  background: #292f2e;
+  color: white;
+  border-color: #292f2e;
+  font-size: 11px;
+  padding: 7px 9px;
+}
+.primary-button:hover:not(:disabled) {
+  background: #46564c;
+}
+.primary-button:disabled {
+  opacity: 0.45;
+}
+.link-button {
+  border: 0;
+  padding: 2px 0;
+  text-align: left;
+  color: var(--muted);
+  font-size: 10px;
+  text-decoration: underline dotted;
+}
+.model-tree > summary small {
+  display: inline;
+  padding: 0 0 0 6px;
+  color: var(--muted);
+}
+.settings-rows,
+.connector-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+  border: 1px solid #e4e7df;
+  border-radius: 8px;
+}
+.settings-rows li,
+.connector-list li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  padding: 11px 14px;
+}
+.settings-rows li + li,
+.connector-list li + li {
+  border-top: 1px solid #eef0eb;
+}
+.settings-rows li strong {
+  flex: 1;
+}
+.connector-list li div {
+  flex: 1;
+}
+.pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f1e3dc;
+  color: #9c4f36;
+  white-space: nowrap;
+}
+.pill[data-ok='true'] {
+  background: #e1efe5;
+  color: #2f6b43;
+}
+
+/* Settings → AI: accounts with their usage (5-hour / 7-day) and reset times. */
+.usage-options {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.usage-threshold {
+  width: 56px;
+  margin-left: 6px;
+  padding: 2px 4px;
+}
+.usage-row {
+  display: grid !important;
+  gap: 6px;
+}
+.usage-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.usage-head small {
+  color: var(--muted);
+}
+.usage-line {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.usage-label,
+.usage-value {
+  color: var(--muted);
+}
+.usage-track {
+  height: 6px;
+  border-radius: 3px;
+  background: #eceee9;
+  overflow: hidden;
+}
+.usage-fill {
+  display: block;
+  height: 100%;
+  background: #4f8a64;
+}
+.usage-fill[data-level='mid'] {
+  background: #d09a3a;
+}
+.usage-fill[data-level='high'] {
+  background: #c9563a;
+}
+.usage-row > button {
+  justify-self: start;
+}
+.usage-refresh {
+  margin-top: 10px;
+}
+.usage-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+.account-settings {
+  display: grid;
+  gap: 6px;
+}
+.account-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: #f7f8f5;
+}
+.account-row[data-active='true'] {
+  background: #eef5f0;
+  box-shadow: inset 3px 0 0 #4f8a64;
+}
+.account-name {
+  flex: 1;
+  min-width: 160px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.account-name small {
+  display: block;
+  font-weight: 400;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.account-rename {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  gap: 4px;
+}
+.account-rename input {
+  flex: 1;
+  min-width: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+.account-row button,
+.account-add button {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.account-add {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+.ai-settings .account-add input {
+  flex: 1;
+  min-height: 30px;
+}
+.account-settings > small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+/* AI accounts: one quiet row per account; actions under ⋯; one login panel while signing in. */
+.account-block {
+  display: grid;
+  gap: 4px;
+}
+.account-badge {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 9px;
+  font-size: 10px;
+  font-weight: 500;
+  background: #dcebe1;
+  color: #2f6b45;
+}
+.account-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+.account-more {
+  position: relative;
+}
+.account-more > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #6c7571;
+}
+.account-more > summary::-webkit-details-marker {
+  display: none;
+}
+.account-more[open] > summary,
+.account-more > summary:hover {
+  background: #e9ece8;
+}
+.account-menu {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  display: grid;
+  min-width: 170px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 6px 18px #0000001f;
+}
+.account-menu button {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 6px 8px !important;
+  font-size: 12px !important;
+  border-radius: 4px;
+}
+.account-menu button:hover:not(:disabled) {
+  background: var(--soft);
+}
+.account-menu button.danger {
+  color: #b33a2e;
+}
+.login-panel {
+  display: grid;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 1px solid #c9d6ef;
+  border-radius: 6px;
+  background: #f5f8fe;
+  font-size: 12px;
+}
+.login-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.login-head small {
+  color: var(--muted);
+}
+.login-head .link-button {
+  margin-left: auto;
+}
+.login-panel ol {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+.login-panel li {
+  display: list-item;
+}
+.login-panel li > * {
+  display: block;
+  margin-top: 4px;
+}
+.login-panel li > .login-actions {
+  display: flex;
+}
+.login-panel > small,
+.login-panel li small {
+  color: var(--muted);
+}
+.login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.login-actions button,
+.login-actions a {
+  font-size: 11px;
+  padding: 3px 8px;
+  line-height: 1.6;
+}
+.login-actions a {
+  color: #81553e;
+}
+.login-actions input {
+  flex: 1;
+  min-width: 160px;
+  padding: 4px 6px;
+  font-family: ui-monospace, monospace;
+}
+.login-code {
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #fff;
+  border: 1px solid var(--line);
+}
+.login-failed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #fbeeea;
+  color: #8a3b2c;
+  font-size: 12px;
+}
+.login-failed span {
+  flex: 1;
+  min-width: 180px;
+}
+.login-command textarea {
+  width: 100%;
+  min-height: 56px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+.account-foot {
+  color: var(--muted);
+  font-size: 11px;
+}
+.account-message {
+  margin: 0;
+  font-size: 12px;
+  color: #2f6b45;
+}
+:root[data-theme='dark'] .account-menu,
+:root[data-theme='dark'] .login-code {
+  background: #1d2120;
+}
+:root[data-theme='dark'] .login-panel {
+  background: #1f2633;
+  border-color: #3a4a6a;
+}
+:root[data-theme='dark'] .login-failed {
+  background: #3a2822;
+  color: #f0b3a6;
+}
+:root[data-theme='dark'] .account-badge {
+  background: #203127;
+  color: #9fd3b0;
+}
+
+/* App layout: one page, two services side by side, usage below. */
+body {
+  min-height: 100vh;
+}
+.app {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 16px 40px;
+  display: grid;
+  gap: 16px;
+}
+.app-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.app-head h1 {
+  margin: 0;
+  font-size: 18px;
+}
+.app-head small {
+  color: var(--muted);
+}
+.services {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
+  gap: 16px;
+}
+.card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  min-width: 0;
+}
+.card h2 {
+  margin: 0;
+  font-size: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+.card h2 small {
+  font-weight: normal;
+  color: var(--muted);
+}
+.remote-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.remote-error,
+.cli-missing {
+  color: #a4442f;
+  margin: 0;
+}
+.danger {
+  color: #a4442f;
+}
+:root[data-theme='dark'] {
+  color: #dde3df;
+  --line: #333a38;
+  --muted: #8d9793;
+  --soft: #262c2b;
+}
+:root[data-theme='dark'] body {
+  background: #171a19;
+}
+:root[data-theme='dark'] .card {
+  background: #1f2322;
+}
+:root[data-theme='dark'] button:hover {
+  background: #2a302e;
+}
+:root[data-theme='dark'] input,
+:root[data-theme='dark'] textarea {
+  background: #1d2120;
+  border: 1px solid var(--line);
+}
+:root[data-theme='dark'] .account-row {
+  background: #262c2b;
+}
+:root[data-theme='dark'] .account-row[data-active='true'] {
+  background: #22302a;
+}
+:root[data-theme='dark'] .settings-rows {
+  border-color: var(--line);
+}
+:root[data-theme='dark'] .settings-rows li + li {
+  border-color: var(--line);
+}
+:root[data-theme='dark'] .pill {
+  background: #3a2822;
+  color: #f0b3a6;
+}
+:root[data-theme='dark'] .pill[data-ok='true'] {
+  background: #203127;
+  color: #9fd3b0;
+}
+:root[data-theme='dark'] .primary-button {
+  background: #dde3df;
+  color: #171a19;
+  border-color: #dde3df;
+}
