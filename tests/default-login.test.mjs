@@ -33,7 +33,11 @@ test('Claude: a switch moves only the login, and a refreshed login goes back to 
   const credentials = join(home, '.claude', '.credentials.json');
   const account = join(home, '.claude.json');
   put(credentials, { claudeAiOauth: { accessToken: 'mine-1' }, mcpOAuth: { server: 'keep' } });
-  put(account, { oauthAccount: { accountUuid: 'mine' }, numStartups: 5 });
+  put(account, {
+    oauthAccount: { accountUuid: 'mine' },
+    cachedUsageUtilization: 'mine-usage',
+    numStartups: 5,
+  });
   const p = profiles.add('claude-cli', 'P');
   const q = profiles.add('claude-cli', 'Q');
   claudeLogin(join(data, p.id), 'p-1', 'p', { projects: 'p-own' });
@@ -44,7 +48,12 @@ test('Claude: a switch moves only the login, and a refreshed login goes back to 
     claudeAiOauth: { accessToken: 'p-1' },
     mcpOAuth: { server: 'keep' },
   });
+  // Account caches follow the account: P has none, so none stays behind for it.
   assert.deepEqual(get(account), { oauthAccount: { accountUuid: 'p' }, numStartups: 5 });
+  assert.equal(
+    get(join(data, 'default-claude-cli', '.claude.json')).cachedUsageUtilization,
+    'mine-usage',
+  );
   assert.equal(
     get(join(data, 'default-claude-cli', '.credentials.json')).claudeAiOauth.accessToken,
     'mine-1',
@@ -66,7 +75,11 @@ test('Claude: a switch moves only the login, and a refreshed login goes back to 
     claudeAiOauth: { accessToken: 'mine-1' },
     mcpOAuth: { server: 'keep' },
   });
-  assert.deepEqual(get(account), { oauthAccount: { accountUuid: 'mine' }, numStartups: 5 });
+  assert.deepEqual(get(account), {
+    oauthAccount: { accountUuid: 'mine' },
+    cachedUsageUtilization: 'mine-usage',
+    numStartups: 5,
+  });
   assert.equal(get(join(data, q.id, '.credentials.json')).claudeAiOauth.accessToken, 'q-1');
   // The login found at the first switch is kept as it was.
   assert.deepEqual(get(join(data, 'original-claude-cli', '.credentials.json')), {

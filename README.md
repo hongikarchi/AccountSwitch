@@ -15,7 +15,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 계정의 "사용"을 누르면 그 계정의 로그인이 `~/.claude`·`~/.codex`로 옮겨져, 터미널·VS Code에서 따로 설정하지 않아도 그 계정이 쓰입니다.
 
-- **로그인만 옮깁니다.** Claude는 `~/.claude/.credentials.json`의 `claudeAiOauth`와 `~/.claude.json`의 `oauthAccount`, Codex는 `~/.codex/auth.json`만 바꿉니다. 설정·이력·MCP 로그인 등 다른 내용은 그대로입니다.
+- **로그인만 옮깁니다.** Claude는 `~/.claude/.credentials.json`의 `claudeAiOauth`와 `~/.claude.json`의 `oauthAccount`·그 계정에 대한 캐시(사용량·모델·조직 설정 등), Codex는 `~/.codex/auth.json`만 바꿉니다. 설정·이력·MCP 로그인 등 다른 내용은 그대로입니다.
 - **복사하지 않고 옮깁니다.** 로그인 토큰은 쓸 때마다 새로 바뀌므로 한 로그인이 두 곳에 있으면 한쪽이 끊깁니다. 바꿀 때마다 지금 들어 있는 로그인(그동안 갱신된 것)을 원래 계정 폴더에 되돌려 놓고 고른 계정을 넣습니다. 원래 쓰던 로그인은 `profiles\default-<서비스>\`에 있다가 "기존 CLI 로그인"을 다시 "사용"하면 돌아옵니다.
 - **처음 바꿀 때의 원래 로그인**은 `profiles\original-<서비스>\`에 한 번 그대로 보관합니다(손으로 되살릴 때용, 이후 덮어쓰지 않음).
 - **CLI가 실행 중이면 바꾸지 않습니다.** 실행 중인 CLI는 이전 로그인을 파일에 다시 써 넣기 때문입니다. 터미널과 VS Code의 Claude Code(`claude.exe`)·Codex(`codex.exe`)를 모두 닫은 뒤 바꾸세요.
