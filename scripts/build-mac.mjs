@@ -48,6 +48,12 @@ cpSync(join(bin, 'AccountSwitch'), join(app, 'Contents', 'MacOS', 'AccountSwitch
 cpSync(engine, join(app, 'Contents', 'MacOS', 'AccountSwitch-engine'));
 chmodSync(join(app, 'Contents', 'MacOS', 'AccountSwitch-engine'), 0o755);
 cpSync(join(root, 'LICENSE'), join(app, 'Contents', 'Resources', 'LICENSE.txt'));
+// Sparkle (self-update), with its links and helper apps kept as they are (ditto).
+mkdirSync(join(app, 'Contents', 'Frameworks'));
+run('ditto', [
+  join(bin, 'Sparkle.framework'),
+  join(app, 'Contents', 'Frameworks', 'Sparkle.framework'),
+]);
 
 // The app icon from the 1024-pixel picture.
 const iconset = join(out, 'AppIcon.iconset');
@@ -86,11 +92,20 @@ const plist = {
   LSMultipleInstancesProhibited: true,
   NSHighResolutionCapable: true,
   NSHumanReadableCopyright: 'MIT License',
+  // Updates: the appcast of the latest release, signed with the key whose public half is here;
+  // checked every six hours and installed when the app quits.
+  SUFeedURL: 'https://github.com/hongikarchi/AccountSwitch/releases/latest/download/appcast.xml',
+  SUPublicEDKey: readFileSync(join(source, 'sparkle-public-key.txt'), 'utf8').trim(),
+  SUEnableAutomaticChecks: true,
+  SUAutomaticallyUpdate: true,
+  SUScheduledCheckInterval: 21600,
 };
 const value = (item) =>
   typeof item === 'boolean'
     ? `<${item}/>`
-    : `<string>${String(item).replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</string>`;
+    : typeof item === 'number'
+      ? `<integer>${item}</integer>`
+      : `<string>${String(item).replaceAll('&', '&amp;').replaceAll('<', '&lt;')}</string>`;
 writeFileSync(
   join(app, 'Contents', 'Info.plist'),
   `<?xml version="1.0" encoding="UTF-8"?>

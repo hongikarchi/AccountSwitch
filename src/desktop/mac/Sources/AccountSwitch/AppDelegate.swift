@@ -1,10 +1,15 @@
 import AppKit
 import ServiceManagement
+import Sparkle
 
 /// Menu bar icon, app server, window and settings for one running AccountSwitch.
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
     private let engine = Engine()
+    /// Self-update (Sparkle): checks the appcast of the latest GitHub release, installs when the
+    /// app quits (SUAutomaticallyUpdate), or at once from the menu.
+    private let updater = SPUStandardUpdaterController(
+        startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
     private var shell: ShellWindow!
     private var settings = Settings.load()
     private var restarts = 0
@@ -36,6 +41,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(
             title: "원래 로그인으로 되돌리기…", action: #selector(restoreDefaultLogin), keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(
+            title: "업데이트 확인… (\(Paths.version))", action: #selector(checkForUpdates), keyEquivalent: ""))
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "종료", action: #selector(quit), keyEquivalent: "q"))
         for item in menu.items { item.target = self }
@@ -130,6 +138,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             alert("되돌리지 못했습니다.", result.output)
         }
+    }
+
+    @objc private func checkForUpdates() {
+        NSApp.activate(ignoringOtherApps: true)
+        updater.checkForUpdates(nil)
     }
 
     @objc private func quit() {
