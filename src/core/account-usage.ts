@@ -38,7 +38,7 @@ export interface AccountUsage {
   error?: string;
 }
 const settingsSchema = z.object({
-  usageLookup: z.boolean().default(false),
+  usageLookup: z.boolean().default(true),
   autoSwitch: z.boolean().default(false),
   threshold: z.number().int().min(50).max(100).default(90),
 });

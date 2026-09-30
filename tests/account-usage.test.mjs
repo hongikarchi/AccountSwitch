@@ -79,8 +79,10 @@ async function fixture(t) {
   return { service, second, calls, profiles };
 }
 
-test('accounts show who is signed in without any network call until usage lookup is on', async (t) => {
+test('usage lookup is on by default; turned off, accounts show who is signed in with no network call', async (t) => {
   const { service, calls } = await fixture(t);
+  assert.equal(service.settings().usageLookup, true);
+  service.setSettings({ usageLookup: false });
   const rows = await service.all();
   assert.equal(calls.length, 0);
   assert.deepEqual(

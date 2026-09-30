@@ -56,7 +56,8 @@ function App() {
         <h1>AccountSwitch</h1>
         <small>Claude·ChatGPT 구독 계정을 여러 개 등록하고 사용량을 봅니다.</small>
         <small>
-          ‘사용’으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸는 기능은 개발 중입니다.
+          ‘사용’을 누르면 그 계정이 터미널·VS Code의 기본 로그인이 됩니다(Claude Code·Codex를 모두
+          닫은 뒤).
         </small>
       </header>
       <div className="services">

@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountProfiles } from '../src/core/account-profiles.ts';
-import { DefaultLogin } from '../src/core/default-login.ts';
+import { DefaultLogin, isCli } from '../src/core/default-login.ts';
 
 // Everything runs in a temporary home; the real ~/.claude and ~/.codex are never touched.
 function fixture(t) {
@@ -128,4 +128,16 @@ test('no switch while the CLI runs, with a keyring store, or with an unreadable 
   assert.equal(profiles.selected('claude-cli'), 'default');
   assert.equal(readFileSync(join(home, '.claude.json'), 'utf8'), '{ broken');
   assert.deepEqual(readdirSync(join(home, '.claude')), []);
+});
+
+test('the Claude desktop app is not the Claude CLI', () => {
+  const store = String.raw`C:\Program Files\WindowsApps\Claude_1.30096.1.0_x64__abc\app\Claude.exe`;
+  const squirrel = String.raw`C:\Users\u\AppData\Local\AnthropicClaude\app-1.2.3\claude.exe`;
+  const npm = String.raw`C:\Users\u\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`;
+  assert.equal(isCli('claude-cli', [store, squirrel]), false);
+  assert.equal(isCli('claude-cli', [store, npm]), true);
+  assert.equal(isCli('claude-cli', [String.raw`C:\Users\u\.local\bin\claude.exe`]), true);
+  // A program whose path cannot be read might be the CLI.
+  assert.equal(isCli('claude-cli', ['']), true);
+  assert.equal(isCli('claude-cli', []), false);
 });

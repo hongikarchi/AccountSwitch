@@ -121,17 +121,40 @@ function owner(provider: Provider, values: unknown[]) {
   return typeof id === 'string' ? id : undefined;
 }
 
+/**
+ * Whether any of these running programs (paths; '' when unreadable) is the service's CLI.
+ * The Claude desktop app is also named Claude.exe but keeps its own login, so it does not count.
+ */
+export function isCli(provider: Provider, paths: string[]) {
+  const desktop =
+    /\\WindowsApps\\Claude_[^\\]*\\app\\claude\.exe$|\\AnthropicClaude\\app-[^\\]*\\claude\.exe$/i;
+  return paths.some((path) => provider === 'codex-cli' || !desktop.test(path.trim()));
+}
 /** Whether the service's CLI runs anywhere (terminal, VS Code); it would write its old login back. */
 export function cliRunning(provider: Provider) {
+  const name = IMAGE[provider].replace(/\.exe$/, '');
   return new Promise<boolean>((resolve, reject) =>
     execFile(
-      'tasklist.exe',
-      ['/FI', `IMAGENAME eq ${IMAGE[provider]}`, '/FO', 'CSV', '/NH'],
-      { windowsHide: true, timeout: 10_000 },
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        `Get-Process -Name ${name} -ErrorAction SilentlyContinue | ForEach-Object { '|' + $_.Path }; exit 0`,
+      ],
+      { windowsHide: true, timeout: 20_000 },
       (error, output) =>
         error
           ? reject(new DomainError('CLI_CHECK_FAILED'))
-          : resolve(output.toLowerCase().includes(`"${IMAGE[provider]}"`)),
+          : resolve(
+              isCli(
+                provider,
+                output
+                  .split(/\r?\n/)
+                  .filter((line) => line.startsWith('|'))
+                  .map((line) => line.slice(1)),
+              ),
+            ),
     ),
   );
 }

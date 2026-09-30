@@ -99,10 +99,20 @@ function installedCodex() {
 /** The CLI program of a service, or undefined when it is not installed. */
 export function executable(provider: Provider) {
   if (provider === 'claude-cli') {
+    // The native installer's copy, or the one the npm package ships (npm i -g @anthropic-ai/claude-code).
     const native = join(homedir(), '.local', 'bin', 'claude.exe');
+    const npm = join(
+      process.env.APPDATA || join(homedir(), 'AppData', 'Roaming'),
+      'npm',
+      'node_modules',
+      '@anthropic-ai',
+      'claude-code',
+      'bin',
+      'claude.exe',
+    );
     return (
       process.env.ACCOUNTSWITCH_CLAUDE_PATH ||
-      (existsSync(native) ? native : undefined) ||
+      [native, npm].find((file) => existsSync(file)) ||
       onPath('claude.exe')
     );
   }

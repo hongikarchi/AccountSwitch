@@ -2,7 +2,7 @@
 // (dist/ui) embedded as assets, injected into a copy of the Node runtime running this script
 // (Node single executable application). Run `npm run build:web` first (`npm run build:exe` does).
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -63,6 +63,14 @@ writeFileSync(
 );
 execFileSync(process.execPath, ['--experimental-sea-config', config], { stdio: 'inherit' });
 copyFileSync(process.execPath, exe);
+// Injecting leaves Node's own signature invalid, which some antivirus rates worse than none, so
+// remove it first. Required on CI (GitHub sets CI); optional on a developer machine.
+const signtool = findSigntool();
+if (signtool) execFileSync(signtool, ['remove', '/s', exe], { stdio: 'inherit' });
+else if (process.env.CI) {
+  console.error('signtool.exe (Windows SDK) was not found; set SIGNTOOL to its path.');
+  process.exit(1);
+} else console.warn('signtool.exe not found: the executable keeps an invalid Node signature.');
 execFileSync(
   process.execPath,
   [
@@ -77,3 +85,21 @@ execFileSync(
 );
 rmSync(work, { recursive: true, force: true });
 console.log('Built ' + relative(root, exe));
+
+/** signtool.exe: SIGNTOOL, PATH, or the newest x64 one of the Windows 10/11 SDK. */
+function findSigntool() {
+  const onPath = (process.env.PATH ?? '')
+    .split(';')
+    .map((folder) => folder && join(folder, 'signtool.exe'));
+  const kits = join(process.env['ProgramFiles(x86)'] ?? '', 'Windows Kits', '10', 'bin');
+  let sdk = [];
+  try {
+    sdk = readdirSync(kits)
+      .filter((name) => /^10\.\d+\.\d+\.\d+$/.test(name))
+      .sort((a, b) => b.localeCompare(a, 'en', { numeric: true }))
+      .map((name) => join(kits, name, 'x64', 'signtool.exe'));
+  } catch {
+    /* No Windows SDK. */
+  }
+  return [process.env.SIGNTOOL, ...onPath, ...sdk].find((file) => file && existsSync(file));
+}

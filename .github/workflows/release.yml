@@ -24,6 +24,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+      # Removes Node's signature with the Windows SDK's signtool before injecting (required on CI).
       - run: npm run build:exe
 
       - name: Inno Setup
