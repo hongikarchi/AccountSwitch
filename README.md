@@ -1,8 +1,8 @@
 # AccountSwitch
 
-Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows 프로그램입니다.
+Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows·macOS 프로그램입니다.
 
-> 상태: 초기 개발 중(0.1.x). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다.
+> 상태: 초기 개발 중(0.2.x). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다.
 
 ## 화면
 
@@ -15,8 +15,8 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 - 계정 하나 = 공식 CLI의 설정 폴더 하나입니다. Claude는 `CLAUDE_CONFIG_DIR`, Codex는 `CODEX_HOME`으로 그 폴더를 지정해 **공식 CLI가 직접** 로그인·토큰 저장을 합니다. 이 앱은 비밀번호나 토큰을 따로 저장하지 않습니다.
 - "기존 CLI 로그인"은 원래 쓰던 `~/.claude`·`~/.codex` 로그인입니다.
-- 계정 목록(이름·ID)은 `%LOCALAPPDATA%\AccountSwitch\profiles\profiles.json`, 추가한 계정의 CLI 폴더는 같은 `profiles\<ID>\` 아래에 있습니다.
-- 프로그램은 자기 창(WebView2)과 트레이 아이콘을 가진 작은 Windows 프로그램이고, 안에서 앱 서버(`engine\AccountSwitch-engine.exe`)를 창 없이 실행합니다. 서버는 `127.0.0.1`에서만 열리고, 실행할 때 만든 일회용 토큰으로 로그인한 창만 API를 쓸 수 있습니다.
+- 계정 데이터 폴더는 Windows `%LOCALAPPDATA%\AccountSwitch`, macOS `~/Library/Application Support/AccountSwitch`입니다. 계정 목록(이름·ID)은 그 안의 `profiles\profiles.json`, 추가한 계정의 CLI 폴더는 `profiles\<ID>\`입니다.
+- 프로그램은 자기 창과 트레이(macOS는 메뉴 막대) 아이콘을 가진 작은 프로그램(Windows: C#·WebView2, macOS: Swift·WKWebView)이고, 안에서 앱 서버(`AccountSwitch-engine`)를 창 없이 실행합니다. 화면과 기능은 이 서버가 두 OS에 똑같이 제공합니다. 서버는 `127.0.0.1`에서만 열리고, 실행할 때 만든 일회용 토큰으로 로그인한 창만 API를 쓸 수 있습니다.
 
 ## 기본 로그인 전환
 
@@ -30,6 +30,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - 사용 중인 계정은 로그인·로그아웃·제거를 할 수 없습니다. 먼저 다른 계정으로 바꾸세요.
 - Codex가 로그인을 시스템 자격 증명 저장소에 두도록 설정돼 있으면(`cli_auth_credentials_store`가 `file`이 아님) 바꾸지 않습니다.
 - 이전 버전에서 "사용"으로 골라 둔 계정은 실제 기본 로그인을 바꾸지 않았으므로, 처음 실행할 때 "기존 CLI 로그인"으로 돌아갑니다.
+- **macOS**: Claude Code는 로그인을 파일이 아니라 로그인 키체인에 둡니다(`~/.claude`는 `Claude Code-credentials`, 계정 폴더는 그 뒤에 폴더 경로 SHA-256의 앞 8자리가 붙은 항목). 앱은 Claude Code처럼 `/usr/bin/security`로 그 항목의 `claudeAiOauth`만 옮기므로 키체인 허용 창이 뜨지 않습니다. 켜져 있는 Claude Code는 키체인 값을 잠시 기억하므로 30초쯤 뒤부터 새 계정을 씁니다. 원래 로그인 보관용 폴더(`default-*`, `original-*`, `set-aside-*`)도 각자의 키체인 항목을 가집니다.
 
 ## 자동 전환 (기본 꺼짐)
 
@@ -47,6 +48,8 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 ## 설치
 
+### Windows
+
 [Releases](https://github.com/hongikarchi/AccountSwitch/releases/latest)에서 `AccountSwitch.App-win-Setup.exe`를 받아 실행합니다. 관리자 권한 없이 `%LOCALAPPDATA%\AccountSwitch.App`에 설치되고 시작 메뉴·바탕화면에 AccountSwitch가 생깁니다. Node.js는 필요 없습니다. 설치하지 않고 쓰려면 `AccountSwitch.App-win-Portable.zip`을 풀어 `AccountSwitch.exe`를 실행합니다(자동 업데이트 없음).
 
 - **자동 업데이트**: 설치본은 켜진 뒤 1분, 이후 6시간마다 새 릴리스를 확인해 내려받고, 프로그램을 끝낼 때 적용합니다(트레이 메뉴 "재시작하여 업데이트"로 바로 적용).
@@ -54,10 +57,20 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - 서명되지 않은 파일이라 처음 실행할 때 Windows SmartScreen 경고가 나올 수 있습니다("추가 정보" → "실행").
 - **삭제하면** 다른 계정을 "사용" 중이던 서비스는 원래 로그인("기존 CLI 로그인")으로 자동으로 되돌린 뒤 설치 폴더(`%LOCALAPPDATA%\AccountSwitch.App`)만 지웁니다. 계정 데이터(`%LOCALAPPDATA%\AccountSwitch`)는 남깁니다. 삭제 후에도 원래 로그인이 돌아오지 않았다면 다시 설치해 "기존 CLI 로그인"을 "사용"하세요.
 
+### macOS (Apple silicon)
+
+[Releases](https://github.com/hongikarchi/AccountSwitch/releases/latest)에서 `AccountSwitch.dmg`를 받아 열고, AccountSwitch를 응용 프로그램(Applications) 폴더로 끌어다 놓습니다.
+
+- **처음 열 때**: Apple 개발자 서명이 없어 "확인되지 않은 개발자" 경고가 나옵니다. 창을 닫고 시스템 설정 → 개인정보 보호 및 보안 → 아래쪽 **"그래도 열기"**를 누릅니다(macOS 15부터는 우클릭 → 열기로는 열리지 않습니다). 창에 "서버를 시작하지 못했습니다"가 나오면 터미널에서 `xattr -cr /Applications/AccountSwitch.app`를 실행한 뒤 다시 엽니다.
+- **메뉴 막대**: 메뉴 막대의 ⇄ 아이콘에서 열기·로그인 시 실행·창을 닫아도 메뉴 막대에 남기·업데이트 확인·종료를 합니다.
+- **자동 업데이트**(Sparkle): 6시간마다 최신 릴리스를 확인해 내려받고, 앱을 끝낼 때 설치합니다("업데이트 확인…"으로 바로 설치). 업데이트는 EdDSA 서명으로 확인합니다.
+- **지우기 전에** 메뉴 막대 아이콘 → **"원래 로그인으로 되돌리기…"**를 누르세요. macOS에는 삭제 프로그램이 없어, 앱을 휴지통에 넣기만 하면 다른 계정이 기본 로그인으로 남습니다. 계정 데이터(`~/Library/Application Support/AccountSwitch`)는 앱을 지워도 남습니다.
+- Intel Mac용은 아직 없습니다.
+
 ## 필요한 것
 
-- Windows 10/11 (Microsoft Edge WebView2 런타임: Windows 11과 대부분의 Windows 10에 이미 있음)
-- 쓰려는 CLI: [Claude Code](https://docs.claude.com/en/docs/claude-code) (공식 설치본, npm 전역 설치 또는 PATH), [Codex CLI](https://github.com/openai/codex) (npm 전역 설치 또는 PATH)
+- Windows 10/11 (Microsoft Edge WebView2 런타임: Windows 11과 대부분의 Windows 10에 이미 있음), 또는 macOS 13 이상(Apple silicon)
+- 쓰려는 CLI: [Claude Code](https://docs.claude.com/en/docs/claude-code) (공식 설치본, npm 전역 설치 또는 PATH), [Codex CLI](https://github.com/openai/codex) (npm 전역 설치, Homebrew 또는 PATH). macOS 앱은 로그인 셸의 PATH로 CLI를 찾습니다.
   - 다른 위치에 있으면 `ACCOUNTSWITCH_CLAUDE_PATH`, `ACCOUNTSWITCH_CODEX_PATH`로 실행 파일 경로를 지정합니다.
 
 ## 소스에서 실행
@@ -80,11 +93,12 @@ npm test           # 단위·서버 시험
 npm run typecheck
 npm run format
 npm run build:exe        # release\engine\AccountSwitch-engine.exe: 앱 서버 (Node 24.15 이상으로 실행해야 함: 실행 중인 Node가 exe에 들어감)
-npm run build:desktop    # releasepp\AccountSwitch.exe: 창·트레이 프로그램 (.NET SDK 필요)
+npm run build:desktop    # release\app\AccountSwitch.exe: 창·트레이 프로그램 (.NET SDK 필요)
 npm run build:installer  # release\installer\: Velopack 설치 파일·업데이트 패키지
+npm run build:mac        # (macOS) release/mac/: AccountSwitch.app·dmg·업데이트용 zip (Xcode 명령줄 도구 필요)
 ```
 
-`package.json`의 버전과 같은 태그(`v0.1.0`)를 올리면 GitHub Actions(`.github/workflows/release.yml`)가 시험·빌드 후 설치 파일과 업데이트 패키지를 Releases에 올리고, 설치된 프로그램이 이를 받아 업데이트합니다. 잘못된 릴리스도 모든 설치본에 퍼지므로 확인한 뒤에 태그를 올리세요.
+`package.json`의 버전과 같은 태그(`v0.2.0`)를 올리면 GitHub Actions(`.github/workflows/release.yml`)가 Windows와 macOS에서 시험·빌드한 뒤, 두 OS의 설치 파일과 업데이트 패키지(Windows: Velopack, macOS: Sparkle `appcast.xml`)를 같은 릴리스에 올리고, 설치된 프로그램이 이를 받아 업데이트합니다. macOS 업데이트 서명 키는 저장소 비밀값 `SPARKLE_PRIVATE_KEY`이고, 공개키는 `src/desktop/mac/sparkle-public-key.txt`입니다(비밀키를 잃으면 설치된 macOS 앱이 새 업데이트를 받지 못합니다). 잘못된 릴리스도 모든 설치본에 퍼지므로 확인한 뒤에 태그를 올리세요.
 
 | 위치 | 내용 |
 |---|---|
@@ -97,12 +111,15 @@ npm run build:installer  # release\installer\: Velopack 설치 파일·업데이
 | `src/core/cli.ts` | CLI 찾기, 계정별 환경 변수, 로그인 상태 확인 |
 | `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`) |
 | `src/ui/` | React 화면 |
-| `src/desktop/shell/` | 창(WebView2)·트레이·자동 시작·업데이트(Velopack) 프로그램 (C#, .NET Framework 4.8) |
-| `scripts/` | 앱 서버 exe(Node SEA), 프로그램·설치 파일 빌드 |
+| `src/core/keychain.ts` | macOS 로그인 키체인 (Claude Code의 로그인 항목) |
+| `src/desktop/shell/` | Windows: 창(WebView2)·트레이·자동 시작·업데이트(Velopack) 프로그램 (C#, .NET Framework 4.8) |
+| `src/desktop/mac/` | macOS: 메뉴 막대·창(WKWebView)·로그인 시 실행·업데이트(Sparkle) 앱 (Swift) |
+| `scripts/` | 앱 서버(Node SEA), 프로그램·설치 파일·업데이트 목록 빌드 |
 
 ## 다음 단계
 
-1. **코드 서명**: SmartScreen 경고를 없애는 코드 서명.
+1. **코드 서명**: Windows SmartScreen·macOS Gatekeeper 경고를 없애는 코드 서명(macOS는 Apple 개발자 계정·공증 필요).
+2. **Intel Mac**: macOS 앱의 x64 빌드.
 
 ## 출처
 

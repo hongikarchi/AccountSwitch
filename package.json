@@ -1,6 +1,6 @@
 {
   "name": "accountswitch",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "private": true,
   "description": "Several Claude and ChatGPT subscription accounts for Claude Code and the Codex CLI, with their usage, in one local web page.",
   "license": "MIT",
