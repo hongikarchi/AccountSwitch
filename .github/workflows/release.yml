@@ -97,6 +97,27 @@ jobs:
       # keeps its links and permissions.
       - run: node scripts/build-mac.mjs
 
+      # Open the app as Finder would: the server starts and answers, the window shows the page,
+      # and quitting stops the server.
+      - name: Open the app once
+        run: |
+          open release/mac/AccountSwitch.app
+          for i in $(seq 30); do
+            test -f "$HOME/Library/Application Support/AccountSwitch/launch.json" && break; sleep 1
+          done
+          sleep 5
+          pgrep -fl AccountSwitch-engine
+          screencapture -x "$RUNNER_TEMP/window.png"
+          osascript -e 'tell application "AccountSwitch" to quit'
+          sleep 5
+          if pgrep -fl AccountSwitch-engine; then echo "server still running"; exit 1; fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-window
+          path: ${{ runner.temp }}/window.png
+
       - uses: actions/upload-artifact@v4
         with:
           name: AccountSwitch-macos-arm64
