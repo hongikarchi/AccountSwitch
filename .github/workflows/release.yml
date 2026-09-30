@@ -1,6 +1,7 @@
 name: Release
 
-# A version tag (v0.1.0) builds the Windows installer and publishes it as a GitHub release.
+# A version tag (v0.1.0, matching package.json) builds the PC program and publishes it as a GitHub
+# release; installed copies update themselves from the latest release (Velopack).
 # Running it by hand builds the same files as a workflow artifact without releasing.
 on:
   push:
@@ -13,6 +14,8 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
+    env:
+      REPO_URL: https://github.com/${{ github.repository }}
     steps:
       - uses: actions/checkout@v5
 
@@ -24,32 +27,39 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
-      # Removes Node's signature with the Windows SDK's signtool before injecting (required on CI).
-      - run: npm run build:exe
+      - run: dotnet tool restore
 
-      - name: Inno Setup
-        shell: pwsh
-        run: |
-          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
-              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
-            choco install innosetup -y --no-progress
-          }
-      - run: node scripts/build-installer.mjs
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: AccountSwitch
-          path: release/*.exe
-
-      - name: Publish release
+      - name: Check version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
           $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           if ("v$version" -ne "${{ github.ref_name }}") {
             throw "Tag ${{ github.ref_name }} does not match package.json version $version"
           }
-          gh release create "${{ github.ref_name }}" "release/AccountSwitch-Setup-$version.exe" `
-            --title "AccountSwitch $version" --generate-notes
+
+      # The latest release lets vpk make a small delta update from it (none before the first).
+      - name: Previous release
+        if: startsWith(github.ref, 'refs/tags/v')
+        continue-on-error: true
+        run: dotnet vpk download github --repoUrl ${{ env.REPO_URL }} --token ${{ github.token }} --outputDir release/installer
+
+      # Engine (removes Node's signature with the Windows SDK's signtool first), window/tray
+      # shell and Velopack packages in release/installer.
+      - run: npm run build:installer
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AccountSwitch
+          path: |
+            release/installer/*Setup.exe
+            release/installer/*Portable.zip
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          dotnet vpk upload github --repoUrl $env:REPO_URL --token ${{ github.token }} `
+            --outputDir release/installer --publish --tag "${{ github.ref_name }}" `
+            --releaseName "AccountSwitch $version"

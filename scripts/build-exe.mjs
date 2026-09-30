@@ -1,4 +1,5 @@
-// Build release/AccountSwitch.exe: the server bundled into one CommonJS script, the built page
+// Build release/engine/AccountSwitch-engine.exe (the app server the PC program runs; alone it
+// opens the page in the browser): the server bundled into one CommonJS script, the built page
 // (dist/ui) embedded as assets, injected into a copy of the Node runtime running this script
 // (Node single executable application). Run `npm run build:web` first (`npm run build:exe` does).
 import { execFileSync } from 'node:child_process';
@@ -21,9 +22,10 @@ if (process.platform !== 'win32') {
   process.exit(1);
 }
 
-const work = join(root, 'release', 'build');
-const exe = join(root, 'release', 'AccountSwitch.exe');
-rmSync(join(root, 'release'), { recursive: true, force: true });
+const out = join(root, 'release', 'engine');
+const work = join(out, 'build');
+const exe = join(out, 'AccountSwitch-engine.exe');
+rmSync(out, { recursive: true, force: true });
 mkdirSync(work, { recursive: true });
 
 await build({

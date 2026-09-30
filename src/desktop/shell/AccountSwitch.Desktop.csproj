@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- AccountSwitch PC program: own window (WebView2), tray, autostart and updates (Velopack).
+       .NET Framework 4.8 ships with Windows 10/11, so no extra runtime install is needed. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <PlatformTarget>x64</PlatformTarget>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <AssemblyName>AccountSwitch</AssemblyName>
+    <RootNamespace>AccountSwitch.Desktop</RootNamespace>
+    <ApplicationIcon>accountswitch.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Version>0.0.0</Version>
+    <Product>AccountSwitch</Product>
+    <Company>AccountSwitch</Company>
+    <OutputPath>../../../.build/desktop/bin/</OutputPath>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4258.31" />
+    <PackageReference Include="Velopack" Version="1.2.158" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="System.Web.Extensions" />
+  </ItemGroup>
+</Project>

@@ -5,12 +5,15 @@ import { join } from 'node:path';
 import { startServer } from './server.ts';
 
 // Start the local app and open it in the default browser. A second start opens the running one.
+// --desktop: run under the PC program (src/desktop/shell), which shows the page in its own window:
+// no browser, the address is given on standard output, and the app stops when its input closes.
 const directory =
   process.env.ACCOUNTSWITCH_DATA ||
   join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'AccountSwitch');
 mkdirSync(directory, { recursive: true });
 const launchFile = join(directory, 'launch.json');
-const noOpen = process.argv.includes('--no-open');
+const desktop = process.argv.includes('--desktop');
+const noOpen = desktop || process.argv.includes('--no-open');
 
 function open(url: string) {
   if (noOpen) return;
@@ -29,7 +32,9 @@ async function main() {
     const alive = await fetch(new URL('api/v1/accounts', running.url)).catch(() => undefined);
     if (alive) {
       open(running.url);
-      console.log(`AccountSwitch is already running: ${new URL(running.url).origin}`);
+      // The PC program shows the running one instead (it does not own it).
+      if (desktop) console.log(`AccountSwitch attached: ${running.url}`);
+      else console.log(`AccountSwitch is already running: ${new URL(running.url).origin}`);
       process.exit(0);
     }
   } catch {
@@ -40,12 +45,18 @@ async function main() {
   writeFileSync(launchFile, JSON.stringify({ url: app.launchUrl, pid: process.pid }), {
     mode: 0o600,
   });
-  console.log(`AccountSwitch: ${app.url}`);
-  console.log('Closing this window stops AccountSwitch.');
-  open(app.launchUrl);
   const stop = () => void app.close().finally(() => process.exit(0));
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
+  if (desktop) {
+    // Only the PC program reads this output. Closing its input (or its end) stops the app.
+    console.log(`AccountSwitch launch: ${app.launchUrl}`);
+    process.stdin.on('end', stop).on('close', stop).resume();
+    return;
+  }
+  console.log(`AccountSwitch: ${app.url}`);
+  console.log('Closing this window stops AccountSwitch.');
+  open(app.launchUrl);
 }
 void main().catch((error) => {
   console.error(error);

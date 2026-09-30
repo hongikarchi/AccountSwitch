@@ -1,6 +1,6 @@
 # AccountSwitch
 
-Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일)을 한 화면에서 보는 Windows용 로컬 웹 앱입니다.
+Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일)을 한 화면에서 보는 Windows 프로그램입니다.
 
 > 상태: 초기 개발 중(0.1.0). 계정 추가·로그인·이름 변경·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기가 됩니다.
 
@@ -9,7 +9,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - 계정 하나 = 공식 CLI의 설정 폴더 하나입니다. Claude는 `CLAUDE_CONFIG_DIR`, Codex는 `CODEX_HOME`으로 그 폴더를 지정해 **공식 CLI가 직접** 로그인·토큰 저장을 합니다. 이 앱은 비밀번호나 토큰을 따로 저장하지 않습니다.
 - "기존 CLI 로그인"은 원래 쓰던 `~/.claude`·`~/.codex` 로그인입니다.
 - 계정 목록(이름·ID)은 `%LOCALAPPDATA%\AccountSwitch\profiles\profiles.json`, 추가한 계정의 CLI 폴더는 같은 `profiles\<ID>\` 아래에 있습니다.
-- 화면은 `127.0.0.1`에서만 열리고, 실행할 때 만든 일회용 토큰으로 로그인한 브라우저 창만 API를 쓸 수 있습니다.
+- 프로그램은 자기 창(WebView2)과 트레이 아이콘을 가진 작은 Windows 프로그램이고, 안에서 앱 서버(`engine\AccountSwitch-engine.exe`)를 창 없이 실행합니다. 서버는 `127.0.0.1`에서만 열리고, 실행할 때 만든 일회용 토큰으로 로그인한 창만 API를 쓸 수 있습니다.
 
 ## 기본 로그인 전환
 
@@ -30,16 +30,17 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 ## 설치
 
-[Releases](https://github.com/hongikarchi/AccountSwitch/releases)에서 `AccountSwitch-Setup-<버전>.exe`를 받아 실행합니다. 관리자 권한 없이 `%LOCALAPPDATA%\Programs\AccountSwitch`에 설치되고 시작 메뉴에 등록됩니다. Node.js는 필요 없습니다.
+[Releases](https://github.com/hongikarchi/AccountSwitch/releases/latest)에서 `AccountSwitch.App-win-Setup.exe`를 받아 실행합니다. 관리자 권한 없이 `%LOCALAPPDATA%\AccountSwitch.App`에 설치되고 시작 메뉴·바탕화면에 AccountSwitch가 생깁니다. Node.js는 필요 없습니다. 설치하지 않고 쓰려면 `AccountSwitch.App-win-Portable.zip`을 풀어 `AccountSwitch.exe`를 실행합니다(자동 업데이트 없음).
 
+- **자동 업데이트**: 설치본은 켜진 뒤 1분, 이후 6시간마다 새 릴리스를 확인해 내려받고, 프로그램을 끝낼 때 적용합니다(트레이 메뉴 "재시작하여 업데이트"로 바로 적용).
+- **창과 트레이**: 창을 닫아도 트레이에서 계속 실행됩니다(트레이 메뉴 "창을 닫아도 트레이에서 실행"). 끝내려면 트레이 메뉴의 "종료"를 누릅니다. "Windows 시작 시 실행"을 켜면 로그인할 때 트레이로 시작합니다.
 - 서명되지 않은 파일이라 처음 실행할 때 Windows SmartScreen 경고가 나올 수 있습니다("추가 정보" → "실행").
-- 실행하면 콘솔 창이 함께 열립니다. 이 창이 앱 서버이며, 닫으면 AccountSwitch가 꺼집니다.
-- **삭제하기 전에** 다른 계정을 "사용" 중이면 "기존 CLI 로그인"을 다시 "사용"해 원래 로그인으로 되돌리세요. 삭제해도 계정 데이터(`%LOCALAPPDATA%\AccountSwitch`)는 지우지 않습니다. 원래 로그인이 그 안에 보관돼 있을 수 있기 때문입니다.
+- **삭제하기 전에** 다른 계정을 "사용" 중이면 "기존 CLI 로그인"을 다시 "사용"해 원래 로그인으로 되돌리세요. 삭제는 설치 폴더(`%LOCALAPPDATA%\AccountSwitch.App`)만 지우고 계정 데이터(`%LOCALAPPDATA%\AccountSwitch`)는 남깁니다. 원래 로그인이 그 안에 보관돼 있을 수 있기 때문입니다.
 
 ## 필요한 것
 
-- Windows 10/11
-- 쓰려는 CLI: [Claude Code](https://docs.claude.com/en/docs/claude-code) (`~/.local/bin/claude.exe` 또는 PATH), [Codex CLI](https://github.com/openai/codex) (npm 전역 설치 또는 PATH)
+- Windows 10/11 (Microsoft Edge WebView2 런타임: Windows 11과 대부분의 Windows 10에 이미 있음)
+- 쓰려는 CLI: [Claude Code](https://docs.claude.com/en/docs/claude-code) (공식 설치본, npm 전역 설치 또는 PATH), [Codex CLI](https://github.com/openai/codex) (npm 전역 설치 또는 PATH)
   - 다른 위치에 있으면 `ACCOUNTSWITCH_CLAUDE_PATH`, `ACCOUNTSWITCH_CODEX_PATH`로 실행 파일 경로를 지정합니다.
 
 ## 소스에서 실행
@@ -61,11 +62,12 @@ npm start          # 화면을 빌드하고 기본 브라우저로 엽니다
 npm test           # 단위·서버 시험
 npm run typecheck
 npm run format
-npm run build:exe        # release\AccountSwitch.exe (Node 24.15 이상으로 실행해야 함: 실행 중인 Node가 exe에 들어감)
-npm run build:installer  # release\AccountSwitch-Setup-<버전>.exe (Inno Setup 6 필요)
+npm run build:exe        # release\engine\AccountSwitch-engine.exe: 앱 서버 (Node 24.15 이상으로 실행해야 함: 실행 중인 Node가 exe에 들어감)
+npm run build:desktop    # releasepp\AccountSwitch.exe: 창·트레이 프로그램 (.NET SDK 필요)
+npm run build:installer  # release\installer\: Velopack 설치 파일·업데이트 패키지
 ```
 
-`package.json`의 버전과 같은 태그(`v0.1.0`)를 올리면 GitHub Actions(`.github/workflows/release.yml`)가 시험·빌드 후 설치 파일을 Releases에 올립니다.
+`package.json`의 버전과 같은 태그(`v0.1.0`)를 올리면 GitHub Actions(`.github/workflows/release.yml`)가 시험·빌드 후 설치 파일과 업데이트 패키지를 Releases에 올리고, 설치된 프로그램이 이를 받아 업데이트합니다. 잘못된 릴리스도 모든 설치본에 퍼지므로 확인한 뒤에 태그를 올리세요.
 
 | 위치 | 내용 |
 |---|---|
@@ -76,12 +78,13 @@ npm run build:installer  # release\AccountSwitch-Setup-<버전>.exe (Inno Setup 
 | `src/core/cli.ts` | CLI 찾기, 계정별 환경 변수, 로그인 상태 확인 |
 | `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`) |
 | `src/ui/` | React 화면 |
-| `scripts/`, `installer/` | 실행 파일(Node SEA)과 Inno Setup 설치 파일 빌드 |
+| `src/desktop/shell/` | 창(WebView2)·트레이·자동 시작·업데이트(Velopack) 프로그램 (C#, .NET Framework 4.8) |
+| `scripts/` | 앱 서버 exe(Node SEA), 프로그램·설치 파일 빌드 |
 
 ## 다음 단계
 
 1. **한도 자동 전환**: 선택 계정이 기준(%)을 넘으면 여유가 가장 많은 계정으로 바꿉니다(`AccountUsageService.choose`는 이미 있음). CLI가 실행 중이면 바꿀 수 없으므로, CLI가 꺼질 때까지 기다렸다 바꾸는 처리가 필요합니다.
-2. **코드 서명·아이콘**: SmartScreen 경고를 없애는 코드 서명, 실행 파일 아이콘, 콘솔 창 없이 트레이에서 실행.
+2. **코드 서명**: SmartScreen 경고를 없애는 코드 서명.
 
 ## 출처
 
