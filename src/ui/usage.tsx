@@ -26,7 +26,6 @@ const usageSchema = z.object({
         .array(z.object({ name: z.string(), percent: z.number(), resetsAt: z.string().nullable() }))
         .optional(),
       limitReached: z.boolean(),
-      limitedUntil: z.string().optional(),
       checkedAt: z.string().optional(),
       state: z.enum(['ok', 'off', 'signed-out', 'token-expired', 'error']),
       error: z.string().optional(),
@@ -105,9 +104,6 @@ export function AccountUsageLines({ account }: { account?: AccountUsage }) {
       {account.models?.map((model) => (
         <Line key={model.name} label={model.name} value={model} />
       ))}
-      {account.limitedUntil ? (
-        <small className="usage-note">한도 · {when(account.limitedUntil)}까지</small>
-      ) : null}
       {account.state === 'token-expired' ? (
         <small className="usage-note">
           토큰 만료로 마지막 값 · 이 계정을 한 번 쓰면 갱신됩니다

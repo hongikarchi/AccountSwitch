@@ -35,8 +35,6 @@ export interface AccountUsage {
   /** Claude: per-model weekly limits (e.g. Fable), shown but not counted for auto switch. */
   models?: (UsageWindow & { name: string })[];
   limitReached: boolean;
-  /** Set when a request failed on this account's limit (until the reset time, or an hour). */
-  limitedUntil?: string;
   checkedAt?: string;
   state: 'ok' | 'off' | 'signed-out' | 'token-expired' | 'error';
   error?: string;
@@ -166,18 +164,14 @@ export class AccountUsageService {
       signedIn: !!identity.token,
       email: identity.email,
       plan: identity.plan,
-      limitedUntil:
-        cached?.limitedUntil && Date.parse(cached.limitedUntil) > this.options.now()
-          ? cached.limitedUntil
-          : undefined,
     };
     if (!identity.token)
       return this.store(key, { ...base, limitReached: false, state: 'signed-out' });
     if (!this.settings().usageLookup)
-      return this.store(key, { ...base, limitReached: !!base.limitedUntil, state: 'off' });
+      return this.store(key, { ...base, limitReached: false, state: 'off' });
     const age = cached?.fetchedAt ? this.options.now() - cached.fetchedAt : Infinity;
     if (cached?.fetchedAt && age < (force ? FORCED_INTERVAL_MS : MIN_INTERVAL_MS))
-      return { ...cached, ...base, limitReached: cached.limitReached || !!base.limitedUntil };
+      return { ...cached, ...base };
     // The CLI refreshes its own token on its next run; an expired one is never refreshed here.
     if (identity.expiresAt && identity.expiresAt < this.options.now())
       return this.store(key, {
@@ -330,22 +324,8 @@ export class AccountUsageService {
         rows.push(await this.get(provider, id, force));
     return rows;
   }
-  /** A request failed on this account's limit: skip it until its reset (or for an hour). */
-  markLimited(provider: Provider, id: string) {
-    const key = this.key(provider, id);
-    const cached = this.cache.get(key);
-    const resets = [cached?.session, cached?.weekly]
-      .filter((w) => w && w.percent >= 90 && w.resetsAt)
-      .map((w) => Date.parse(w!.resetsAt!));
-    const until = resets.length ? Math.max(...resets) : this.options.now() + 3600_000;
-    this.cache.set(key, {
-      ...(cached ?? { provider, id, signedIn: true, state: 'ok' as const }),
-      limitReached: true,
-      limitedUntil: new Date(until).toISOString(),
-    });
-  }
   private load(usage: AccountUsage) {
-    if (usage.limitReached || usage.limitedUntil) return Infinity;
+    if (usage.limitReached) return Infinity;
     return Math.max(usage.session?.percent ?? 0, usage.weekly?.percent ?? 0);
   }
   /**

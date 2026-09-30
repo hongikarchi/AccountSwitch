@@ -400,7 +400,7 @@ export function AccountSettings({
                 <span className="account-name">
                   {row.label}
                   {active ? <span className="account-badge">사용 중</span> : null}
-                  {current?.limitReached || current?.limitedUntil ? (
+                  {current?.limitReached ? (
                     <span className="account-badge" data-limit="true">
                       한도
                     </span>

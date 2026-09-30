@@ -5,7 +5,6 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountProfiles } from '../src/core/account-profiles.ts';
 import { AccountUsageService } from '../src/core/account-usage.ts';
-import { USAGE_LIMIT } from '../src/core/cli.ts';
 
 const jwt = (payload) =>
   ['e30', Buffer.from(JSON.stringify(payload)).toString('base64url'), 'sig'].join('.');
@@ -132,30 +131,11 @@ test('usage lookup reads each account once per interval and auto-switch picks th
     id: 'default',
     switched: false,
   });
-  // A request that stopped on the second account's limit makes it skipped too; with nowhere
-  // better to go the current account stays.
-  service.markLimited('codex-cli', second.id);
-  assert.deepEqual(await service.choose('codex-cli', 'default'), {
-    id: 'default',
-    switched: false,
-  });
   service.setSettings({ autoSwitch: false });
   assert.deepEqual(await service.choose('codex-cli', 'default'), {
     id: 'default',
     switched: false,
   });
-});
-
-test('subscription limit messages of both CLIs are recognised', () => {
-  for (const text of [
-    'Claude AI usage limit reached|1791066305',
-    "You've hit your usage limit. Upgrade to Pro",
-    '5-hour limit reached ∙ resets 3pm',
-    'usage_limit_reached',
-    'Rate limit exceeded (429)',
-  ])
-    assert.match(text, USAGE_LIMIT);
-  assert.doesNotMatch('Compilation failed: unexpected token', USAGE_LIMIT);
 });
 
 test('auto-switch never moves to an account within 10 points of the threshold', async (t) => {

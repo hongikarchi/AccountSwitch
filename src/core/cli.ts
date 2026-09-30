@@ -38,10 +38,6 @@ export function accountEnvironment(provider: Provider, directory?: string) {
   return env;
 }
 
-/** A subscription usage/rate limit, as the CLIs word it (Claude and Codex). */
-export const USAGE_LIMIT =
-  /usage limit|rate limit|rate_limit|limit reached|limit_reached|hit your (usage )?limit|quota|too many requests|\b429\b/i;
-
 export function killOwnedProcess(child: ChildProcess): Promise<boolean> {
   return new Promise((resolve) => {
     if (child.exitCode !== null || child.signalCode !== null) return resolve(true);

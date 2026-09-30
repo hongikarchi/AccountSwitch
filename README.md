@@ -1,8 +1,15 @@
 # AccountSwitch
 
-Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일)을 한 화면에서 보는 Windows 프로그램입니다.
+Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows 프로그램입니다.
 
-> 상태: 초기 개발 중(0.1.0). 계정 추가·로그인·이름 변경·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기가 됩니다.
+> 상태: 초기 개발 중(0.1.x). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다.
+
+## 화면
+
+- 서비스(Claude·ChatGPT)마다 계정 목록이 있고, 각 계정 아래에 사용량 막대가 붙습니다. 이름 앞의 점과 막대 색으로 서비스를 구분합니다(Claude 주황, ChatGPT 초록).
+- 계정 줄을 끌어다 다른 계정 위에 놓으면 순서가 바뀝니다("기존 CLI 로그인" 포함). 순서는 서비스별로 `profiles.json`에 저장됩니다.
+- 계정의 "사용"으로 기본 로그인을 바꾸고, `⋯` 메뉴에서 이름 변경·로그인·로그아웃·제거를 합니다.
+- 화면 아래에서 사용량 조회·자동 전환을 켜고 끄며, 오른쪽 위에서 테마(시스템·라이트·다크)를 고릅니다.
 
 ## 어떻게 동작하나
 
@@ -34,7 +41,9 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 ## 사용량 조회 (기본 켜짐, 끌 수 있음)
 
-각 계정의 로그인 토큰으로 Claude·ChatGPT의 **공개 문서가 없는** 사용량 주소를 3분마다 조회합니다(`api.anthropic.com/api/oauth/usage`, `chatgpt.com/backend-api/wham/usage`). 공식 API가 아니므로 예고 없이 바뀌거나 막힐 수 있고, 서비스 약관상 문제가 될 수 있습니다. 원하지 않으면 화면의 "계정별 사용량 조회"를 끄세요. 끄면 사용량 주소로 아무것도 보내지 않습니다. 토큰은 새로 발급하거나 고쳐 쓰지 않고, 기록이나 화면에 내보내지 않습니다.
+각 계정의 로그인 토큰으로 Claude·ChatGPT의 **공개 문서가 없는** 사용량 주소를 3분마다 조회합니다(`api.anthropic.com/api/oauth/usage`, `chatgpt.com/backend-api/wham/usage`). 공식 API가 아니므로 예고 없이 바뀌거나 막힐 수 있고, 서비스 약관상 문제가 될 수 있습니다. 원하지 않으면 화면 아래의 "사용량 조회"를 끄세요. 끄면 사용량 주소로 아무것도 보내지 않습니다. 토큰은 새로 발급하거나 고쳐 쓰지 않고, 기록이나 화면에 내보내지 않습니다.
+
+- 보이는 값: 5시간(ChatGPT는 짧은 한도)·7일 사용률과 초기화 시각, Claude는 응답의 `limits`에 오는 모델별 주간 한도(예: Fable)도 함께 표시합니다. 자동 전환은 5시간·7일만 봅니다.
 
 ## 설치
 
@@ -79,10 +88,12 @@ npm run build:installer  # release\installer\: Velopack 설치 파일·업데이
 
 | 위치 | 내용 |
 |---|---|
-| `src/core/account-profiles.ts` | 계정 목록 (추가·이름 변경·선택·제거, 폴더 경로 검사) |
-| `src/core/default-login.ts` | 기본 로그인 전환 (로그인 옮기기, CLI 실행 확인) |
+| `src/core/account-profiles.ts` | 계정 목록 (추가·이름 변경·순서·선택·제거, 폴더 경로 검사) |
+| `src/core/default-login.ts` | 기본 로그인 전환 (로그인 옮기기, Claude Code 잠금) |
+| `src/core/auto-switch.ts` | 사용량 기준 자동 전환 |
+| `src/core/restore.ts` | 삭제할 때 원래 로그인 되돌리기 |
 | `src/core/account-login.ts` | 공식 CLI로 로그인·로그아웃 (주소·코드 표시, 10분 제한) |
-| `src/core/account-usage.ts` | 로그인한 사람·요금제, 사용량 조회와 한도 표시 |
+| `src/core/account-usage.ts` | 로그인한 사람·요금제, 사용량 조회(모델별 한도 포함), 전환할 계정 고르기 |
 | `src/core/cli.ts` | CLI 찾기, 계정별 환경 변수, 로그인 상태 확인 |
 | `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`) |
 | `src/ui/` | React 화면 |
