@@ -22,6 +22,9 @@ const usageSchema = z.object({
       plan: z.string().optional(),
       session: windowSchema,
       weekly: windowSchema,
+      models: z
+        .array(z.object({ name: z.string(), percent: z.number(), resetsAt: z.string().nullable() }))
+        .optional(),
       limitReached: z.boolean(),
       limitedUntil: z.string().optional(),
       checkedAt: z.string().optional(),
@@ -99,6 +102,9 @@ export function AccountUsageLines({ account }: { account?: AccountUsage }) {
         value={account.session}
       />
       <Line label="7일" value={account.weekly} />
+      {account.models?.map((model) => (
+        <Line key={model.name} label={model.name} value={model} />
+      ))}
       {account.limitedUntil ? (
         <small className="usage-note">한도 · {when(account.limitedUntil)}까지</small>
       ) : null}

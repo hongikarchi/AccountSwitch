@@ -41,6 +41,14 @@ const schema = z
       })
       .strict()
       .optional(),
+    /** The order the user gave each service's accounts ('default' included); others follow. */
+    order: z
+      .object({
+        'claude-cli': z.array(z.string()).max(31).optional(),
+        'codex-cli': z.array(z.string()).max(31).optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 type Data = z.infer<typeof schema>;
@@ -116,6 +124,22 @@ export class AccountProfiles {
     this.save();
     return row;
   }
+  /** Put a service's accounts in this order: every one of them ('default' included), once. */
+  reorder(provider: Provider, ids: string[]) {
+    const own = [
+      'default',
+      ...this.data.profiles.filter((p) => p.provider === provider).map((p) => p.id),
+    ];
+    if (
+      ids.length !== own.length ||
+      new Set(ids).size !== ids.length ||
+      !ids.every((id) => own.includes(id))
+    )
+      fail('INVALID_INPUT');
+    this.data.order = { ...this.data.order, [provider]: ids };
+    this.save();
+    return this.list();
+  }
   /** Rename an account; an empty name gives the default login its standard name back. */
   rename(provider: Provider, id: string, label: string) {
     const name = label.trim();
@@ -176,6 +200,9 @@ export class AccountProfiles {
       fail('PROFILE_CLEANUP_FAILED');
     }
     this.data.profiles = this.data.profiles.filter((row) => row.id !== id);
+    const order = this.data.order?.[provider];
+    if (order)
+      this.data.order = { ...this.data.order, [provider]: order.filter((row) => row !== id) };
     this.save();
     return this.list();
   }

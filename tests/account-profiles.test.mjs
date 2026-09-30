@@ -179,3 +179,26 @@ test('accounts can be renamed, including the existing CLI login, even while busy
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('accounts keep the order they were given; a removed one leaves it', () => {
+  const root = mkdtempSync(join(tmpdir(), 'accountswitch-order-'));
+  try {
+    const profiles = new AccountProfiles(root, () => false);
+    const a = profiles.add('claude-cli', 'A');
+    const b = profiles.add('claude-cli', 'B');
+    const other = profiles.add('codex-cli', 'Other');
+    profiles.reorder('claude-cli', [b.id, 'default', a.id]);
+    for (const wrong of [
+      [b.id, a.id],
+      [b.id, 'default', a.id, a.id],
+      [b.id, 'default', other.id],
+    ])
+      assert.throws(() => profiles.reorder('claude-cli', wrong), { code: 'INVALID_INPUT' });
+    const restored = new AccountProfiles(root, () => false);
+    assert.deepEqual(restored.list().order, { 'claude-cli': [b.id, 'default', a.id] });
+    restored.remove('claude-cli', b.id);
+    assert.deepEqual(restored.list().order, { 'claude-cli': ['default', a.id] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

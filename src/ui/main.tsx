@@ -94,9 +94,7 @@ function App() {
             data-provider={provider}
             aria-labelledby={`${provider}-title`}
           >
-            <h2 id={`${provider}-title`}>
-              {names[provider].name} <small>{names[provider].cli}</small>
-            </h2>
+            <h2 id={`${provider}-title`}>{names[provider].name}</h2>
             {installed && !installed[provider] ? (
               <p className="cli-missing">
                 {names[provider].cli}를 찾지 못했습니다. 설치한 뒤 이 화면을 새로고침하세요.

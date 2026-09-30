@@ -224,6 +224,14 @@ export async function startServer({ directory, port = 0 }: Options) {
         send(200, profiles.remove(input.provider, input.id));
         return;
       }
+      if (url.pathname === '/api/v1/accounts/order' && request.method === 'POST') {
+        const input = z
+          .object({ provider, ids: z.array(z.string()).max(31) })
+          .strict()
+          .parse(await body(request));
+        send(200, profiles.reorder(input.provider, input.ids));
+        return;
+      }
       if (url.pathname === '/api/v1/accounts/rename' && request.method === 'POST') {
         const input = z
           .object({ provider, id: z.string(), label: z.string().max(80) })

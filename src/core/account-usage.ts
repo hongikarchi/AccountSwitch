@@ -32,6 +32,8 @@ export interface AccountUsage {
   session?: UsageWindow;
   /** 7-day window. */
   weekly?: UsageWindow;
+  /** Claude: per-model weekly limits (e.g. Fable), shown but not counted for auto switch. */
+  models?: (UsageWindow & { name: string })[];
   limitReached: boolean;
   /** Set when a request failed on this account's limit (until the reset time, or an hour). */
   limitedUntil?: string;
@@ -219,7 +221,10 @@ export class AccountUsageService {
     provider: Provider,
     identity: ReturnType<AccountUsageService['identity']>,
   ): Promise<
-    Pick<AccountUsage, 'session' | 'weekly' | 'limitReached' | 'checkedAt' | 'email' | 'plan'>
+    Pick<
+      AccountUsage,
+      'session' | 'weekly' | 'models' | 'limitReached' | 'checkedAt' | 'email' | 'plan'
+    >
   > {
     const checkedAt = new Date(this.options.now()).toISOString();
     if (provider === 'claude-cli') {
@@ -235,16 +240,33 @@ export class AccountUsageService {
         .object({ utilization: z.number(), resets_at: z.string().nullish() })
         .nullish();
       const body = z
-        .object({ five_hour: window, seven_day: window })
+        .object({ five_hour: window, seven_day: window, limits: z.unknown().optional() })
         .passthrough()
         .parse(await response.json());
       const view = (value: z.infer<typeof window>) =>
         value ? { percent: value.utilization, resetsAt: iso(value.resets_at) } : undefined;
       const session = view(body.five_hour),
         weekly = view(body.seven_day);
+      // Per-model weekly limits (e.g. Fable) come only in the newer `limits` list, each with the
+      // model's display name; entries of any other shape are skipped.
+      const limit = z.object({
+        percent: z.number(),
+        resets_at: z.union([z.string(), z.number()]).nullish(),
+        scope: z.object({ model: z.object({ display_name: z.string().min(1).max(40) }) }),
+      });
+      const models = (Array.isArray(body.limits) ? body.limits : [])
+        .map((entry) => limit.safeParse(entry).data)
+        .filter((entry) => !!entry)
+        .slice(0, 8)
+        .map((entry) => ({
+          name: entry.scope.model.display_name,
+          percent: entry.percent,
+          resetsAt: iso(entry.resets_at),
+        }));
       return {
         session,
         weekly,
+        ...(models.length ? { models } : {}),
         limitReached: [session, weekly].some((w) => (w?.percent ?? 0) >= 100),
         checkedAt,
       };

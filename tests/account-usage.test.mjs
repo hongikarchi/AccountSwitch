@@ -57,6 +57,16 @@ async function fixture(t) {
         return Response.json({
           five_hour: { utilization: 12, resets_at: '2026-09-29T05:00:00Z' },
           seven_day: { utilization: 40, resets_at: '2026-10-01T00:00:00Z' },
+          limits: [
+            {
+              kind: 'weekly_scoped',
+              percent: 55,
+              resets_at: '2026-10-02T00:00:00Z',
+              scope: { model: { display_name: 'Fable' } },
+            },
+            { kind: 'weekly', percent: 40 },
+            'unexpected',
+          ],
         });
       const who = JSON.parse(
         Buffer.from(init.headers.Authorization.split(' ')[1].split('.')[1], 'base64url'),
@@ -102,6 +112,10 @@ test('usage lookup reads each account once per interval and auto-switch picks th
   const [claude, one, two] = await service.all();
   assert.deepEqual(claude.session, { percent: 12, resetsAt: '2026-09-29T05:00:00.000Z' });
   assert.equal(claude.weekly.percent, 40);
+  // Per-model weekly limits (Fable) from the `limits` list; other entries are skipped.
+  assert.deepEqual(claude.models, [
+    { name: 'Fable', percent: 55, resetsAt: '2026-10-02T00:00:00.000Z' },
+  ]);
   assert.equal(one.weekly.percent, 95);
   assert.equal(two.weekly.percent, 10);
   assert.equal(calls.length, 3);

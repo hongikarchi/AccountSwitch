@@ -8,6 +8,7 @@ const schema = z.object({
   profiles: z.array(z.object({ id: z.string(), provider: z.enum(providers), label: z.string() })),
   active: z.record(z.string(), z.string()),
   defaultLabels: z.record(z.string(), z.string()).optional(),
+  order: z.record(z.string(), z.array(z.string())).optional(),
 });
 const loginSchema = z.array(
   z.object({
@@ -186,6 +187,9 @@ export function AccountSettings({
   const [dismissed, setDismissed] = useState<string>();
   const [renaming, setRenaming] = useState<string>();
   const [newName, setNewName] = useState('');
+  // Dragging a row onto another moves it there (the order is saved per service).
+  const [dragging, setDragging] = useState<string>();
+  const [over, setOver] = useState<string>();
   const loggingIn = login?.state === 'running' || login?.state === 'stopping';
   const refresh = async () => setData(schema.parse(await api('/accounts')));
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -287,10 +291,31 @@ export function AccountSettings({
       const result = loginSchema.parse(await api('/accounts/login/cancel', 'POST', { provider }));
       setLogin(result.find((row) => row.provider === provider));
     });
+  const order = data?.order?.[provider] ?? [];
+  const place = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
   const rows = [
     { id: 'default', label: data?.defaultLabels?.[provider] ?? '기존 CLI 로그인' },
     ...(data?.profiles.filter((p) => p.provider === provider) ?? []),
-  ];
+  ]
+    .map((row, index) => ({ row, index }))
+    .sort((a, b) => place(a.row.id) - place(b.row.id) || a.index - b.index)
+    .map(({ row }) => row);
+  const move = (id: string, target: string) => {
+    if (id === target) return;
+    const ids = rows.map((row) => row.id).filter((row) => row !== id);
+    // Dropped on a row: take its place (above it when moving up, below when moving down).
+    const from = rows.findIndex((row) => row.id === id);
+    const to = rows.findIndex((row) => row.id === target);
+    ids.splice(ids.indexOf(target) + (from < to ? 1 : 0), 0, id);
+    setData((current) =>
+      current ? { ...current, order: { ...current.order, [provider]: ids } } : current,
+    );
+    void api('/accounts/order', 'POST', { provider, ids })
+      .then((value) => setData(schema.parse(value)))
+      .catch((error: unknown) =>
+        setMessage(error instanceof Error ? error.message : '순서를 저장하지 못했습니다.'),
+      );
+  };
   const failed =
     login?.state === 'failed' && login.id !== dismissed && login.operation === 'login'
       ? login
@@ -307,7 +332,33 @@ export function AccountSettings({
           task();
         };
         return (
-          <div key={row.id} className="account-block">
+          <div
+            key={row.id}
+            className="account-block"
+            draggable={rows.length > 1 && renaming !== row.id}
+            data-dragging={String(dragging === row.id)}
+            data-over={String(!!dragging && over === row.id && dragging !== row.id)}
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = 'move';
+              event.dataTransfer.setData('text/plain', row.id);
+              setDragging(row.id);
+            }}
+            onDragOver={(event) => {
+              if (!dragging) return;
+              event.preventDefault();
+              setOver(row.id);
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (dragging) move(dragging, row.id);
+              setDragging(undefined);
+              setOver(undefined);
+            }}
+            onDragEnd={() => {
+              setDragging(undefined);
+              setOver(undefined);
+            }}
+          >
             <div className="account-row" data-active={String(active)}>
               {renaming === row.id ? (
                 <form
