@@ -64,8 +64,8 @@ jobs:
             --outputDir release/installer --publish --tag "${{ github.ref_name }}" `
             --releaseName "AccountSwitch $version"
 
-  # macOS (Apple silicon): tests, including the real login keychain, and the app server built,
-  # ad hoc signed and started once. Not published yet.
+  # macOS (Apple silicon): tests, including the real login keychain, the app server built, ad hoc
+  # signed and started once, and the menu bar app around it. Not published yet.
   mac:
     runs-on: macos-latest
     steps:
@@ -93,7 +93,13 @@ jobs:
           echo "page $page, api $api"
           test "$page" = 200 && test "$api" = 401
 
+      # The menu bar app with the server inside, signed ad hoc; zipped with ditto so the bundle
+      # keeps its links and permissions.
+      - run: node scripts/build-mac.mjs
+
       - uses: actions/upload-artifact@v4
         with:
-          name: AccountSwitch-engine-macos-arm64
-          path: release/engine/AccountSwitch-engine
+          name: AccountSwitch-macos-arm64
+          path: |
+            release/mac/AccountSwitch.dmg
+            release/mac/AccountSwitch-mac.zip
