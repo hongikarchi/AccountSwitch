@@ -6,6 +6,7 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   utimesSync,
   writeFileSync,
@@ -210,7 +211,7 @@ test('macOS: the Claude login moves between keychain items; other keys and the f
   const root = mkdtempSync(join(tmpdir(), 'accountswitch-mac-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const home = join(root, 'home');
-  const data = join(root, 'profiles');
+  const data = join(realpathSync(root), 'profiles');
   mkdirSync(join(home, '.claude'), { recursive: true });
   const items = new Map();
   const keychain = {

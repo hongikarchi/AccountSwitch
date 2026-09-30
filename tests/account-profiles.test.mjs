@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   mkdtempSync,
+  realpathSync,
   rmSync,
   readFileSync,
   renameSync,
@@ -16,7 +17,8 @@ import { AccountProfiles } from '../src/core/account-profiles.ts';
 const swaps = [];
 const swap = (from, to) => swaps.push([from, to]);
 test('profile metadata persists, provider identities stay separate and a switch moves the login', () => {
-  const root = mkdtempSync(join(tmpdir(), 'accountswitch-profiles-'));
+  // The real path: on macOS the temporary folder is a link (/var -> /private/var).
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'accountswitch-profiles-')));
   let busy = true;
   try {
     const profiles = new AccountProfiles(root, () => busy);
@@ -150,7 +152,8 @@ test('managed profile rejects junction redirection and malformed metadata', () =
 });
 
 test('accounts can be renamed, including the existing CLI login, even while busy', () => {
-  const root = mkdtempSync(join(tmpdir(), 'accountswitch-profiles-'));
+  // The real path: on macOS the temporary folder is a link (/var -> /private/var).
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'accountswitch-profiles-')));
   try {
     const profiles = new AccountProfiles(root, () => true);
     const work = profiles.add('claude-cli', 'Claude 2');

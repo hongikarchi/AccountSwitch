@@ -150,7 +150,10 @@ test('Codex address mode shows the device link and one-time code, and nothing el
 test('Claude address mode opens no browser, shows the address and passes the pasted code', async () => {
   const { login, input, calls, children } = fixture({ systemRoot: 'C:\\Win' });
   login.start({ ...input, provider: 'claude-cli' });
-  assert.equal(calls[0].settings.env.BROWSER, 'C:\\Win\\System32\\where.exe');
+  assert.equal(
+    calls[0].settings.env.BROWSER,
+    process.platform === 'win32' ? 'C:\\Win\\System32\\where.exe' : '/usr/bin/true',
+  );
   assert.equal(calls[0].settings.stdio[0], 'pipe');
   const written = [];
   children[0].stdin.on('data', (chunk) => written.push(String(chunk)));
