@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync, renameSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -15,6 +15,8 @@ const CODEX_USAGE = 'https://chatgpt.com/backend-api/wham/usage';
 /** Claude's usage endpoint allows about 30 calls an hour per account. */
 const MIN_INTERVAL_MS = 3 * 60_000;
 const FORCED_INTERVAL_MS = 60_000;
+/** Percentage points below the auto-switch threshold an account must be to be switched to. */
+const HYSTERESIS = 10;
 
 export interface UsageWindow {
   percent: number;
@@ -325,8 +327,10 @@ export class AccountUsageService {
     return Math.max(usage.session?.percent ?? 0, usage.weekly?.percent ?? 0);
   }
   /**
-   * The account for a new request: the current one unless it is signed out, limited or at the
-   * threshold; then the signed-in account of the same service with the most headroom.
+   * The account to use: the current one unless it is signed out, limited or at the threshold;
+   * then the signed-in account of the same service with the most headroom, among those whose
+   * usage is known and at least HYSTERESIS below the threshold (so two accounts near the line do
+   * not take turns). `limited`: the current one cannot be used at all.
    */
   async choose(provider: Provider, current: string) {
     const settings = this.settings();
@@ -340,12 +344,19 @@ export class AccountUsageService {
         .filter((id) => id !== current)
         .map((id) => this.get(provider, id)),
     );
+    const known = (usage: AccountUsage) => !!(usage.session || usage.weekly);
     const best = others
-      .filter((usage) => usage.signedIn && this.load(usage) < settings.threshold)
+      .filter(
+        (usage) =>
+          usage.signedIn && known(usage) && this.load(usage) < settings.threshold - HYSTERESIS,
+      )
       .sort((a, b) => this.load(a) - this.load(b))[0];
-    return best ? { id: best.id, switched: true, from: current } : { id: current, switched: false };
-  }
-  exists(provider: Provider, id: string) {
-    return existsSync(this.folder(provider, id));
+    if (!best) return { id: current, switched: false };
+    return {
+      id: best.id,
+      switched: true,
+      from: current,
+      limited: !now.signedIn || this.load(now) >= 100,
+    };
   }
 }

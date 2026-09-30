@@ -1,12 +1,18 @@
 import { useCallback, useEffect, useState } from 'react';
 import { z } from 'zod';
-import { api } from './gateway.ts';
+import { api, errors } from './gateway.ts';
 
 // Every account's sign-in and usage (5-hour or shorter window, 7 days, reset times), loaded once
 // for the page and shown inside each account's row; the usage lookup switch sits at the bottom.
 const windowSchema = z.object({ percent: z.number(), resetsAt: z.string().nullable() }).optional();
 const usageSchema = z.object({
-  settings: z.object({ usageLookup: z.boolean() }),
+  settings: z.object({ usageLookup: z.boolean(), autoSwitch: z.boolean(), threshold: z.number() }),
+  autoSwitch: z
+    .object({
+      last: z.object({ provider: z.string(), to: z.string(), at: z.string() }).optional(),
+      failure: z.object({ provider: z.string(), code: z.string(), at: z.string() }).optional(),
+    })
+    .optional(),
   accounts: z.array(
     z.object({
       provider: z.enum(['claude-cli', 'codex-cli']),
@@ -124,33 +130,80 @@ export function UsageToolbar({
     .filter(Boolean)
     .sort()
     .at(-1);
-  const toggle = async (value: boolean) => {
+  const save = async (next: Partial<Usage['settings']>) => {
     setSaving(true);
     try {
-      await api('/accounts/usage-settings', 'POST', { usageLookup: value });
+      await api('/accounts/usage-settings', 'POST', next);
       await load(true);
+      // An automatic switch may follow at once.
+      window.dispatchEvent(new Event('accounts-changed'));
     } finally {
       setSaving(false);
     }
   };
+  const settings = usage?.settings;
+  const service = (provider: string) => (provider === 'codex-cli' ? 'ChatGPT' : 'Claude');
+  const last = usage?.autoSwitch?.last;
+  const lastTo =
+    last && usage?.accounts.find((a) => a.provider === last.provider && a.id === last.to);
+  const autoFailure = usage?.autoSwitch?.failure;
   return (
     <footer className="usage-toolbar">
       <label className="remote-toggle">
         <input
           type="checkbox"
-          checked={usage?.settings.usageLookup ?? false}
+          checked={settings?.usageLookup ?? false}
           disabled={!usage || saving}
-          onChange={(event) => void toggle(event.target.checked)}
+          onChange={(event) => void save({ usageLookup: event.target.checked })}
         />
         사용량 조회
       </label>
+      <label
+        className="remote-toggle"
+        title="쓰고 있는 계정이 기준을 넘으면 여유가 가장 많은 계정으로 바꿉니다"
+      >
+        <input
+          type="checkbox"
+          checked={!!settings?.usageLookup && !!settings.autoSwitch}
+          disabled={!settings?.usageLookup || saving}
+          onChange={(event) => void save({ autoSwitch: event.target.checked })}
+        />
+        자동 전환
+        {settings?.usageLookup && settings.autoSwitch ? (
+          <select
+            aria-label="자동 전환 기준"
+            value={settings.threshold}
+            disabled={saving}
+            onChange={(event) => void save({ threshold: Number(event.target.value) })}
+          >
+            {[...new Set([80, 90, 95, settings.threshold])]
+              .sort((a, b) => a - b)
+              .map((value) => (
+                <option key={value} value={value}>
+                  {value}%
+                </option>
+              ))}
+          </select>
+        ) : null}
+      </label>
       <small>
-        {usage?.settings.usageLookup
+        {settings?.usageLookup
           ? `3분마다 갱신${checked ? ' · ' + when(checked) + ' 확인' : ''} · 비공식 사용량 주소를 씁니다`
           : '꺼짐'}
       </small>
+      {settings?.autoSwitch && last ? (
+        <small>
+          자동 전환 · {service(last.provider)} → {lastTo?.email ?? '다른 계정'} ({when(last.at)})
+        </small>
+      ) : null}
+      {settings?.autoSwitch && autoFailure ? (
+        <small className="remote-error">
+          자동 전환 실패 · {service(autoFailure.provider)}:{' '}
+          {errors[autoFailure.code] ?? autoFailure.code}
+        </small>
+      ) : null}
       {failure ? <small className="remote-error">{failure}</small> : null}
-      <button type="button" disabled={!usage?.settings.usageLookup} onClick={() => void load(true)}>
+      <button type="button" disabled={!settings?.usageLookup} onClick={() => void load(true)}>
         새로고침
       </button>
     </footer>

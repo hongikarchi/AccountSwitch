@@ -76,7 +76,7 @@ async function fixture(t) {
       });
     },
   });
-  return { service, second, calls, profiles };
+  return { service, second, calls, profiles, usage };
 }
 
 test('usage lookup is on by default; turned off, accounts show who is signed in with no network call', async (t) => {
@@ -112,6 +112,7 @@ test('usage lookup reads each account once per interval and auto-switch picks th
     id: second.id,
     switched: true,
     from: 'default',
+    limited: false,
   });
   assert.deepEqual(await service.choose('claude-cli', 'default'), {
     id: 'default',
@@ -141,4 +142,15 @@ test('subscription limit messages of both CLIs are recognised', () => {
   ])
     assert.match(text, USAGE_LIMIT);
   assert.doesNotMatch('Compilation failed: unexpected token', USAGE_LIMIT);
+});
+
+test('auto-switch never moves to an account within 10 points of the threshold', async (t) => {
+  const { service, usage } = await fixture(t);
+  usage.two = 85;
+  service.setSettings({ usageLookup: true, autoSwitch: true, threshold: 90 });
+  // The ChatGPT account in use is at 95%, the other at 85%: too close to 90% to be worth it.
+  assert.deepEqual(await service.choose('codex-cli', 'default'), {
+    id: 'default',
+    switched: false,
+  });
 });

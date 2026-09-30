@@ -12,6 +12,7 @@ import { DomainError } from '../core/errors.ts';
 import { providers } from '../core/providers.ts';
 import { executable, status } from '../core/cli.ts';
 import { DefaultLogin } from '../core/default-login.ts';
+import { AutoSwitch } from '../core/auto-switch.ts';
 
 // A local web app on 127.0.0.1 only. The page gets a session cookie from the one-time token in
 // its launch link (#token); every API call needs that cookie and, for writes, this origin.
@@ -95,6 +96,25 @@ export async function startServer({ directory, port = 0 }: Options) {
   let authority = '';
   const accountStatus = (p: z.infer<typeof provider>, id: string) =>
     status(p, executable(p), profiles.directory(p, id));
+  /**
+   * Make an account the login of the terminal and VS Code (the 사용 button and auto switch), also
+   * while the CLI runs (see DefaultLogin.lock).
+   */
+  const switchTo = async (p: z.infer<typeof provider>, id: string) => {
+    if (accountLogin.busy(p)) throw new DomainError('PROFILE_LOGIN_IN_PROGRESS');
+    if (profiles.selected(p) === id) return;
+    if (!(await accountStatus(p, id)).available)
+      throw new DomainError('SUBSCRIPTION_LOGIN_REQUIRED');
+    defaultLogin.assertReady(p);
+    const release = await defaultLogin.lock(p);
+    try {
+      profiles.select(p, id, (from, to) => defaultLogin.swap(p, from, to));
+    } finally {
+      release();
+    }
+  };
+  const autoSwitch = new AutoSwitch({ usage: accountUsage, profiles, switchTo });
+  autoSwitch.start();
   /** An added account's own folder, to sign in or out; the active one's login is the default. */
   const ownFolder = (p: z.infer<typeof provider>, id: string) => {
     if (id === 'default') throw new DomainError('INVALID_INPUT');
@@ -172,6 +192,7 @@ export async function startServer({ directory, port = 0 }: Options) {
         send(200, {
           settings: accountUsage.settings(),
           accounts: await accountUsage.all(url.searchParams.get('refresh') === '1'),
+          autoSwitch: { last: autoSwitch.last, failure: autoSwitch.failure },
         });
         return;
       }
@@ -184,7 +205,10 @@ export async function startServer({ directory, port = 0 }: Options) {
           })
           .strict()
           .parse(await body(request));
-        send(200, { settings: accountUsage.setSettings(input) });
+        const settings = accountUsage.setSettings(input);
+        // Turned on or retuned: check now instead of within the minute.
+        if (settings.autoSwitch) void autoSwitch.tick().catch(() => {});
+        send(200, { settings });
         return;
       }
       if (url.pathname === '/api/v1/accounts/remove' && request.method === 'POST') {
@@ -213,27 +237,8 @@ export async function startServer({ directory, port = 0 }: Options) {
           .object({ provider, id: z.string() })
           .strict()
           .parse(await body(request));
-        if (accountLogin.busy(input.provider)) throw new DomainError('PROFILE_LOGIN_IN_PROGRESS');
-        if (profiles.selected(input.provider) === input.id) {
-          send(200, profiles.list());
-          return;
-        }
-        if (!(await accountStatus(input.provider, input.id)).available)
-          throw new DomainError('SUBSCRIPTION_LOGIN_REQUIRED');
-        // The chosen account becomes the login of the terminal and VS Code, also while the CLI
-        // runs (see DefaultLogin.lock).
-        defaultLogin.assertReady(input.provider);
-        const release = await defaultLogin.lock(input.provider);
-        try {
-          send(
-            200,
-            profiles.select(input.provider, input.id, (from, to) =>
-              defaultLogin.swap(input.provider, from, to),
-            ),
-          );
-        } finally {
-          release();
-        }
+        await switchTo(input.provider, input.id);
+        send(200, profiles.list());
         return;
       }
       if (url.pathname === '/api/v1/accounts/login-command' && request.method === 'POST') {
@@ -333,6 +338,7 @@ export async function startServer({ directory, port = 0 }: Options) {
     /** The link that signs the page in; open it once. */
     launchUrl: `http://${authority}/#${bootstrap}`,
     close: async () => {
+      autoSwitch.stop();
       await accountLogin.close().catch(() => {});
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
