@@ -9,11 +9,14 @@ import { providers } from './providers.ts';
  * so removing the program leaves the CLIs as they were. Run by the uninstaller; accounts stay in
  * the data folder. One service failing does not stop the other.
  */
-export async function restoreDefaultLogins(root: string, home?: string) {
+export async function restoreDefaultLogins(
+  root: string,
+  options: Omit<ConstructorParameters<typeof DefaultLogin>[0], 'root'> = {},
+) {
   const result = { restored: [] as string[], failed: [] as string[] };
   if (!existsSync(join(root, 'profiles.json'))) return result;
   const profiles = new AccountProfiles(root, () => false);
-  const login = new DefaultLogin({ root, ...(home ? { home } : {}) });
+  const login = new DefaultLogin({ root, ...options });
   for (const provider of providers) {
     if (profiles.selected(provider) === 'default') continue;
     try {

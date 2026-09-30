@@ -10,7 +10,9 @@ import { startServer } from './server.ts';
 // no browser, the address is given on standard output, and the app stops when its input closes.
 const directory =
   process.env.ACCOUNTSWITCH_DATA ||
-  join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'AccountSwitch');
+  (process.platform === 'darwin'
+    ? join(homedir(), 'Library', 'Application Support', 'AccountSwitch')
+    : join(process.env.LOCALAPPDATA || join(homedir(), 'AppData', 'Local'), 'AccountSwitch'));
 mkdirSync(directory, { recursive: true });
 const launchFile = join(directory, 'launch.json');
 const desktop = process.argv.includes('--desktop');

@@ -86,8 +86,10 @@ export class AccountLogin {
     // keeps any browser from opening and Claude prints the address to finish elsewhere.
     if (address && !codex)
       env.BROWSER =
-        (this.options.systemRoot ?? process.env.SystemRoot ?? 'C:\\Windows') +
-        '\\System32\\where.exe';
+        process.platform === 'win32'
+          ? (this.options.systemRoot ?? process.env.SystemRoot ?? 'C:\\Windows') +
+            '\\System32\\where.exe'
+          : '/usr/bin/true';
     const child = (this.options.spawnProcess ?? spawn)(
       input.executable,
       codex

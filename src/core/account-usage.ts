@@ -74,9 +74,14 @@ interface Options {
   home?: string;
   fetch?: typeof fetch;
   now?: () => number;
+  /**
+   * The Claude login (claudeAiOauth) of the default login (folder undefined) or an account
+   * folder; on macOS it is in the keychain (DefaultLogin.claudeCredentials). Default: the file.
+   */
+  claudeCredentials?: (folder?: string) => unknown;
 }
 export class AccountUsageService {
-  private options: Required<Omit<Options, 'profiles' | 'file'>> & Options;
+  private options: Required<Omit<Options, 'profiles' | 'file' | 'claudeCredentials'>> & Options;
   private cache = new Map<string, AccountUsage & { fetchedAt?: number }>();
   private pending = new Map<string, Promise<AccountUsage>>();
   constructor(options: Options) {
@@ -99,23 +104,35 @@ export class AccountUsageService {
       join(this.options.home, provider === 'claude-cli' ? '.claude' : '.codex')
     );
   }
+  /** A keychain that cannot be read (locked) shows the account as signed out, not an error. */
+  private readCredentials(folder?: string) {
+    try {
+      return this.options.claudeCredentials!(folder);
+    } catch {
+      return undefined;
+    }
+  }
   /** Who is signed in, from the CLI's own files (no network). */
   private identity(provider: Provider, id: string) {
     const relocated = this.options.profiles.directory(provider, id) !== undefined;
     const folder = this.folder(provider, id);
     if (provider === 'claude-cli') {
+      const directory = relocated ? folder : undefined;
       const credentials = z
         .object({
-          claudeAiOauth: z
-            .object({
-              accessToken: z.string(),
-              expiresAt: z.number().optional(),
-              subscriptionType: z.string().optional(),
-            })
-            .passthrough(),
+          accessToken: z.string(),
+          expiresAt: z.number().optional(),
+          subscriptionType: z.string().optional(),
         })
         .passthrough()
-        .safeParse(readJson(join(folder, '.credentials.json'))).data?.claudeAiOauth;
+        .safeParse(
+          this.options.claudeCredentials
+            ? this.readCredentials(directory)
+            : z
+                .object({ claudeAiOauth: z.unknown() })
+                .passthrough()
+                .safeParse(readJson(join(folder, '.credentials.json'))).data?.claudeAiOauth,
+        ).data;
       // Claude keeps account details next to its folder by default, inside it when relocated.
       const account = z
         .object({ oauthAccount: z.object({ emailAddress: z.string() }).passthrough() })

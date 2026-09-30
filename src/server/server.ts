@@ -86,11 +86,12 @@ export interface Options {
 export async function startServer({ directory, port = 0 }: Options) {
   const accountLogin = new AccountLogin();
   const profiles = new AccountProfiles(join(directory, 'profiles'), (p) => accountLogin.busy(p));
+  const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
   const accountUsage = new AccountUsageService({
     profiles,
     file: join(directory, 'profiles', 'usage-settings.json'),
+    claudeCredentials: (folder) => defaultLogin.claudeCredentials(folder),
   });
-  const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
   const bootstrap = randomBytes(32).toString('base64url');
   const session = randomBytes(32).toString('base64url');
   let authority = '';
@@ -256,10 +257,22 @@ export async function startServer({ directory, port = 0 }: Options) {
           .parse(await body(request));
         profiles.assertIdle(input.provider);
         const folder = ownFolder(input.provider, input.id);
-        const quote = (value: string) => "'" + value.replaceAll("'", "''") + "'";
         const key = input.provider === 'codex-cli' ? 'CODEX_HOME' : 'CLAUDE_CONFIG_DIR';
+        const args =
+          input.provider === 'codex-cli'
+            ? 'login -c \'cli_auth_credentials_store="file"\' -c \'forced_login_method="chatgpt"\''
+            : 'auth login --claudeai';
+        const program = executable(input.provider) ?? '';
+        // PowerShell on Windows, a POSIX shell (Terminal) on macOS.
+        const quote = (value: string) =>
+          process.platform === 'win32'
+            ? "'" + value.replaceAll("'", "''") + "'"
+            : "'" + value.replaceAll("'", "'\\''") + "'";
         send(200, {
-          command: `$env:${key}=${quote(folder)}; & ${quote(executable(input.provider) ?? '')} ${input.provider === 'codex-cli' ? 'login -c \'cli_auth_credentials_store="file"\' -c \'forced_login_method="chatgpt"\'' : 'auth login --claudeai'}`,
+          command:
+            process.platform === 'win32'
+              ? `$env:${key}=${quote(folder)}; & ${quote(program)} ${args}`
+              : `${key}=${quote(folder)} ${quote(program)} ${args}`,
         });
         return;
       }

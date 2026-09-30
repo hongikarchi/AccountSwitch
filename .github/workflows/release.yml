@@ -63,3 +63,37 @@ jobs:
           dotnet vpk upload github --repoUrl $env:REPO_URL --token ${{ github.token }} `
             --outputDir release/installer --publish --tag "${{ github.ref_name }}" `
             --releaseName "AccountSwitch $version"
+
+  # macOS (Apple silicon): tests, including the real login keychain, and the app server built,
+  # ad hoc signed and started once. Not published yet.
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:exe
+
+      - name: Start the app server once
+        run: |
+          export ACCOUNTSWITCH_DATA="$RUNNER_TEMP/data" ACCOUNTSWITCH_PORT=47931
+          release/engine/AccountSwitch-engine --no-open &
+          pid=$!
+          for i in $(seq 30); do curl -sf -o /dev/null http://127.0.0.1:47931/ && break; sleep 1; done
+          page=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:47931/)
+          api=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:47931/api/v1/accounts)
+          kill $pid
+          echo "page $page, api $api"
+          test "$page" = 200 && test "$api" = 401
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AccountSwitch-engine-macos-arm64
+          path: release/engine/AccountSwitch-engine

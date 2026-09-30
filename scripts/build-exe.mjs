@@ -1,9 +1,17 @@
-// Build release/engine/AccountSwitch-engine.exe (the app server the PC program runs; alone it
+// Build release/engine/AccountSwitch-engine(.exe) (the app server the PC program runs; alone it
 // opens the page in the browser): the server bundled into one CommonJS script, the built page
 // (dist/ui) embedded as assets, injected into a copy of the Node runtime running this script
 // (Node single executable application). Run `npm run build:web` first (`npm run build:exe` does).
 import { execFileSync } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -17,14 +25,15 @@ if (major < 24 || (major === 24 && minor < 15)) {
   );
   process.exit(1);
 }
-if (process.platform !== 'win32') {
-  console.error('The executable is built on Windows.');
+const mac = process.platform === 'darwin';
+if (process.platform !== 'win32' && !mac) {
+  console.error('The executable is built on Windows or macOS.');
   process.exit(1);
 }
 
 const out = join(root, 'release', 'engine');
 const work = join(out, 'build');
-const exe = join(out, 'AccountSwitch-engine.exe');
+const exe = join(out, mac ? 'AccountSwitch-engine' : 'AccountSwitch-engine.exe');
 rmSync(out, { recursive: true, force: true });
 mkdirSync(work, { recursive: true });
 
@@ -65,14 +74,19 @@ writeFileSync(
 );
 execFileSync(process.execPath, ['--experimental-sea-config', config], { stdio: 'inherit' });
 copyFileSync(process.execPath, exe);
-// Injecting leaves Node's own signature invalid, which some antivirus rates worse than none, so
-// remove it first. Required on CI (GitHub sets CI); optional on a developer machine.
-const signtool = findSigntool();
-if (signtool) execFileSync(signtool, ['remove', '/s', exe], { stdio: 'inherit' });
-else if (process.env.CI) {
-  console.error('signtool.exe (Windows SDK) was not found; set SIGNTOOL to its path.');
-  process.exit(1);
-} else console.warn('signtool.exe not found: the executable keeps an invalid Node signature.');
+if (mac) {
+  // Node's signature would no longer match after the injection; remove it first.
+  execFileSync('codesign', ['--remove-signature', exe], { stdio: 'inherit' });
+} else {
+  // Injecting leaves Node's own signature invalid, which some antivirus rates worse than none, so
+  // remove it first. Required on CI (GitHub sets CI); optional on a developer machine.
+  const signtool = findSigntool();
+  if (signtool) execFileSync(signtool, ['remove', '/s', exe], { stdio: 'inherit' });
+  else if (process.env.CI) {
+    console.error('signtool.exe (Windows SDK) was not found; set SIGNTOOL to its path.');
+    process.exit(1);
+  } else console.warn('signtool.exe not found: the executable keeps an invalid Node signature.');
+}
 execFileSync(
   process.execPath,
   [
@@ -82,9 +96,15 @@ execFileSync(
     join(work, 'sea-prep.blob'),
     '--sentinel-fuse',
     'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
+    ...(mac ? ['--macho-segment-name', 'NODE_SEA'] : []),
   ],
   { stdio: 'inherit' },
 );
+if (mac) {
+  // Apple silicon runs no unsigned code: sign it for this machine (ad hoc, no developer ID).
+  execFileSync('codesign', ['--sign', '-', '--force', exe], { stdio: 'inherit' });
+  chmodSync(exe, 0o755);
+}
 rmSync(work, { recursive: true, force: true });
 console.log('Built ' + relative(root, exe));
 

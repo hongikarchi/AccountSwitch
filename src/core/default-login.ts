@@ -14,6 +14,7 @@ import {
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DomainError } from './errors.ts';
+import { claudeKeychainService, macKeychain, type Keychain } from './keychain.ts';
 import type { Provider } from './providers.ts';
 
 // The default login is what a plain `claude` / `codex` (terminal, VS Code) uses: ~/.claude and
@@ -22,10 +23,15 @@ import type { Provider } from './providers.ts';
 // since) back in its owner's folder, then installs the chosen one. Only the login entries (and
 // what the CLI caches about that account) move; settings, history and other keys stay.
 
-/** One piece of a login: a whole file, or some keys of a JSON file shared with other settings. */
+/**
+ * One piece of a login: a whole JSON file, some keys of a JSON file shared with other settings,
+ * or (macOS) some keys of Claude Code's keychain item, which holds what .credentials.json holds
+ * elsewhere.
+ */
 interface Part {
-  /** Where the default login keeps it. */
-  home: (home: string) => string;
+  store: 'file' | 'keychain';
+  /** Where the default login keeps it (files). */
+  home?: (home: string) => string;
   /** Its file name inside an account folder (CLAUDE_CONFIG_DIR / CODEX_HOME). */
   name: string;
   keys?: string[];
@@ -50,24 +56,40 @@ const CLAUDE_ACCOUNT = [
   'githubWebConnectionStatusCache',
   'cachedArtifactRoster',
 ];
-const PARTS: Record<Provider, Part[]> = {
-  'claude-cli': [
-    {
-      home: (home) => join(home, '.claude', '.credentials.json'),
-      name: '.credentials.json',
-      keys: ['claudeAiOauth'],
-    },
-    // Claude keeps the signed-in account next to its folder by default, inside it when relocated.
-    { home: (home) => join(home, '.claude.json'), name: '.claude.json', keys: CLAUDE_ACCOUNT },
-  ],
-  'codex-cli': [{ home: (home) => join(home, '.codex', 'auth.json'), name: 'auth.json' }],
+const CLAUDE_CREDENTIALS: Part = {
+  store: 'file',
+  home: (home) => join(home, '.claude', '.credentials.json'),
+  name: '.credentials.json',
+  keys: ['claudeAiOauth'],
 };
+// Claude keeps the signed-in account next to its folder by default, inside it when relocated.
+const CLAUDE_CONFIG: Part = {
+  store: 'file',
+  home: (home) => join(home, '.claude.json'),
+  name: '.claude.json',
+  keys: CLAUDE_ACCOUNT,
+};
+function partsOf(provider: Provider, platform: NodeJS.Platform): Part[] {
+  if (provider === 'codex-cli')
+    return [
+      { store: 'file', home: (home) => join(home, '.codex', 'auth.json'), name: 'auth.json' },
+    ];
+  // macOS: the keychain item first; the file too, which Claude Code uses when the keychain is not.
+  return platform === 'darwin'
+    ? [
+        { store: 'keychain', name: 'keychain', keys: ['claudeAiOauth'] },
+        CLAUDE_CREDENTIALS,
+        CLAUDE_CONFIG,
+      ]
+    : [CLAUDE_CREDENTIALS, CLAUDE_CONFIG];
+}
 /**
  * Claude Code's own advisory locks (npm proper-lockfile: a directory whose creation is the mutex,
  * touched every 5 s while held). Its token refresh takes the first two (stale after 60 s), its
  * ~/.claude.json writes the third (10 s). Holding them while swapping keeps a running Claude Code
  * from saving a refreshed old-account token over the new login: under the lock it re-reads the
- * file, finds the new login and stops, and it uses the new account from its next message.
+ * file, finds the new login and stops, and it uses the new account from its next message (on
+ * macOS within about 30 s, as it caches keychain reads).
  * Codex needs none: before a refresh it re-reads auth.json and gives up when the account changed
  * (a running Codex keeps its account until restarted).
  */
@@ -84,54 +106,83 @@ const record = (value: unknown) =>
   value && typeof value === 'object' && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
-
-function readFile(file: string): Record<string, unknown> | undefined {
-  if (!existsSync(file)) return undefined;
-  if (lstatSync(file).isSymbolicLink() || lstatSync(file).size > 16 * 1024 * 1024)
-    fail('DEFAULT_LOGIN_UNREADABLE');
+const parse = (text: string) => {
   try {
-    return record(JSON.parse(readFileSync(file, 'utf8'))) ?? fail('DEFAULT_LOGIN_UNREADABLE');
+    return record(JSON.parse(text)) ?? fail('DEFAULT_LOGIN_UNREADABLE');
   } catch (error) {
     if (error instanceof DomainError) throw error;
     return fail('DEFAULT_LOGIN_UNREADABLE');
   }
-}
-function read(part: Part, file: string) {
-  const data = readFile(file);
-  if (!part.keys || !data) return data;
-  return Object.fromEntries(part.keys.filter((key) => key in data).map((key) => [key, data[key]]));
-}
-/** Write one part, keeping every other key of a shared file; a missing key or file is removed. */
-function write(part: Part, file: string, value: Record<string, unknown> | undefined) {
-  let next = value;
-  if (part.keys) {
-    const data = { ...readFile(file) };
-    for (const key of part.keys)
-      if (value && key in value) data[key] = value[key];
-      else delete data[key];
-    next = data;
+};
+
+/** Where one part of one login is: a file, or a keychain item. */
+type Place = { file: string } | { service: string };
+
+class Store {
+  private keychain: () => Keychain;
+  constructor(keychain: () => Keychain) {
+    this.keychain = keychain;
   }
-  if (next === undefined) {
-    if (existsSync(file)) unlinkSync(file);
-    return;
+  private load(place: Place): Record<string, unknown> | undefined {
+    if ('service' in place) {
+      const text = this.keychain().get(place.service);
+      return text === undefined ? undefined : parse(text);
+    }
+    const file = place.file;
+    if (!existsSync(file)) return undefined;
+    if (lstatSync(file).isSymbolicLink() || lstatSync(file).size > 16 * 1024 * 1024)
+      fail('DEFAULT_LOGIN_UNREADABLE');
+    return parse(readFileSync(file, 'utf8'));
   }
-  mkdirSync(dirname(file), { recursive: true });
-  const temporary = file + '.' + randomUUID() + '.tmp';
-  try {
-    writeFileSync(temporary, JSON.stringify(next, null, 2), { mode: 0o600, flag: 'wx' });
-    renameSync(temporary, file);
-  } catch {
-    if (existsSync(temporary)) unlinkSync(temporary);
-    fail('DEFAULT_LOGIN_LOCKED');
+  read(part: Part, place: Place) {
+    const data = this.load(place);
+    if (!part.keys || !data) return data;
+    return Object.fromEntries(
+      part.keys.filter((key) => key in data).map((key) => [key, data[key]]),
+    );
+  }
+  /** Write one part, keeping every other key of a shared place; a missing key or place is removed. */
+  write(part: Part, place: Place, value: Record<string, unknown> | undefined) {
+    let next = value;
+    if (part.keys) {
+      const data = { ...this.load(place) };
+      for (const key of part.keys)
+        if (value && key in value) data[key] = value[key];
+        else delete data[key];
+      next = data;
+    }
+    if ('service' in place) {
+      // An item left with nothing (no login) is removed, as a logged-out Claude Code leaves it.
+      if (next === undefined || !Object.keys(next).length) this.keychain().delete(place.service);
+      else this.keychain().set(place.service, JSON.stringify(next));
+      return;
+    }
+    const file = place.file;
+    if (next === undefined) {
+      if (existsSync(file)) unlinkSync(file);
+      return;
+    }
+    // Nothing to keep and no file yet: do not create an empty one.
+    if (!Object.keys(next).length && !existsSync(file)) return;
+    mkdirSync(dirname(file), { recursive: true });
+    const temporary = file + '.' + randomUUID() + '.tmp';
+    try {
+      writeFileSync(temporary, JSON.stringify(next, null, 2), { mode: 0o600, flag: 'wx' });
+      renameSync(temporary, file);
+    } catch {
+      if (existsSync(temporary)) unlinkSync(temporary);
+      fail('DEFAULT_LOGIN_LOCKED');
+    }
   }
 }
-/** Which account a login belongs to, when the files say so. */
-function owner(provider: Provider, values: unknown[]) {
+
+/** Which account a login belongs to, when its files say so. */
+function owner(provider: Provider, parts: Part[], values: unknown[]) {
   if (provider === 'codex-cli') {
     const id = record(record(values[0])?.tokens)?.account_id;
     return typeof id === 'string' ? id : undefined;
   }
-  const account = record(record(values[1])?.oauthAccount);
+  const account = record(record(values[parts.indexOf(CLAUDE_CONFIG)])?.oauthAccount);
   const id = account?.accountUuid ?? account?.emailAddress;
   return typeof id === 'string' ? id : undefined;
 }
@@ -143,11 +194,27 @@ interface Options {
   now?: () => number;
   /** How long to wait for a lock Claude Code holds (it holds one for a network round trip). */
   lockWaitMs?: number;
+  platform?: NodeJS.Platform;
+  keychain?: Keychain;
 }
 export class DefaultLogin {
-  private options: Required<Options>;
+  private options: Required<Omit<Options, 'keychain'>> & Pick<Options, 'keychain'>;
+  private store: Store;
   constructor(options: Options) {
-    this.options = { home: homedir(), now: Date.now, lockWaitMs: 9000, ...options };
+    this.options = {
+      home: homedir(),
+      now: Date.now,
+      lockWaitMs: 9000,
+      platform: process.platform,
+      ...options,
+    };
+    let keychain = this.options.keychain;
+    this.store = new Store(() => (keychain ??= macKeychain()));
+  }
+  /** Where a part of the default login (folder undefined) or of an account folder is. */
+  private place(part: Part, folder?: string): Place {
+    if (part.store === 'keychain') return { service: claudeKeychainService(folder) };
+    return { file: folder === undefined ? part.home!(this.options.home) : join(folder, part.name) };
   }
   /** Refuse a switch that cannot be done with files. */
   assertReady(provider: Provider) {
@@ -219,38 +286,52 @@ export class DefaultLogin {
     }
   }
   /**
+   * The Claude login (claudeAiOauth) of the default login (folder undefined) or an account
+   * folder: from the keychain on macOS, else (or when the keychain has none) .credentials.json.
+   */
+  claudeCredentials(folder?: string) {
+    for (const part of partsOf('claude-cli', this.options.platform).filter(
+      (p) => p.keys?.[0] === 'claudeAiOauth',
+    )) {
+      const value = this.store.read(part, this.place(part, folder))?.claudeAiOauth;
+      if (value !== undefined) return value;
+    }
+    return undefined;
+  }
+  /**
    * Put the installed login back in `from` (its owner's folder) and install the one in `to`.
    * Account folders use the CLI's own layout, so the CLI can still use and refresh them there.
    */
   swap(provider: Provider, from: string, to: string) {
-    const parts = PARTS[provider];
-    const { home, root } = this.options;
-    const installed = parts.map((part) => read(part, part.home(home)));
-    const target = parts.map((part) => read(part, join(to, part.name)));
+    const parts = partsOf(provider, this.options.platform);
+    const { root } = this.options;
+    const read = (folder?: string) =>
+      parts.map((part) => this.store.read(part, this.place(part, folder)));
+    const write = (folder: string | undefined, values: ReturnType<typeof read>) =>
+      parts.forEach((part, i) => this.store.write(part, this.place(part, folder), values[i]));
+    const installed = read();
+    const target = read(to);
     // The login found at the very first switch is kept once, untouched, to restore by hand.
     const original = join(root, 'original-' + provider);
     if (!existsSync(original)) {
       mkdirSync(original);
-      parts.forEach((part, i) => write(part, join(original, part.name), installed[i]));
+      write(original, installed);
     }
     // Signed in to another account outside the app: set it aside instead of overwriting the owner.
-    const now = owner(provider, installed);
-    const before = owner(
-      provider,
-      parts.map((part) => read(part, join(from, part.name))),
-    );
+    const now = owner(provider, parts, installed);
+    const before = owner(provider, parts, read(from));
     let keep = from;
     if (now && before && now !== before) {
       keep = join(root, `set-aside-${provider}-${this.options.now()}`);
       mkdirSync(keep);
     }
-    parts.forEach((part, i) => write(part, join(keep, part.name), installed[i]));
+    write(keep, installed);
     try {
-      parts.forEach((part, i) => write(part, part.home(home), target[i]));
+      write(undefined, target);
     } catch (error) {
       // Put back what was there; the owner's folder already has it too.
       try {
-        parts.forEach((part, i) => write(part, part.home(home), installed[i]));
+        write(undefined, installed);
       } catch {
         /* Reported as the first failure. */
       }

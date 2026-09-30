@@ -94,6 +94,21 @@ function installedCodex() {
 }
 /** The CLI program of a service, or undefined when it is not installed. */
 export function executable(provider: Provider) {
+  if (process.platform !== 'win32') {
+    // macOS: the native installer, Homebrew, then PATH (the app gets the login shell's PATH).
+    const name = provider === 'codex-cli' ? 'codex' : 'claude';
+    const override =
+      provider === 'codex-cli'
+        ? process.env.ACCOUNTSWITCH_CODEX_PATH
+        : process.env.ACCOUNTSWITCH_CLAUDE_PATH;
+    return (
+      override ||
+      [join(homedir(), '.local', 'bin'), '/opt/homebrew/bin', '/usr/local/bin']
+        .map((folder) => join(folder, name))
+        .find((file) => existsSync(file)) ||
+      onPath(name)
+    );
+  }
   if (provider === 'claude-cli') {
     // The native installer's copy, or the one the npm package ships (npm i -g @anthropic-ai/claude-code).
     const native = join(homedir(), '.local', 'bin', 'claude.exe');

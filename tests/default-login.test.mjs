@@ -15,6 +15,8 @@ import { join } from 'node:path';
 import { AccountProfiles } from '../src/core/account-profiles.ts';
 import { DefaultLogin } from '../src/core/default-login.ts';
 import { restoreDefaultLogins } from '../src/core/restore.ts';
+import { claudeKeychainService } from '../src/core/keychain.ts';
+import { createHash } from 'node:crypto';
 
 // Everything runs in a temporary home; the real ~/.claude and ~/.codex are never touched.
 function fixture(t) {
@@ -25,7 +27,14 @@ function fixture(t) {
   mkdirSync(join(home, '.claude'), { recursive: true });
   mkdirSync(join(home, '.codex'), { recursive: true });
   const profiles = new AccountProfiles(data, () => false);
-  const login = new DefaultLogin({ root: data, home, now: () => 7, lockWaitMs: 400 });
+  // Windows layout everywhere, so a macOS test run never touches the real keychain.
+  const login = new DefaultLogin({
+    root: data,
+    home,
+    now: () => 7,
+    lockWaitMs: 400,
+    platform: 'win32',
+  });
   const select = (provider, id) =>
     profiles.select(provider, id, (from, to) => login.swap(provider, from, to));
   return { root, home, data, profiles, login, select };
@@ -178,7 +187,7 @@ test('uninstalling gives both CLIs their original logins back and keeps the acco
   // Used (refreshed) since the switch: that login must go back to P.
   put(credentials, { claudeAiOauth: { accessToken: 'p-2' } });
 
-  const result = await restoreDefaultLogins(data, home);
+  const result = await restoreDefaultLogins(data, { home, platform: 'win32' });
   assert.deepEqual(result, { restored: ['claude-cli', 'codex-cli'], failed: [] });
   assert.equal(get(credentials).claudeAiOauth.accessToken, 'mine');
   assert.equal(get(auth).tokens.access_token, 'mine');
@@ -187,9 +196,81 @@ test('uninstalling gives both CLIs their original logins back and keeps the acco
   assert.deepEqual(after.list().active, { 'claude-cli': 'default', 'codex-cli': 'default' });
   assert.equal(after.list().profiles.length, 2);
   // Nothing to do the second time, or without any data.
-  assert.deepEqual(await restoreDefaultLogins(data, home), { restored: [], failed: [] });
-  assert.deepEqual(await restoreDefaultLogins(join(data, 'none'), home), {
+  assert.deepEqual(await restoreDefaultLogins(data, { home, platform: 'win32' }), {
     restored: [],
     failed: [],
   });
+  assert.deepEqual(await restoreDefaultLogins(join(data, 'none'), { home, platform: 'win32' }), {
+    restored: [],
+    failed: [],
+  });
+});
+
+test('macOS: the Claude login moves between keychain items; other keys and the file stay', async (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'accountswitch-mac-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const home = join(root, 'home');
+  const data = join(root, 'profiles');
+  mkdirSync(join(home, '.claude'), { recursive: true });
+  const items = new Map();
+  const keychain = {
+    get: (service) => items.get(service),
+    set: (service, value) => items.set(service, value),
+    delete: (service) => items.delete(service),
+  };
+  const profiles = new AccountProfiles(data, () => false);
+  const login = new DefaultLogin({ root: data, home, platform: 'darwin', keychain, now: () => 7 });
+  const select = (id) =>
+    profiles.select('claude-cli', id, (from, to) => login.swap('claude-cli', from, to));
+  const item = (folder) => JSON.parse(items.get(claudeKeychainService(folder)));
+
+  items.set(
+    'Claude Code-credentials',
+    JSON.stringify({ claudeAiOauth: { accessToken: 'mine' }, mcpOAuth: { server: 'keep' } }),
+  );
+  put(join(home, '.claude.json'), { oauthAccount: { accountUuid: 'mine' }, numStartups: 3 });
+  const p = profiles.add('claude-cli', 'P');
+  const folder = join(data, p.id);
+  // What Claude Code writes when it signs in with CLAUDE_CONFIG_DIR=<folder>.
+  items.set(claudeKeychainService(folder), JSON.stringify({ claudeAiOauth: { accessToken: 'p' } }));
+  put(join(folder, '.claude.json'), { oauthAccount: { accountUuid: 'p' } });
+  assert.deepEqual(login.claudeCredentials(folder), { accessToken: 'p' });
+
+  select(p.id);
+  assert.deepEqual(item(), { claudeAiOauth: { accessToken: 'p' }, mcpOAuth: { server: 'keep' } });
+  assert.deepEqual(get(join(home, '.claude.json')), {
+    oauthAccount: { accountUuid: 'p' },
+    numStartups: 3,
+  });
+  assert.deepEqual(item(join(data, 'default-claude-cli')), {
+    claudeAiOauth: { accessToken: 'mine' },
+  });
+  assert.deepEqual(login.claudeCredentials(), { accessToken: 'p' });
+  // No .credentials.json anywhere: nothing was written as a file.
+  assert.equal(existsSync(join(home, '.claude', '.credentials.json')), false);
+
+  // Refreshed while in use, then back to the original login.
+  items.set(
+    'Claude Code-credentials',
+    JSON.stringify({ claudeAiOauth: { accessToken: 'p-2' }, mcpOAuth: { server: 'keep' } }),
+  );
+  select('default');
+  assert.deepEqual(item(), {
+    claudeAiOauth: { accessToken: 'mine' },
+    mcpOAuth: { server: 'keep' },
+  });
+  assert.deepEqual(item(folder), { claudeAiOauth: { accessToken: 'p-2' } });
+  assert.equal(get(join(home, '.claude.json')).oauthAccount.accountUuid, 'mine');
+});
+
+test('the keychain service name is the one Claude Code derives from CLAUDE_CONFIG_DIR', () => {
+  assert.equal(claudeKeychainService(), 'Claude Code-credentials');
+  assert.match(claudeKeychainService('/Users/me/profile'), /^Claude Code-credentials-[0-9a-f]{8}$/);
+  assert.equal(
+    claudeKeychainService('/Users/me/profile'),
+    'Claude Code-credentials-' +
+      createHash('sha256').update('/Users/me/profile').digest('hex').slice(0, 8),
+  );
+  // NFC: a decomposed é hashes like the composed one.
+  assert.equal(claudeKeychainService('/Users/é'), claudeKeychainService('/Users/é'));
 });

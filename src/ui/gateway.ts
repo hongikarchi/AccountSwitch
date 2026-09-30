@@ -13,6 +13,8 @@ export const errors: Record<string, string> = {
   PROFILE_LIMIT: '계정은 서비스마다 합쳐 30개까지 추가할 수 있습니다.',
   PROFILE_PATH_INVALID: '계정 폴더가 올바르지 않습니다.',
   PROFILE_ACTIVE: '사용 중인 계정입니다. 먼저 다른 계정을 사용으로 바꾼 뒤 다시 시도하세요.',
+  KEYCHAIN_UNAVAILABLE:
+    '키체인을 읽거나 쓰지 못했습니다. 로그인 키체인이 잠겨 있지 않은지 확인하세요.',
   CLI_LOCK_TIMEOUT: 'Claude Code가 로그인을 갱신하는 중입니다. 잠시 후 다시 시도하세요.',
   CODEX_KEYRING:
     'Codex가 로그인을 시스템 자격 증명 저장소에 두도록 설정돼 있어 바꿀 수 없습니다(~/.codex/config.toml의 cli_auth_credentials_store).',

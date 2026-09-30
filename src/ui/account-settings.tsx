@@ -428,7 +428,9 @@ export function AccountSettings({
                           await api('/accounts/select', 'POST', { provider, id: row.id });
                           notify(
                             provider === 'claude-cli'
-                              ? '바꿨습니다. 켜져 있는 Claude Code도 다음 메시지부터 이 계정을 씁니다.'
+                              ? navigator.userAgent.includes('Mac OS X')
+                                ? '바꿨습니다. 켜져 있는 Claude Code도 30초쯤 뒤부터 이 계정을 씁니다.'
+                                : '바꿨습니다. 켜져 있는 Claude Code도 다음 메시지부터 이 계정을 씁니다.'
                               : '바꿨습니다. 켜져 있는 Codex는 다시 시작하면 이 계정을 씁니다.',
                           );
                         })
@@ -565,7 +567,10 @@ export function AccountSettings({
       </div>
       {command && (
         <div className="login-command">
-          <p>새 PowerShell 창에서 실행한 뒤 이 계정을 사용하세요.</p>
+          <p>
+            {navigator.userAgent.includes('Mac OS X') ? '터미널' : '새 PowerShell 창'}에서 실행한 뒤
+            이 계정을 사용하세요.
+          </p>
           <textarea aria-label="공식 CLI 로그인 명령" readOnly value={command} />
           <span className="login-actions">
             <button onClick={() => copy(command, notify)}>명령 복사</button>
