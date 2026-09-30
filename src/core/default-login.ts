@@ -1,4 +1,3 @@
-import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
   existsSync,
@@ -6,7 +5,10 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
+  rmdirSync,
+  statSync,
   unlinkSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir } from 'node:os';
@@ -60,7 +62,20 @@ const PARTS: Record<Provider, Part[]> = {
   ],
   'codex-cli': [{ home: (home) => join(home, '.codex', 'auth.json'), name: 'auth.json' }],
 };
-const IMAGE: Record<Provider, string> = { 'claude-cli': 'claude.exe', 'codex-cli': 'codex.exe' };
+/**
+ * Claude Code's own advisory locks (npm proper-lockfile: a directory whose creation is the mutex,
+ * touched every 5 s while held). Its token refresh takes the first two (stale after 60 s), its
+ * ~/.claude.json writes the third (10 s). Holding them while swapping keeps a running Claude Code
+ * from saving a refreshed old-account token over the new login: under the lock it re-reads the
+ * file, finds the new login and stops, and it uses the new account from its next message.
+ * Codex needs none: before a refresh it re-reads auth.json and gives up when the account changed
+ * (a running Codex keeps its account until restarted).
+ */
+const CLAUDE_LOCKS = [
+  { path: (home: string) => join(home, '.claude', '.oauth_refresh.lock'), stale: 60_000 },
+  { path: (home: string) => join(home, '.claude.lock'), stale: 60_000 },
+  { path: (home: string) => join(home, '.claude.json.lock'), stale: 10_000 },
+];
 
 const fail = (code: string): never => {
   throw new DomainError(code);
@@ -121,58 +136,21 @@ function owner(provider: Provider, values: unknown[]) {
   return typeof id === 'string' ? id : undefined;
 }
 
-/**
- * Whether any of these running programs (paths; '' when unreadable) is the service's CLI.
- * The Claude desktop app is also named Claude.exe but keeps its own login, so it does not count.
- */
-export function isCli(provider: Provider, paths: string[]) {
-  const desktop =
-    /\\WindowsApps\\Claude_[^\\]*\\app\\claude\.exe$|\\AnthropicClaude\\app-[^\\]*\\claude\.exe$/i;
-  return paths.some((path) => provider === 'codex-cli' || !desktop.test(path.trim()));
-}
-/** Whether the service's CLI runs anywhere (terminal, VS Code); it would write its old login back. */
-export function cliRunning(provider: Provider) {
-  const name = IMAGE[provider].replace(/\.exe$/, '');
-  return new Promise<boolean>((resolve, reject) =>
-    execFile(
-      'powershell.exe',
-      [
-        '-NoProfile',
-        '-NonInteractive',
-        '-Command',
-        `Get-Process -Name ${name} -ErrorAction SilentlyContinue | ForEach-Object { '|' + $_.Path }; exit 0`,
-      ],
-      { windowsHide: true, timeout: 20_000 },
-      (error, output) =>
-        error
-          ? reject(new DomainError('CLI_CHECK_FAILED'))
-          : resolve(
-              isCli(
-                provider,
-                output
-                  .split(/\r?\n/)
-                  .filter((line) => line.startsWith('|'))
-                  .map((line) => line.slice(1)),
-              ),
-            ),
-    ),
-  );
-}
-
 interface Options {
   /** Where the app keeps its data: the first original login and set-aside logins go here. */
   root: string;
   home?: string;
-  running?: (provider: Provider) => Promise<boolean>;
   now?: () => number;
+  /** How long to wait for a lock Claude Code holds (it holds one for a network round trip). */
+  lockWaitMs?: number;
 }
 export class DefaultLogin {
   private options: Required<Options>;
   constructor(options: Options) {
-    this.options = { home: homedir(), running: cliRunning, now: Date.now, ...options };
+    this.options = { home: homedir(), now: Date.now, lockWaitMs: 9000, ...options };
   }
-  /** Refuse a switch the CLI would undo or that cannot be done with files. */
-  async assertReady(provider: Provider) {
+  /** Refuse a switch that cannot be done with files. */
+  assertReady(provider: Provider) {
     if (provider === 'codex-cli') {
       const config = join(this.options.home, '.codex', 'config.toml');
       const store = existsSync(config)
@@ -182,7 +160,63 @@ export class DefaultLogin {
         : undefined;
       if (store && store !== 'file') fail('CODEX_KEYRING');
     }
-    if (await this.options.running(provider)) fail('CLI_RUNNING');
+  }
+  /** Take the CLI's own locks for a swap (Claude Code only); call the result to release them. */
+  async lock(provider: Provider) {
+    const held: string[] = [];
+    let touch: ReturnType<typeof setInterval> | undefined;
+    const release = () => {
+      clearInterval(touch);
+      for (const folder of held.reverse())
+        try {
+          rmdirSync(folder);
+        } catch {
+          /* Already gone. */
+        }
+    };
+    if (provider !== 'claude-cli') return release;
+    try {
+      for (const lock of CLAUDE_LOCKS)
+        held.push(await this.acquire(lock.path(this.options.home), lock.stale));
+    } catch (error) {
+      release();
+      throw error;
+    }
+    // Live holders keep their lock fresh so it is never taken as stale.
+    touch = setInterval(() => {
+      const now = new Date();
+      for (const folder of held)
+        try {
+          utimesSync(folder, now, now);
+        } catch {
+          /* Released. */
+        }
+    }, 3000);
+    return release;
+  }
+  private async acquire(folder: string, stale: number) {
+    mkdirSync(dirname(folder), { recursive: true });
+    const deadline = Date.now() + this.options.lockWaitMs;
+    for (;;) {
+      try {
+        mkdirSync(folder);
+        return folder;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+      }
+      // Checked on every path, so a lock that cannot be read or removed never spins forever.
+      if (Date.now() > deadline) fail('CLI_LOCK_TIMEOUT');
+      try {
+        // Left behind by a process that ended while holding it.
+        if (Date.now() - statSync(folder).mtimeMs > stale) {
+          rmdirSync(folder);
+          continue;
+        }
+      } catch {
+        /* Released meanwhile, or not removable: try again after the pause. */
+      }
+      await new Promise((resolve) => setTimeout(resolve, 150 + Math.random() * 250));
+    }
   }
   /**
    * Put the installed login back in `from` (its owner's folder) and install the one in `to`.

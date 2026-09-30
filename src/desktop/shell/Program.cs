@@ -1,4 +1,6 @@
 using System;
+using System.Diagnostics;
+using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using Velopack;
@@ -17,7 +19,7 @@ namespace AccountSwitch.Desktop
         private static int Main(string[] args)
         {
             // Install/uninstall/update hooks run here and exit before the app starts.
-            VelopackApp.Build().Run();
+            VelopackApp.Build().OnBeforeUninstallFastCallback(_ => RestoreDefaultLogin()).Run();
             bool background = Array.IndexOf(args, "--background") >= 0;
             using (var mutex = new Mutex(true, MutexName, out bool first))
             {
@@ -43,6 +45,29 @@ namespace AccountSwitch.Desktop
                     Application.Run(context);
                 GC.KeepAlive(mutex);
                 return 0;
+            }
+        }
+
+        /// <summary>
+        /// Before uninstalling: if another account is the CLIs' login, put the original one back so
+        /// the PC is left as it was (Velopack allows 30 s). Accounts stay in the data folder.
+        /// </summary>
+        private static void RestoreDefaultLogin()
+        {
+            try
+            {
+                var start = new ProcessStartInfo(Paths.Engine, "--restore-default-login")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(Paths.Engine),
+                };
+                using (var process = Process.Start(start))
+                    if (process != null && !process.WaitForExit(25000)) process.Kill();
+            }
+            catch
+            {
+                // Uninstalling goes on; the original login stays in the data folder.
             }
         }
     }

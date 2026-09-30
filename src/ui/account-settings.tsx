@@ -375,6 +375,11 @@ export function AccountSettings({
                       onClick={() =>
                         void action(async () => {
                           await api('/accounts/select', 'POST', { provider, id: row.id });
+                          notify(
+                            provider === 'claude-cli'
+                              ? '바꿨습니다. 켜져 있는 Claude Code도 다음 메시지부터 이 계정을 씁니다.'
+                              : '바꿨습니다. 켜져 있는 Codex는 다시 시작하면 이 계정을 씁니다.',
+                          );
                         })
                       }
                     >

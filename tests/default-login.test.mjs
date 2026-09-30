@@ -1,10 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountProfiles } from '../src/core/account-profiles.ts';
-import { DefaultLogin, isCli } from '../src/core/default-login.ts';
+import { DefaultLogin } from '../src/core/default-login.ts';
+import { restoreDefaultLogins } from '../src/core/restore.ts';
 
 // Everything runs in a temporary home; the real ~/.claude and ~/.codex are never touched.
 function fixture(t) {
@@ -15,11 +25,10 @@ function fixture(t) {
   mkdirSync(join(home, '.claude'), { recursive: true });
   mkdirSync(join(home, '.codex'), { recursive: true });
   const profiles = new AccountProfiles(data, () => false);
-  let running = false;
-  const login = new DefaultLogin({ root: data, home, running: async () => running, now: () => 7 });
+  const login = new DefaultLogin({ root: data, home, now: () => 7, lockWaitMs: 400 });
   const select = (provider, id) =>
     profiles.select(provider, id, (from, to) => login.swap(provider, from, to));
-  return { root, home, data, profiles, login, select, setRunning: (value) => (running = value) };
+  return { root, home, data, profiles, login, select };
 }
 const put = (file, value) => writeFileSync(file, JSON.stringify(value));
 const get = (file) => JSON.parse(readFileSync(file, 'utf8'));
@@ -107,16 +116,12 @@ test('Codex: auth.json moves whole; a login changed outside the app is set aside
   assert.deepEqual(get(join(data, 'set-aside-codex-cli-7', 'auth.json')), codex('other'));
 });
 
-test('no switch while the CLI runs, with a keyring store, or with an unreadable file', async (t) => {
-  const { home, data, profiles, login, setRunning } = fixture(t);
-  setRunning(true);
-  await assert.rejects(login.assertReady('claude-cli'), { code: 'CLI_RUNNING' });
-  setRunning(false);
-  await login.assertReady('claude-cli');
+test('no switch with a keyring store or an unreadable file', (t) => {
+  const { home, data, profiles, login } = fixture(t);
   writeFileSync(join(home, '.codex', 'config.toml'), 'cli_auth_credentials_store = "keyring"\n');
-  await assert.rejects(login.assertReady('codex-cli'), { code: 'CODEX_KEYRING' });
+  assert.throws(() => login.assertReady('codex-cli'), { code: 'CODEX_KEYRING' });
   writeFileSync(join(home, '.codex', 'config.toml'), 'cli_auth_credentials_store = "file"\n');
-  await login.assertReady('codex-cli');
+  login.assertReady('codex-cli');
 
   writeFileSync(join(home, '.claude.json'), '{ broken');
   const p = profiles.add('claude-cli', 'P');
@@ -130,14 +135,61 @@ test('no switch while the CLI runs, with a keyring store, or with an unreadable 
   assert.deepEqual(readdirSync(join(home, '.claude')), []);
 });
 
-test('the Claude desktop app is not the Claude CLI', () => {
-  const store = String.raw`C:\Program Files\WindowsApps\Claude_1.30096.1.0_x64__abc\app\Claude.exe`;
-  const squirrel = String.raw`C:\Users\u\AppData\Local\AnthropicClaude\app-1.2.3\claude.exe`;
-  const npm = String.raw`C:\Users\u\AppData\Roaming\npm\node_modules\@anthropic-ai\claude-code\bin\claude.exe`;
-  assert.equal(isCli('claude-cli', [store, squirrel]), false);
-  assert.equal(isCli('claude-cli', [store, npm]), true);
-  assert.equal(isCli('claude-cli', [String.raw`C:\Users\u\.local\bin\claude.exe`]), true);
-  // A program whose path cannot be read might be the CLI.
-  assert.equal(isCli('claude-cli', ['']), true);
-  assert.equal(isCli('claude-cli', []), false);
+test("a switch holds Claude Code's own locks: waits for a live one, takes over a stale one", async (t) => {
+  const { home, login } = fixture(t);
+  const locks = [
+    join(home, '.claude', '.oauth_refresh.lock'),
+    join(home, '.claude.lock'),
+    join(home, '.claude.json.lock'),
+  ];
+  const release = await login.lock('claude-cli');
+  assert.deepEqual(locks.map(existsSync), [true, true, true]);
+  release();
+  assert.deepEqual(locks.map(existsSync), [false, false, false]);
+
+  // Claude Code is refreshing its token: wait, then give up without touching anything.
+  mkdirSync(locks[1]);
+  await assert.rejects(login.lock('claude-cli'), { code: 'CLI_LOCK_TIMEOUT' });
+  assert.deepEqual(locks.map(existsSync), [false, true, false]);
+  // Left by a Claude Code that ended while holding it (older than 60 s): taken over.
+  const old = new Date(Date.now() - 120_000);
+  utimesSync(locks[1], old, old);
+  (await login.lock('claude-cli'))();
+  assert.deepEqual(locks.map(existsSync), [false, false, false]);
+
+  // Codex takes no lock.
+  (await login.lock('codex-cli'))();
+  assert.deepEqual(readdirSync(home).sort(), ['.claude', '.codex']);
+});
+
+test('uninstalling gives both CLIs their original logins back and keeps the accounts', async (t) => {
+  const { home, data, profiles, select } = fixture(t);
+  const credentials = join(home, '.claude', '.credentials.json');
+  const auth = join(home, '.codex', 'auth.json');
+  put(credentials, { claudeAiOauth: { accessToken: 'mine' } });
+  put(join(home, '.claude.json'), { oauthAccount: { accountUuid: 'mine' } });
+  put(auth, { tokens: { access_token: 'mine', account_id: 'acct-mine' } });
+  const p = profiles.add('claude-cli', 'P');
+  const q = profiles.add('codex-cli', 'Q');
+  claudeLogin(join(data, p.id), 'p-1', 'p');
+  put(join(data, q.id, 'auth.json'), { tokens: { access_token: 'q', account_id: 'acct-q' } });
+  select('claude-cli', p.id);
+  select('codex-cli', q.id);
+  // Used (refreshed) since the switch: that login must go back to P.
+  put(credentials, { claudeAiOauth: { accessToken: 'p-2' } });
+
+  const result = await restoreDefaultLogins(data, home);
+  assert.deepEqual(result, { restored: ['claude-cli', 'codex-cli'], failed: [] });
+  assert.equal(get(credentials).claudeAiOauth.accessToken, 'mine');
+  assert.equal(get(auth).tokens.access_token, 'mine');
+  assert.equal(get(join(data, p.id, '.credentials.json')).claudeAiOauth.accessToken, 'p-2');
+  const after = new AccountProfiles(data, () => false);
+  assert.deepEqual(after.list().active, { 'claude-cli': 'default', 'codex-cli': 'default' });
+  assert.equal(after.list().profiles.length, 2);
+  // Nothing to do the second time, or without any data.
+  assert.deepEqual(await restoreDefaultLogins(data, home), { restored: [], failed: [] });
+  assert.deepEqual(await restoreDefaultLogins(join(data, 'none'), home), {
+    restored: [],
+    failed: [],
+  });
 });

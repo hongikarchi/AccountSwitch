@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
+import { restoreDefaultLogins } from '../core/restore.ts';
 import { startServer } from './server.ts';
 
 // Start the local app and open it in the default browser. A second start opens the running one.
@@ -26,6 +27,13 @@ function open(url: string) {
 
 // No top-level await: the installed executable runs this as one CommonJS script.
 async function main() {
+  // The uninstaller: give the CLIs their original logins back, then stop.
+  if (process.argv.includes('--restore-default-login')) {
+    const result = await restoreDefaultLogins(join(directory, 'profiles'));
+    console.log(`AccountSwitch restored: ${result.restored.join(', ') || 'none'}`);
+    for (const failure of result.failed) console.error(failure);
+    process.exit(result.failed.length ? 1 : 0);
+  }
   try {
     const running = JSON.parse(readFileSync(launchFile, 'utf8')) as { url: string; pid: number };
     process.kill(running.pid, 0);

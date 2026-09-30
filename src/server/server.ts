@@ -220,14 +220,20 @@ export async function startServer({ directory, port = 0 }: Options) {
         }
         if (!(await accountStatus(input.provider, input.id)).available)
           throw new DomainError('SUBSCRIPTION_LOGIN_REQUIRED');
-        // The chosen account becomes the login of the terminal and VS Code.
-        await defaultLogin.assertReady(input.provider);
-        send(
-          200,
-          profiles.select(input.provider, input.id, (from, to) =>
-            defaultLogin.swap(input.provider, from, to),
-          ),
-        );
+        // The chosen account becomes the login of the terminal and VS Code, also while the CLI
+        // runs (see DefaultLogin.lock).
+        defaultLogin.assertReady(input.provider);
+        const release = await defaultLogin.lock(input.provider);
+        try {
+          send(
+            200,
+            profiles.select(input.provider, input.id, (from, to) =>
+              defaultLogin.swap(input.provider, from, to),
+            ),
+          );
+        } finally {
+          release();
+        }
         return;
       }
       if (url.pathname === '/api/v1/accounts/login-command' && request.method === 'POST') {
