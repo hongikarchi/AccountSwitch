@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { api } from './gateway.ts';
+import { AccountUsageLines, type AccountUsage } from './usage.tsx';
 import { providers } from '../core/providers.ts';
 import type { Provider } from '../core/providers.ts';
 const schema = z.object({
@@ -167,7 +168,14 @@ function LoginPanel({
   );
 }
 
-export function AccountSettings({ provider }: { provider: Provider }) {
+export function AccountSettings({
+  provider,
+  usage,
+}: {
+  provider: Provider;
+  /** This service's accounts from the page's usage view (who is signed in, usage). */
+  usage?: AccountUsage[];
+}) {
   const [data, setData] = useState<z.infer<typeof schema>>();
   const [label, setLabel] = useState('');
   const [message, setMessage] = useState('');
@@ -186,45 +194,16 @@ export function AccountSettings({ provider }: { provider: Provider }) {
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setMessage(''), 5000);
   };
-  // Who is signed in to each account (email · plan) and the switching settings, from the usage view.
-  const [who, setWho] = useState<Record<string, { text: string; signedIn: boolean }>>({});
-  const [usageOn, setUsageOn] = useState(false);
-  useEffect(() => {
-    void api('/accounts/usage')
-      .then((value) => {
-        const usage = z
-          .object({
-            settings: z.object({ usageLookup: z.boolean() }),
-            accounts: z.array(
-              z.object({
-                provider: z.string(),
-                id: z.string(),
-                email: z.string().optional(),
-                plan: z.string().optional(),
-                signedIn: z.boolean(),
-              }),
-            ),
-          })
-          .parse(value);
-        setUsageOn(usage.settings.usageLookup);
-        setWho(
-          Object.fromEntries(
-            usage.accounts
-              .filter((row) => row.provider === provider)
-              .map((row) => [
-                row.id,
-                {
-                  signedIn: row.signedIn,
-                  text: row.signedIn
-                    ? [row.email, row.plan].filter(Boolean).join(' · ')
-                    : '로그인 필요',
-                },
-              ]),
-          ),
-        );
-      })
-      .catch(() => {});
-  }, [provider, data]);
+  // Who is signed in to each account (email · plan), from the page's usage view.
+  const who: Record<string, { text: string; signedIn: boolean }> = Object.fromEntries(
+    (usage ?? []).map((row) => [
+      row.id,
+      {
+        signedIn: row.signedIn,
+        text: row.signedIn ? [row.email, row.plan].filter(Boolean).join(' · ') : '로그인 필요',
+      },
+    ]),
+  );
   useEffect(() => {
     let alive = true;
     let timer: ReturnType<typeof setTimeout>;
@@ -321,6 +300,7 @@ export function AccountSettings({ provider }: { provider: Provider }) {
       {rows.map((row) => {
         const active = data?.active[provider] === row.id;
         const signedIn = who[row.id]?.signedIn;
+        const current = usage?.find((account) => account.id === row.id);
         const mine = login?.profileId === row.id;
         const menu = (task: () => void) => (event: React.MouseEvent<HTMLButtonElement>) => {
           event.currentTarget.closest('details')?.removeAttribute('open');
@@ -369,6 +349,11 @@ export function AccountSettings({ provider }: { provider: Provider }) {
                 <span className="account-name">
                   {row.label}
                   {active ? <span className="account-badge">사용 중</span> : null}
+                  {current?.limitReached || current?.limitedUntil ? (
+                    <span className="account-badge" data-limit="true">
+                      한도
+                    </span>
+                  ) : null}
                   {who[row.id] ? <small>{who[row.id].text}</small> : null}
                 </span>
               )}
@@ -477,6 +462,7 @@ export function AccountSettings({ provider }: { provider: Provider }) {
                 </span>
               )}
             </div>
+            <AccountUsageLines account={current} />
             {mine && loggingIn && login ? (
               <LoginPanel login={login} provider={provider} cancel={cancelLogin} notify={notify} />
             ) : null}
@@ -533,7 +519,6 @@ export function AccountSettings({ provider }: { provider: Provider }) {
           </span>
         </div>
       )}
-      <small className="account-foot">{usageOn ? '사용량 조회 켜짐' : '사용량 조회 꺼짐'}</small>
       {message ? (
         <p role="status" className="account-message">
           {message}

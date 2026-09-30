@@ -103,48 +103,8 @@ textarea:focus-visible {
 .connector-list li + li {
   border-top: 1px solid #eef0eb;
 }
-.settings-rows li strong {
-  flex: 1;
-}
 .connector-list li div {
   flex: 1;
-}
-.pill {
-  font-size: 11px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #f1e3dc;
-  color: #9c4f36;
-  white-space: nowrap;
-}
-.pill[data-ok='true'] {
-  background: #e1efe5;
-  color: #2f6b43;
-}
-
-/* Settings → AI: accounts with their usage (5-hour / 7-day) and reset times. */
-.usage-options {
-  display: grid;
-  gap: 4px;
-  margin-bottom: 12px;
-}
-.usage-threshold {
-  width: 56px;
-  margin-left: 6px;
-  padding: 2px 4px;
-}
-.usage-row {
-  display: grid !important;
-  gap: 6px;
-}
-.usage-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.usage-head small {
-  color: var(--muted);
 }
 .usage-line {
   display: grid;
@@ -166,19 +126,48 @@ textarea:focus-visible {
 .usage-fill {
   display: block;
   height: 100%;
-  background: #4f8a64;
-}
-.usage-fill[data-level='mid'] {
-  background: #d09a3a;
+  background: var(--accent, #4f8a64);
 }
 .usage-fill[data-level='high'] {
   background: #c9563a;
 }
-.usage-row > button {
-  justify-self: start;
+/* An account's usage under its row. */
+.account-usage {
+  display: grid;
+  gap: 3px;
+  padding: 2px 10px 4px 13px;
 }
-.usage-refresh {
-  margin-top: 10px;
+.account-usage .usage-note {
+  font-size: 11px;
+}
+/* Usage lookup switch and refresh, once at the bottom of the page. */
+.usage-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 2px;
+}
+.usage-toolbar small {
+  color: var(--muted);
+}
+.usage-toolbar button {
+  margin-left: auto;
+}
+/* Each service in its own colour: Claude orange, ChatGPT green. */
+.card[data-provider='claude-cli'] {
+  --accent: #d97757;
+  --accent-text: #b4532f;
+}
+.card[data-provider='codex-cli'] {
+  --accent: #10a37f;
+  --accent-text: #0b7a5f;
+}
+.card[data-provider] {
+  border-top: 3px solid var(--accent);
+}
+.card[data-provider] h2 {
+  color: var(--accent-text);
 }
 .usage-note {
   color: var(--muted);
@@ -199,8 +188,8 @@ textarea:focus-visible {
   background: #f7f8f5;
 }
 .account-row[data-active='true'] {
-  background: #eef5f0;
-  box-shadow: inset 3px 0 0 #4f8a64;
+  background: color-mix(in srgb, var(--accent, #4f8a64) 10%, #fff);
+  box-shadow: inset 3px 0 0 var(--accent, #4f8a64);
 }
 .account-name {
   flex: 1;
@@ -256,8 +245,12 @@ textarea:focus-visible {
   border-radius: 9px;
   font-size: 10px;
   font-weight: 500;
-  background: #dcebe1;
-  color: #2f6b45;
+  background: color-mix(in srgb, var(--accent, #4f8a64) 16%, #fff);
+  color: var(--accent-text, #2f6b45);
+}
+.account-badge[data-limit='true'] {
+  background: #f6ddd6;
+  color: #a4442f;
 }
 .account-actions {
   display: flex;
@@ -400,10 +393,6 @@ textarea:focus-visible {
   font-family: ui-monospace, monospace;
   font-size: 11px;
 }
-.account-foot {
-  color: var(--muted);
-  font-size: 11px;
-}
 .account-message {
   margin: 0;
   font-size: 12px;
@@ -422,11 +411,15 @@ textarea:focus-visible {
   color: #f0b3a6;
 }
 :root[data-theme='dark'] .account-badge {
-  background: #203127;
-  color: #9fd3b0;
+  background: color-mix(in srgb, var(--accent, #4f8a64) 22%, #1f2322);
+  color: var(--accent-text, #9fd3b0);
+}
+:root[data-theme='dark'] .account-badge[data-limit='true'] {
+  background: #3a2822;
+  color: #f0b3a6;
 }
 
-/* App layout: one page, two services side by side, usage below. */
+/* App layout: one page, two services side by side, the usage switch below. */
 body {
   min-height: 100vh;
 }
@@ -449,6 +442,29 @@ body {
 }
 .app-head small {
   color: var(--muted);
+}
+.theme-switch {
+  display: inline-flex;
+  margin-left: auto;
+  align-self: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.theme-switch button {
+  border: 0;
+  border-radius: 0;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--muted);
+}
+.theme-switch button + button {
+  border-left: 1px solid var(--line);
+}
+.theme-switch button[aria-pressed='true'] {
+  background: var(--soft);
+  color: inherit;
+  font-weight: 600;
 }
 .services {
   display: grid;
@@ -509,25 +525,20 @@ body {
   background: #1d2120;
   border: 1px solid var(--line);
 }
+:root[data-theme='dark'] .usage-track {
+  background: #2e3533;
+}
 :root[data-theme='dark'] .account-row {
   background: #262c2b;
 }
 :root[data-theme='dark'] .account-row[data-active='true'] {
-  background: #22302a;
+  background: color-mix(in srgb, var(--accent, #4f8a64) 14%, #1f2322);
 }
-:root[data-theme='dark'] .settings-rows {
-  border-color: var(--line);
+:root[data-theme='dark'] .card[data-provider='claude-cli'] {
+  --accent-text: #ec9a7c;
 }
-:root[data-theme='dark'] .settings-rows li + li {
-  border-color: var(--line);
-}
-:root[data-theme='dark'] .pill {
-  background: #3a2822;
-  color: #f0b3a6;
-}
-:root[data-theme='dark'] .pill[data-ok='true'] {
-  background: #203127;
-  color: #9fd3b0;
+:root[data-theme='dark'] .card[data-provider='codex-cli'] {
+  --accent-text: #4cc9a4;
 }
 :root[data-theme='dark'] .primary-button {
   background: #dde3df;
