@@ -1,0 +1,54 @@
+name: Release
+
+# A version tag (v0.1.0) builds the Windows installer and publishes it as a GitHub release.
+# Running it by hand builds the same files as a workflow artifact without releasing.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+          cache: npm
+
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build:exe
+
+      - name: Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and
+              -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup -y --no-progress
+          }
+      - run: node scripts/build-installer.mjs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AccountSwitch
+          path: release/*.exe
+
+      - name: Publish release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw "Tag ${{ github.ref_name }} does not match package.json version $version"
+          }
+          gh release create "${{ github.ref_name }}" "release/AccountSwitch-Setup-$version.exe" `
+            --title "AccountSwitch $version" --generate-notes

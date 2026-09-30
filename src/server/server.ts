@@ -1,8 +1,9 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join, normalize, posix } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getAsset, isSea } from 'node:sea';
 import { z } from 'zod';
 import { AccountProfiles } from '../core/account-profiles.ts';
 import { AccountLogin } from '../core/account-login.ts';
@@ -15,7 +16,27 @@ import { DefaultLogin } from '../core/default-login.ts';
 // A local web app on 127.0.0.1 only. The page gets a session cookie from the one-time token in
 // its launch link (#token); every API call needs that cookie and, for writes, this origin.
 
-const WEB = fileURLToPath(new URL('../../dist/ui/', import.meta.url));
+/**
+ * A file of the built page: embedded in the executable when installed (asset "ui/<path>"),
+ * else read from dist/ui. Undefined when there is no such file.
+ */
+async function webFile(pathname: string) {
+  const name = pathname === '/' ? 'index.html' : pathname;
+  if (isSea()) {
+    const key = posix.normalize(name).replace(/^\/+/, '');
+    if (key.split('/').includes('..')) return undefined;
+    try {
+      return Buffer.from(getAsset('ui/' + key));
+    } catch {
+      return undefined;
+    }
+  }
+  // Worked out only here: a bundled executable has no module address.
+  const web = fileURLToPath(new URL('../../dist/ui/', import.meta.url));
+  const path = normalize(join(web, name));
+  if (!path.startsWith(normalize(web))) return undefined;
+  return readFile(path).catch(() => undefined);
+}
 const TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
@@ -99,14 +120,9 @@ export async function startServer({ directory, port = 0 }: Options) {
       const url = new URL(request.url || '/', origin);
       if (!url.pathname.startsWith('/api/')) {
         if (request.method !== 'GET') throw new DomainError('NOT_FOUND');
-        const path = normalize(join(WEB, url.pathname === '/' ? 'index.html' : url.pathname));
-        if (!path.startsWith(normalize(WEB))) throw new DomainError('NOT_FOUND');
-        let file;
-        try {
-          file = await readFile(path);
-        } catch {
-          throw new DomainError('NOT_FOUND');
-        }
+        const path = url.pathname === '/' ? 'index.html' : url.pathname;
+        const file = await webFile(url.pathname);
+        if (!file) throw new DomainError('NOT_FOUND');
         response.writeHead(200, {
           'Content-Type': TYPES[extname(path)] ?? 'application/octet-stream',
           'X-Content-Type-Options': 'nosniff',

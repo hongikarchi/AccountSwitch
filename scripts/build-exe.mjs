@@ -1,0 +1,79 @@
+// Build release/AccountSwitch.exe: the server bundled into one CommonJS script, the built page
+// (dist/ui) embedded as assets, injected into a copy of the Node runtime running this script
+// (Node single executable application). Run `npm run build:web` first (`npm run build:exe` does).
+import { execFileSync } from 'node:child_process';
+import { copyFileSync, mkdirSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+
+const root = fileURLToPath(new URL('..', import.meta.url));
+const [major, minor] = process.versions.node.split('.').map(Number);
+// The executable ships this very runtime, so it must meet the app's own Node requirement.
+if (major < 24 || (major === 24 && minor < 15)) {
+  console.error(
+    `Node 24.15 or later is needed to build the executable (this is ${process.version}).`,
+  );
+  process.exit(1);
+}
+if (process.platform !== 'win32') {
+  console.error('The executable is built on Windows.');
+  process.exit(1);
+}
+
+const work = join(root, 'release', 'build');
+const exe = join(root, 'release', 'AccountSwitch.exe');
+rmSync(join(root, 'release'), { recursive: true, force: true });
+mkdirSync(work, { recursive: true });
+
+await build({
+  entryPoints: [join(root, 'src', 'server', 'main.ts')],
+  outfile: join(work, 'main.cjs'),
+  bundle: true,
+  platform: 'node',
+  format: 'cjs',
+  target: 'node24',
+  legalComments: 'none',
+  logOverride: { 'empty-import-meta': 'silent' },
+});
+
+const ui = join(root, 'dist', 'ui');
+const files = (folder) =>
+  readdirSync(folder, { withFileTypes: true }).flatMap((entry) =>
+    entry.isDirectory() ? files(join(folder, entry.name)) : [join(folder, entry.name)],
+  );
+const assets = Object.fromEntries(
+  files(ui).map((file) => ['ui/' + relative(ui, file).replaceAll('\\', '/'), file]),
+);
+if (!assets['ui/index.html']) {
+  console.error('dist/ui/index.html is missing; run `npm run build:web` first.');
+  process.exit(1);
+}
+const config = join(work, 'sea-config.json');
+writeFileSync(
+  config,
+  JSON.stringify({
+    main: join(work, 'main.cjs'),
+    output: join(work, 'sea-prep.blob'),
+    disableExperimentalSEAWarning: true,
+    useCodeCache: false,
+    useSnapshot: false,
+    assets,
+  }),
+);
+execFileSync(process.execPath, ['--experimental-sea-config', config], { stdio: 'inherit' });
+copyFileSync(process.execPath, exe);
+execFileSync(
+  process.execPath,
+  [
+    join(root, 'node_modules', 'postject', 'dist', 'cli.js'),
+    exe,
+    'NODE_SEA_BLOB',
+    join(work, 'sea-prep.blob'),
+    '--sentinel-fuse',
+    'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2',
+  ],
+  { stdio: 'inherit' },
+);
+rmSync(work, { recursive: true, force: true });
+console.log('Built ' + relative(root, exe));

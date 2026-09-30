@@ -21,25 +21,33 @@ function open(url: string) {
   spawn(command, args, { detached: true, stdio: 'ignore' }).unref();
 }
 
-try {
-  const running = JSON.parse(readFileSync(launchFile, 'utf8')) as { url: string; pid: number };
-  process.kill(running.pid, 0);
-  const alive = await fetch(new URL('api/v1/accounts', running.url)).catch(() => undefined);
-  if (alive) {
-    open(running.url);
-    console.log(`AccountSwitch is already running: ${new URL(running.url).origin}`);
-    process.exit(0);
+// No top-level await: the installed executable runs this as one CommonJS script.
+async function main() {
+  try {
+    const running = JSON.parse(readFileSync(launchFile, 'utf8')) as { url: string; pid: number };
+    process.kill(running.pid, 0);
+    const alive = await fetch(new URL('api/v1/accounts', running.url)).catch(() => undefined);
+    if (alive) {
+      open(running.url);
+      console.log(`AccountSwitch is already running: ${new URL(running.url).origin}`);
+      process.exit(0);
+    }
+  } catch {
+    /* Not running. */
   }
-} catch {
-  /* Not running. */
-}
 
-const app = await startServer({ directory, port: Number(process.env.ACCOUNTSWITCH_PORT) || 0 });
-writeFileSync(launchFile, JSON.stringify({ url: app.launchUrl, pid: process.pid }), {
-  mode: 0o600,
+  const app = await startServer({ directory, port: Number(process.env.ACCOUNTSWITCH_PORT) || 0 });
+  writeFileSync(launchFile, JSON.stringify({ url: app.launchUrl, pid: process.pid }), {
+    mode: 0o600,
+  });
+  console.log(`AccountSwitch: ${app.url}`);
+  console.log('Closing this window stops AccountSwitch.');
+  open(app.launchUrl);
+  const stop = () => void app.close().finally(() => process.exit(0));
+  process.on('SIGINT', stop);
+  process.on('SIGTERM', stop);
+}
+void main().catch((error) => {
+  console.error(error);
+  process.exit(1);
 });
-console.log(`AccountSwitch: ${app.url}`);
-open(app.launchUrl);
-const stop = () => void app.close().finally(() => process.exit(0));
-process.on('SIGINT', stop);
-process.on('SIGTERM', stop);

@@ -28,14 +28,23 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 켜면 각 계정의 로그인 토큰으로 Claude·ChatGPT의 **공개 문서가 없는** 사용량 주소를 3분마다 조회합니다(`api.anthropic.com/api/oauth/usage`, `chatgpt.com/backend-api/wham/usage`). 공식 API가 아니므로 예고 없이 바뀌거나 막힐 수 있고, 서비스 약관상 문제가 될 수 있습니다. 켜기 전에 각 서비스의 약관을 확인하세요. 토큰은 새로 발급하거나 고쳐 쓰지 않고, 기록이나 화면에 내보내지 않습니다.
 
+## 설치
+
+[Releases](https://github.com/hongikarchi/AccountSwitch/releases)에서 `AccountSwitch-Setup-<버전>.exe`를 받아 실행합니다. 관리자 권한 없이 `%LOCALAPPDATA%\Programs\AccountSwitch`에 설치되고 시작 메뉴에 등록됩니다. Node.js는 필요 없습니다.
+
+- 서명되지 않은 파일이라 처음 실행할 때 Windows SmartScreen 경고가 나올 수 있습니다("추가 정보" → "실행").
+- 실행하면 콘솔 창이 함께 열립니다. 이 창이 앱 서버이며, 닫으면 AccountSwitch가 꺼집니다.
+- **삭제하기 전에** 다른 계정을 "사용" 중이면 "기존 CLI 로그인"을 다시 "사용"해 원래 로그인으로 되돌리세요. 삭제해도 계정 데이터(`%LOCALAPPDATA%\AccountSwitch`)는 지우지 않습니다. 원래 로그인이 그 안에 보관돼 있을 수 있기 때문입니다.
+
 ## 필요한 것
 
 - Windows 10/11
-- [Node.js](https://nodejs.org/) 24.15 이상
 - 쓰려는 CLI: [Claude Code](https://docs.claude.com/en/docs/claude-code) (`~/.local/bin/claude.exe` 또는 PATH), [Codex CLI](https://github.com/openai/codex) (npm 전역 설치 또는 PATH)
   - 다른 위치에 있으면 `ACCOUNTSWITCH_CLAUDE_PATH`, `ACCOUNTSWITCH_CODEX_PATH`로 실행 파일 경로를 지정합니다.
 
-## 실행
+## 소스에서 실행
+
+[Node.js](https://nodejs.org/) 24.15 이상이 필요합니다.
 
 ```powershell
 npm install
@@ -52,7 +61,11 @@ npm start          # 화면을 빌드하고 기본 브라우저로 엽니다
 npm test           # 단위·서버 시험
 npm run typecheck
 npm run format
+npm run build:exe        # release\AccountSwitch.exe (Node 24.15 이상으로 실행해야 함: 실행 중인 Node가 exe에 들어감)
+npm run build:installer  # release\AccountSwitch-Setup-<버전>.exe (Inno Setup 6 필요)
 ```
+
+`package.json`의 버전과 같은 태그(`v0.1.0`)를 올리면 GitHub Actions(`.github/workflows/release.yml`)가 시험·빌드 후 설치 파일을 Releases에 올립니다.
 
 | 위치 | 내용 |
 |---|---|
@@ -63,11 +76,12 @@ npm run format
 | `src/core/cli.ts` | CLI 찾기, 계정별 환경 변수, 로그인 상태 확인 |
 | `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`) |
 | `src/ui/` | React 화면 |
+| `scripts/`, `installer/` | 실행 파일(Node SEA)과 Inno Setup 설치 파일 빌드 |
 
 ## 다음 단계
 
 1. **한도 자동 전환**: 선택 계정이 기준(%)을 넘으면 여유가 가장 많은 계정으로 바꿉니다(`AccountUsageService.choose`는 이미 있음). CLI가 실행 중이면 바꿀 수 없으므로, CLI가 꺼질 때까지 기다렸다 바꾸는 처리가 필요합니다.
-2. **설치 파일**: Node 없이 설치하는 Windows 설치 파일과 GitHub Releases 배포.
+2. **코드 서명·아이콘**: SmartScreen 경고를 없애는 코드 서명, 실행 파일 아이콘, 콘솔 창 없이 트레이에서 실행.
 
 ## 출처
 
