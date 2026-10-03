@@ -6,7 +6,7 @@ import { api, errors } from './gateway.ts';
 // for the page and shown inside each account's row; the usage lookup switch sits at the bottom.
 const windowSchema = z.object({ percent: z.number(), resetsAt: z.string().nullable() }).optional();
 const usageSchema = z.object({
-  settings: z.object({ usageLookup: z.boolean(), autoSwitch: z.boolean(), threshold: z.number() }),
+  settings: z.object({ autoSwitch: z.boolean(), threshold: z.number() }),
   autoSwitch: z
     .object({
       last: z.object({ provider: z.string(), to: z.string(), at: z.string() }).optional(),
@@ -27,7 +27,7 @@ const usageSchema = z.object({
         .optional(),
       limitReached: z.boolean(),
       checkedAt: z.string().optional(),
-      state: z.enum(['ok', 'off', 'signed-out', 'token-expired', 'error']),
+      state: z.enum(['ok', 'signed-out', 'token-expired', 'error']),
       error: z.string().optional(),
     }),
   ),
@@ -91,9 +91,9 @@ function Line({ label, value }: { label: string; value: Window }) {
   );
 }
 
-/** One account's usage bars, under its row; nothing while signed out or with lookup off. */
+/** One account's usage bars, under its row; nothing while signed out. */
 export function AccountUsageLines({ account }: { account?: AccountUsage }) {
-  if (!account?.signedIn || account.state === 'off' || account.state === 'signed-out') return null;
+  if (!account?.signedIn || account.state === 'signed-out') return null;
   return (
     <div className="account-usage">
       <Line
@@ -106,7 +106,9 @@ export function AccountUsageLines({ account }: { account?: AccountUsage }) {
       ))}
       {account.state === 'token-expired' ? (
         <small className="usage-note">
-          토큰 만료로 마지막 값 · 이 계정을 한 번 쓰면 갱신됩니다
+          {account.error === 'LOGIN_EXPIRED'
+            ? '로그인이 만료됐습니다 · 이 계정에 다시 로그인하세요'
+            : '로그인을 갱신하지 못해 마지막 값입니다 · 잠시 뒤 다시 시도합니다'}
         </small>
       ) : null}
       {account.state === 'error' ? (
@@ -116,7 +118,7 @@ export function AccountUsageLines({ account }: { account?: AccountUsage }) {
   );
 }
 
-/** Usage lookup on/off and refresh, once for the page. */
+/** Auto switch, the last check and refresh, once for the page. */
 export function UsageToolbar({
   usage,
   failure,
@@ -151,27 +153,18 @@ export function UsageToolbar({
   const autoFailure = usage?.autoSwitch?.failure;
   return (
     <footer className="usage-toolbar">
-      <label className="remote-toggle">
-        <input
-          type="checkbox"
-          checked={settings?.usageLookup ?? false}
-          disabled={!usage || saving}
-          onChange={(event) => void save({ usageLookup: event.target.checked })}
-        />
-        사용량 조회
-      </label>
       <label
         className="remote-toggle"
         title="쓰고 있는 계정이 기준을 넘으면 여유가 가장 많은 계정으로 바꿉니다"
       >
         <input
           type="checkbox"
-          checked={!!settings?.usageLookup && !!settings.autoSwitch}
-          disabled={!settings?.usageLookup || saving}
+          checked={!!settings?.autoSwitch}
+          disabled={!settings || saving}
           onChange={(event) => void save({ autoSwitch: event.target.checked })}
         />
         자동 전환
-        {settings?.usageLookup && settings.autoSwitch ? (
+        {settings?.autoSwitch ? (
           <select
             aria-label="자동 전환 기준"
             value={settings.threshold}
@@ -188,11 +181,7 @@ export function UsageToolbar({
           </select>
         ) : null}
       </label>
-      <small>
-        {settings?.usageLookup
-          ? `3분마다 갱신${checked ? ' · ' + when(checked) + ' 확인' : ''} · 비공식 사용량 주소를 씁니다`
-          : '꺼짐'}
-      </small>
+      {checked ? <small>{when(checked)} 확인</small> : null}
       {settings?.autoSwitch && last ? (
         <small>
           자동 전환 · {service(last.provider)} → {lastTo?.email ?? '다른 계정'} ({when(last.at)})
@@ -205,7 +194,7 @@ export function UsageToolbar({
         </small>
       ) : null}
       {failure ? <small className="remote-error">{failure}</small> : null}
-      <button type="button" disabled={!settings?.usageLookup} onClick={() => void load(true)}>
+      <button type="button" disabled={!usage} onClick={() => void load(true)}>
         새로고침
       </button>
     </footer>

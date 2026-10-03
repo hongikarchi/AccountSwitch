@@ -4,7 +4,7 @@ import { AutoSwitch } from '../src/core/auto-switch.ts';
 import { DomainError } from '../src/core/errors.ts';
 
 // Usage and accounts are stand-ins: what matters here is when a switch happens.
-function fixture({ settings = { autoSwitch: true, usageLookup: true }, fail } = {}) {
+function fixture({ settings = { autoSwitch: true }, fail } = {}) {
   let now = 0;
   const active = { 'claude-cli': 'default', 'codex-cli': 'default' };
   const choices = { 'claude-cli': undefined, 'codex-cli': undefined };
@@ -49,8 +49,8 @@ test('auto switch moves an account at the threshold, then waits ten minutes', as
   ]);
 });
 
-test('auto switch needs both switches on, and reports a switch that failed', async () => {
-  const off = fixture({ settings: { autoSwitch: true, usageLookup: false } });
+test('auto switch needs its switch on, and reports a switch that failed', async () => {
+  const off = fixture({ settings: { autoSwitch: false } });
   off.choices['codex-cli'] = { id: 'b', switched: true, from: 'default', limited: true };
   assert.deepEqual(await off.auto.tick(), []);
   assert.deepEqual(off.switches, []);

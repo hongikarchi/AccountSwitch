@@ -91,6 +91,17 @@ export async function startServer({ directory, port = 0 }: Options) {
     profiles,
     file: join(directory, 'profiles', 'usage-settings.json'),
     claudeCredentials: (folder) => defaultLogin.claudeCredentials(folder),
+    // An account whose login expired is renewed so its usage shows without using it first; one
+    // at a time with switches (see DefaultLogin.exclusive) and never during a sign-in.
+    refresh: (p, id) =>
+      defaultLogin.exclusive(p, async () => {
+        if (accountLogin.busy(p)) return 'skipped';
+        const folder = profiles.directory(p, id);
+        // A running Codex renews the default login itself and has no lock to share; one refresh
+        // token used twice signs the login out, so that one is left to Codex.
+        if (!folder && p === 'codex-cli') return 'skipped';
+        return defaultLogin.refresh(p, folder, globalThis.fetch);
+      }),
   });
   const bootstrap = randomBytes(32).toString('base64url');
   const session = randomBytes(32).toString('base64url');
@@ -101,19 +112,20 @@ export async function startServer({ directory, port = 0 }: Options) {
    * Make an account the login of the terminal and VS Code (the 사용 button and auto switch), also
    * while the CLI runs (see DefaultLogin.lock).
    */
-  const switchTo = async (p: z.infer<typeof provider>, id: string) => {
-    if (accountLogin.busy(p)) throw new DomainError('PROFILE_LOGIN_IN_PROGRESS');
-    if (profiles.selected(p) === id) return;
-    if (!(await accountStatus(p, id)).available)
-      throw new DomainError('SUBSCRIPTION_LOGIN_REQUIRED');
-    defaultLogin.assertReady(p);
-    const release = await defaultLogin.lock(p);
-    try {
-      profiles.select(p, id, (from, to) => defaultLogin.swap(p, from, to));
-    } finally {
-      release();
-    }
-  };
+  const switchTo = (p: z.infer<typeof provider>, id: string) =>
+    defaultLogin.exclusive(p, async () => {
+      if (accountLogin.busy(p)) throw new DomainError('PROFILE_LOGIN_IN_PROGRESS');
+      if (profiles.selected(p) === id) return;
+      if (!(await accountStatus(p, id)).available)
+        throw new DomainError('SUBSCRIPTION_LOGIN_REQUIRED');
+      defaultLogin.assertReady(p);
+      const release = await defaultLogin.lock(p);
+      try {
+        profiles.select(p, id, (from, to) => defaultLogin.swap(p, from, to));
+      } finally {
+        release();
+      }
+    });
   const autoSwitch = new AutoSwitch({ usage: accountUsage, profiles, switchTo });
   autoSwitch.start();
   /** An added account's own folder, to sign in or out; the active one's login is the default. */
@@ -200,7 +212,6 @@ export async function startServer({ directory, port = 0 }: Options) {
       if (url.pathname === '/api/v1/accounts/usage-settings' && request.method === 'POST') {
         const input = z
           .object({
-            usageLookup: z.boolean().optional(),
             autoSwitch: z.boolean().optional(),
             threshold: z.number().int().min(50).max(100).optional(),
           })

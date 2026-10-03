@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Provider } from './providers.ts';
 import type { AccountProfiles } from './account-profiles.ts';
+import { LoginExpired } from './token-refresh.ts';
 
 // Multi-account usage, opt-in because the usage addresses are the providers' own undocumented ones:
 // each account's own CLI login files are read to show who is signed
@@ -36,11 +37,11 @@ export interface AccountUsage {
   models?: (UsageWindow & { name: string })[];
   limitReached: boolean;
   checkedAt?: string;
-  state: 'ok' | 'off' | 'signed-out' | 'token-expired' | 'error';
+  state: 'ok' | 'signed-out' | 'token-expired' | 'error';
   error?: string;
 }
+// Usage is always looked up (a former "usage lookup" switch in saved settings is ignored).
 const settingsSchema = z.object({
-  usageLookup: z.boolean().default(true),
   autoSwitch: z.boolean().default(false),
   threshold: z.number().int().min(50).max(100).default(90),
 });
@@ -79,11 +80,20 @@ interface Options {
    * folder; on macOS it is in the keychain (DefaultLogin.claudeCredentials). Default: the file.
    */
   claudeCredentials?: (folder?: string) => unknown;
+  /**
+   * Renew an account's expired login (DefaultLogin.refresh under its lock); without it an
+   * expired login shows its last values until its CLI is used.
+   */
+  refresh?: (provider: Provider, id: string) => Promise<string>;
 }
+type RenewResult = 'refreshed' | 'current' | 'none' | 'skipped' | 'expired' | 'failed';
 export class AccountUsageService {
-  private options: Required<Omit<Options, 'profiles' | 'file' | 'claudeCredentials'>> & Options;
+  private options: Required<Omit<Options, 'profiles' | 'file' | 'claudeCredentials' | 'refresh'>> &
+    Options;
   private cache = new Map<string, AccountUsage & { fetchedAt?: number }>();
   private pending = new Map<string, Promise<AccountUsage>>();
+  private renewing = new Map<string, Promise<RenewResult>>();
+  private renewFailed = new Map<string, { result: RenewResult; until: number }>();
   constructor(options: Options) {
     this.options = { home: homedir(), fetch: globalThis.fetch, now: Date.now, ...options };
   }
@@ -174,7 +184,7 @@ export class AccountUsageService {
   async get(provider: Provider, id: string, force = false): Promise<AccountUsage> {
     const key = this.key(provider, id);
     const cached = this.cache.get(key);
-    const identity = this.identity(provider, id);
+    let identity = this.identity(provider, id);
     const base = {
       provider,
       id,
@@ -184,19 +194,22 @@ export class AccountUsageService {
     };
     if (!identity.token)
       return this.store(key, { ...base, limitReached: false, state: 'signed-out' });
-    if (!this.settings().usageLookup)
-      return this.store(key, { ...base, limitReached: false, state: 'off' });
     const age = cached?.fetchedAt ? this.options.now() - cached.fetchedAt : Infinity;
     if (cached?.fetchedAt && age < (force ? FORCED_INTERVAL_MS : MIN_INTERVAL_MS))
       return { ...cached, ...base };
-    // The CLI refreshes its own token on its next run; an expired one is never refreshed here.
-    if (identity.expiresAt && identity.expiresAt < this.options.now())
-      return this.store(key, {
-        ...(cached ?? {}),
-        ...base,
-        limitReached: cached?.limitReached ?? false,
-        state: 'token-expired',
-      });
+    // An account not used for a while has an expired token: renew it as its CLI would.
+    if (identity.expiresAt && identity.expiresAt < this.options.now()) {
+      const renewed = await this.renew(provider, id);
+      if (renewed === 'refreshed') identity = this.identity(provider, id);
+      if (!identity.expiresAt || identity.expiresAt < this.options.now())
+        return this.store(key, {
+          ...(cached ?? {}),
+          ...base,
+          limitReached: cached?.limitReached ?? false,
+          state: 'token-expired',
+          ...(renewed === 'expired' ? { error: 'LOGIN_EXPIRED' } : {}),
+        });
+    }
     let running = this.pending.get(key);
     if (!running) {
       running = this.fetchUsage(provider, identity)
@@ -220,6 +233,37 @@ export class AccountUsageService {
         )
         .finally(() => this.pending.delete(key));
       this.pending.set(key, running);
+    }
+    return running;
+  }
+  /**
+   * Renew an expired login once at a time per account; after a failure wait 15 minutes, after the
+   * provider refused the login (sign in again) an hour, so a dead login is not hammered.
+   */
+  private async renew(provider: Provider, id: string) {
+    if (!this.options.refresh) return 'skipped';
+    const key = this.key(provider, id);
+    const failed = this.renewFailed.get(key);
+    if (failed && this.options.now() < failed.until) return failed.result;
+    let running = this.renewing.get(key);
+    if (!running) {
+      running = this.options
+        .refresh(provider, id)
+        .then((result) => result as RenewResult)
+        .catch((error: Error) =>
+          error instanceof LoginExpired ? ('expired' as const) : ('failed' as const),
+        )
+        .then((result) => {
+          if (result === 'expired' || result === 'failed')
+            this.renewFailed.set(key, {
+              result,
+              until: this.options.now() + (result === 'expired' ? 3600_000 : 900_000),
+            });
+          else this.renewFailed.delete(key);
+          return result;
+        })
+        .finally(() => this.renewing.delete(key));
+      this.renewing.set(key, running);
     }
     return running;
   }
@@ -367,7 +411,11 @@ export class AccountUsageService {
     const best = others
       .filter(
         (usage) =>
-          usage.signedIn && known(usage) && this.load(usage) < settings.threshold - HYSTERESIS,
+          usage.signedIn &&
+          // A login the provider refused looks signed in but fails on first use.
+          usage.error !== 'LOGIN_EXPIRED' &&
+          known(usage) &&
+          this.load(usage) < settings.threshold - HYSTERESIS,
       )
       .sort((a, b) => this.load(a) - this.load(b))[0];
     if (!best) return { id: current, switched: false };

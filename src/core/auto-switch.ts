@@ -3,7 +3,7 @@ import { providers, type Provider } from './providers.ts';
 import type { AccountProfiles } from './account-profiles.ts';
 import type { AccountUsageService } from './account-usage.ts';
 
-// Automatic switching: every minute, while "auto switch" and usage lookup are on, a service whose
+// Automatic switching: every minute, while "auto switch" is on, a service whose
 // account in use reached the threshold (its 5-hour or 7-day use, whichever is higher) or its limit
 // moves to the account with the most headroom (AccountUsageService.choose). The switch is the same
 // as pressing 사용, so running CLIs pick it up the same way. At most one switch per service every
@@ -48,7 +48,7 @@ export class AutoSwitch {
     this.running = true;
     try {
       const settings = this.options.usage.settings();
-      if (!settings.autoSwitch || !settings.usageLookup) return made;
+      if (!settings.autoSwitch) return made;
       for (const provider of providers) {
         const current = this.options.profiles.selected(provider);
         const choice = await this.options.usage.choose(provider, current);

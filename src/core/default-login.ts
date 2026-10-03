@@ -15,6 +15,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { DomainError } from './errors.ts';
 import { claudeKeychainService, macKeychain, type Keychain } from './keychain.ts';
+import { expiresAt, refreshClaude, refreshCodex } from './token-refresh.ts';
 import type { Provider } from './providers.ts';
 
 // The default login is what a plain `claude` / `codex` (terminal, VS Code) uses: ~/.claude and
@@ -93,11 +94,13 @@ function partsOf(provider: Provider, platform: NodeJS.Platform): Part[] {
  * Codex needs none: before a refresh it re-reads auth.json and gives up when the account changed
  * (a running Codex keeps its account until restarted).
  */
-const CLAUDE_LOCKS = [
-  { path: (home: string) => join(home, '.claude', '.oauth_refresh.lock'), stale: 60_000 },
-  { path: (home: string) => join(home, '.claude.lock'), stale: 60_000 },
-  { path: (home: string) => join(home, '.claude.json.lock'), stale: 10_000 },
-];
+function claudeLocks(configHome: string, configFile: string) {
+  return [
+    { path: join(configHome, '.oauth_refresh.lock'), stale: 60_000 },
+    { path: configHome + '.lock', stale: 60_000 },
+    { path: configFile + '.lock', stale: 10_000, config: true },
+  ];
+}
 
 const fail = (code: string): never => {
   throw new DomainError(code);
@@ -200,6 +203,7 @@ interface Options {
 export class DefaultLogin {
   private options: Required<Omit<Options, 'keychain'>> & Pick<Options, 'keychain'>;
   private store: Store;
+  private queue = new Map<Provider, Promise<unknown>>();
   constructor(options: Options) {
     this.options = {
       home: homedir(),
@@ -229,7 +233,12 @@ export class DefaultLogin {
     }
   }
   /** Take the CLI's own locks for a swap (Claude Code only); call the result to release them. */
-  async lock(provider: Provider) {
+  /**
+   * Take the CLI's own locks (Claude Code only) for the default login, or for an account folder
+   * used as CLAUDE_CONFIG_DIR; `credentialsOnly` skips the settings-file lock (held across a
+   * network round trip it would hold up Claude Code's own saves). Call the result to release.
+   */
+  async lock(provider: Provider, folder?: string, credentialsOnly = false) {
     const held: string[] = [];
     let touch: ReturnType<typeof setInterval> | undefined;
     const release = () => {
@@ -242,9 +251,14 @@ export class DefaultLogin {
         }
     };
     if (provider !== 'claude-cli') return release;
+    const { home } = this.options;
+    const locks =
+      folder === undefined
+        ? claudeLocks(join(home, '.claude'), join(home, '.claude.json'))
+        : claudeLocks(folder, join(folder, '.claude.json'));
     try {
-      for (const lock of CLAUDE_LOCKS)
-        held.push(await this.acquire(lock.path(this.options.home), lock.stale));
+      for (const lock of locks.filter((l) => !(credentialsOnly && l.config)))
+        held.push(await this.acquire(lock.path, lock.stale));
     } catch (error) {
       release();
       throw error;
@@ -283,6 +297,72 @@ export class DefaultLogin {
         /* Released meanwhile, or not removable: try again after the pause. */
       }
       await new Promise((resolve) => setTimeout(resolve, 150 + Math.random() * 250));
+    }
+  }
+  /**
+   * Run one switch or refresh of a service at a time: a switch reads a login and moves it, so a
+   * refresh saving new tokens in between would be lost and the moved copy no longer work.
+   */
+  exclusive<T>(provider: Provider, task: () => Promise<T>): Promise<T> {
+    const previous = this.queue.get(provider) ?? Promise.resolve();
+    const next = previous.then(task, task);
+    this.queue.set(
+      provider,
+      next.catch(() => undefined),
+    );
+    return next;
+  }
+  /**
+   * Renew the expired login of the default login (folder undefined) or an account folder and save
+   * the new tokens where the old ones were. Call inside exclusive(). Claude: under its locks, read
+   * again after taking them, so a Claude Code that refreshed meanwhile is not repeated.
+   */
+  async refresh(
+    provider: Provider,
+    folder: string | undefined,
+    fetcher: typeof fetch,
+  ): Promise<'refreshed' | 'current' | 'none'> {
+    const release = await this.lock(provider, folder, true);
+    try {
+      const parts = partsOf(provider, this.options.platform).filter((part) =>
+        provider === 'codex-cli' ? true : part.keys?.[0] === 'claudeAiOauth',
+      );
+      // Where the login is now (macOS: the keychain first), and what it holds.
+      let found: { part: Part; value: Record<string, unknown> } | undefined;
+      for (const part of parts) {
+        const data = this.store.read(part, this.place(part, folder));
+        const value =
+          provider === 'codex-cli' ? data : (data?.claudeAiOauth as Record<string, unknown>);
+        if (value && typeof value === 'object') {
+          found = { part, value };
+          break;
+        }
+      }
+      if (!found) return 'none';
+      const now = this.options.now();
+      const expires = expiresAt(found.value);
+      if (expires === undefined || expires > now + 60_000) return 'current';
+      const next =
+        provider === 'codex-cli'
+          ? await refreshCodex(found.value, fetcher, now)
+          : await refreshClaude(found.value, fetcher, now);
+      const save = provider === 'codex-cli' ? next : { claudeAiOauth: next };
+      try {
+        this.store.write(found.part, this.place(found.part, folder), save);
+      } catch (error) {
+        // The old refresh token no longer works: keep the new login where it can be restored.
+        const rescue = join(
+          this.options.root,
+          `refresh-rescue-${provider}-${this.options.now()}.json`,
+        );
+        writeFileSync(rescue, JSON.stringify({ folder: folder ?? 'default', login: save }), {
+          mode: 0o600,
+        });
+        throw error;
+      }
+      return 'refreshed';
+    } finally {
+      release();
     }
   }
   /**

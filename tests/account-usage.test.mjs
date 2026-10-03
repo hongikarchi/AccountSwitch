@@ -5,11 +5,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AccountProfiles } from '../src/core/account-profiles.ts';
 import { AccountUsageService } from '../src/core/account-usage.ts';
+import { LoginExpired } from '../src/core/token-refresh.ts';
 
 const jwt = (payload) =>
   ['e30', Buffer.from(JSON.stringify(payload)).toString('base64url'), 'sig'].join('.');
 
-async function fixture(t) {
+async function fixture(t, extra = {}) {
   const root = await mkdtemp(join(tmpdir(), 'accountswitch-usage-'));
   t.after(() => rm(root, { recursive: true, force: true }));
   const home = join(root, 'home');
@@ -50,6 +51,7 @@ async function fixture(t) {
     profiles,
     file: join(root, 'usage-settings.json'),
     home,
+    ...extra,
     fetch: async (url, init) => {
       calls.push({ url, auth: init.headers.Authorization });
       if (url.includes('anthropic'))
@@ -85,29 +87,65 @@ async function fixture(t) {
       });
     },
   });
-  return { service, second, calls, profiles, usage };
+  return { service, second, calls, profiles, usage, home };
 }
 
-test('usage lookup is on by default; turned off, accounts show who is signed in with no network call', async (t) => {
-  const { service, calls } = await fixture(t);
-  assert.equal(service.settings().usageLookup, true);
+test('accounts show who is signed in, and tokens are never returned', async (t) => {
+  const { service } = await fixture(t);
+  // A saved "usage lookup: off" from an earlier version is ignored.
   service.setSettings({ usageLookup: false });
+  assert.equal('usageLookup' in service.settings(), false);
   const rows = await service.all();
-  assert.equal(calls.length, 0);
   assert.deepEqual(
     rows.map((row) => [row.provider, row.email, row.plan, row.state]),
     [
-      ['claude-cli', 'a@example.com', 'max', 'off'],
-      ['codex-cli', 'one@example.com', 'pro', 'off'],
-      ['codex-cli', 'two@example.com', 'plus', 'off'],
+      ['claude-cli', 'a@example.com', 'max', 'ok'],
+      ['codex-cli', 'one@example.com', 'pro', 'ok'],
+      ['codex-cli', 'two@example.com', 'plus', 'ok'],
     ],
   );
   assert.ok(!JSON.stringify(rows).includes('claude-a'), 'tokens are never returned');
 });
 
+test('an expired login is renewed before its usage is looked up; a refused one waits', async (t) => {
+  let renewals = 0;
+  let answer = 'refreshed';
+  let clock = Date.now();
+  const credentials = (home, token, expiresAt) =>
+    writeFile(
+      join(home, '.claude', '.credentials.json'),
+      JSON.stringify({ claudeAiOauth: { accessToken: token, expiresAt, subscriptionType: 'max' } }),
+    );
+  const { service, calls, home } = await fixture(t, {
+    now: () => clock,
+    refresh: async (provider, id) => {
+      renewals++;
+      assert.deepEqual([provider, id], ['claude-cli', 'default']);
+      if (answer === 'refused') throw new LoginExpired('invalid_grant');
+      await credentials(home, 'claude-new', Date.now() + 3600_000);
+      return 'refreshed';
+    },
+  });
+  await credentials(home, 'claude-old', Date.now() - 1000);
+  const renewed = await service.get('claude-cli', 'default');
+  assert.equal(renewed.state, 'ok');
+  assert.equal(renewals, 1);
+  assert.equal(calls.at(-1).auth, 'Bearer claude-new');
+
+  // Refused (the login itself expired): say so, touch nothing, and do not ask again for an hour.
+  await credentials(home, 'claude-dead', Date.now() - 1000);
+  answer = 'refused';
+  clock += 4 * 60_000;
+  const refused = await service.get('claude-cli', 'default', true);
+  assert.deepEqual([refused.state, refused.error], ['token-expired', 'LOGIN_EXPIRED']);
+  clock += 4 * 60_000;
+  await service.get('claude-cli', 'default', true);
+  assert.equal(renewals, 2);
+});
+
 test('usage lookup reads each account once per interval and auto-switch picks the most headroom', async (t) => {
   const { service, second, calls } = await fixture(t);
-  service.setSettings({ usageLookup: true, autoSwitch: true, threshold: 90 });
+  service.setSettings({ autoSwitch: true, threshold: 90 });
   const [claude, one, two] = await service.all();
   assert.deepEqual(claude.session, { percent: 12, resetsAt: '2026-09-29T05:00:00.000Z' });
   assert.equal(claude.weekly.percent, 40);
@@ -141,8 +179,43 @@ test('usage lookup reads each account once per interval and auto-switch picks th
 test('auto-switch never moves to an account within 10 points of the threshold', async (t) => {
   const { service, usage } = await fixture(t);
   usage.two = 85;
-  service.setSettings({ usageLookup: true, autoSwitch: true, threshold: 90 });
+  service.setSettings({ autoSwitch: true, threshold: 90 });
   // The ChatGPT account in use is at 95%, the other at 85%: too close to 90% to be worth it.
+  assert.deepEqual(await service.choose('codex-cli', 'default'), {
+    id: 'default',
+    switched: false,
+  });
+});
+
+test('auto switch never moves to a login the provider refused', async (t) => {
+  let clock = Date.now();
+  const { service, profiles, second, usage } = await fixture(t, {
+    now: () => clock,
+    refresh: async () => {
+      throw new LoginExpired('invalid_grant');
+    },
+  });
+  service.setSettings({ autoSwitch: true, threshold: 90 });
+  await service.all();
+  // The second ChatGPT login (10%) expires and cannot be renewed: it keeps its last values.
+  await writeFile(
+    join(profiles.directory('codex-cli', second.id), 'auth.json'),
+    JSON.stringify({
+      tokens: {
+        access_token: jwt({ exp: Math.floor(Date.now() / 1000) - 60 }),
+        account_id: 'acct-two',
+        id_token: jwt({ email: 'two@example.com' }),
+      },
+    }),
+  );
+  usage.two = 10;
+  clock += 4 * 60_000;
+  const rows = await service.all();
+  const two = rows.find((row) => row.id === second.id);
+  assert.deepEqual(
+    [two.state, two.error, two.weekly.percent],
+    ['token-expired', 'LOGIN_EXPIRED', 10],
+  );
   assert.deepEqual(await service.choose('codex-cli', 'default'), {
     id: 'default',
     switched: false,
