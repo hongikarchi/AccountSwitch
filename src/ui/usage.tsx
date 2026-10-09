@@ -36,6 +36,13 @@ export type Usage = z.infer<typeof usageSchema>;
 export type AccountUsage = Usage['accounts'][number];
 type Window = AccountUsage['session'];
 
+/** A reset time, always as "10.12 오후 05:59" so every line has the same width. */
+export function resetTime(value: string) {
+  const date = new Date(value);
+  const two = (n: number) => String(n).padStart(2, '0');
+  const hour = date.getHours();
+  return `${two(date.getMonth() + 1)}.${two(date.getDate())} ${hour < 12 ? '오전' : '오후'} ${two(hour % 12 || 12)}:${two(date.getMinutes())}`;
+}
 const when = (value: string | null | undefined) => {
   if (!value) return '';
   const date = new Date(value);
@@ -82,11 +89,8 @@ function Line({ label, value }: { label: string; value: Window }) {
           style={{ width: percent + '%' }}
         />
       </span>
-      <span className="usage-value">
-        {value
-          ? `${Math.round(value.percent)}%${value.resetsAt ? ' · ' + when(value.resetsAt) + ' 초기화' : ''}`
-          : '—'}
-      </span>
+      <span className="usage-value">{value ? `${Math.round(value.percent)}%` : '—'}</span>
+      <span className="usage-reset">{value?.resetsAt ? resetTime(value.resetsAt) : ''}</span>
     </div>
   );
 }

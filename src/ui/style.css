@@ -78,14 +78,22 @@ textarea:focus-visible {
 }
 .usage-line {
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  /* Fixed columns: the bar keeps its width whatever the numbers say. */
+  grid-template-columns: 64px 1fr 40px 104px;
   align-items: center;
   gap: 8px;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 .usage-label,
-.usage-value {
+.usage-value,
+.usage-reset {
   color: var(--muted);
+  white-space: nowrap;
+}
+.usage-value,
+.usage-reset {
+  text-align: right;
 }
 .usage-track {
   height: 6px;
