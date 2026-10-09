@@ -454,67 +454,73 @@ export function AccountSettings({
                       >
                         이름 변경
                       </button>
-                      {row.id !== 'default' && !active && (
-                        <>
-                          <button
-                            disabled={busy || loggingIn}
-                            onClick={menu(() => startLogin(row.id, 'login'))}
-                          >
-                            {signedIn ? '다시 로그인' : '로그인'}
-                          </button>
-                          <button
-                            disabled={busy || loggingIn}
-                            onClick={menu(() => startLogin(row.id, 'login', true))}
-                          >
-                            기본 브라우저로 로그인
-                          </button>
-                          <button
-                            disabled={busy || loggingIn}
-                            onClick={menu(
-                              () =>
-                                void action(async () => {
-                                  const result = z.object({ command: z.string() }).parse(
-                                    await api('/accounts/login-command', 'POST', {
-                                      provider,
-                                      id: row.id,
-                                    }),
-                                  );
-                                  setCommand(result.command);
-                                }),
-                            )}
-                          >
-                            명령으로 로그인
-                          </button>
-                          <button
-                            disabled={busy || loggingIn}
-                            onClick={menu(() => startLogin(row.id, 'logout'))}
-                          >
-                            로그아웃
-                          </button>
-                          <button
-                            className="danger"
-                            disabled={busy || loggingIn}
-                            onClick={menu(() => {
-                              if (
-                                !window.confirm(
-                                  `${row.label} 계정을 목록에서 제거하고 이 프로필의 로컬 CLI 설정·이력을 삭제할까요? 먼저 로그아웃해야 합니다.`,
+                      {(() => {
+                        // The same items on every account; the ones that do not apply here are
+                        // greyed out (the CLI's own login and the account in use are signed in
+                        // and out with the CLI itself).
+                        const off = busy || loggingIn || row.id === 'default' || active;
+                        return (
+                          <>
+                            <button
+                              disabled={off}
+                              onClick={menu(() => startLogin(row.id, 'login'))}
+                            >
+                              {signedIn !== false ? '다시 로그인' : '로그인'}
+                            </button>
+                            <button
+                              disabled={off}
+                              onClick={menu(() => startLogin(row.id, 'login', true))}
+                            >
+                              기본 브라우저로 로그인
+                            </button>
+                            <button
+                              disabled={off}
+                              onClick={menu(
+                                () =>
+                                  void action(async () => {
+                                    const result = z.object({ command: z.string() }).parse(
+                                      await api('/accounts/login-command', 'POST', {
+                                        provider,
+                                        id: row.id,
+                                      }),
+                                    );
+                                    setCommand(result.command);
+                                  }),
+                              )}
+                            >
+                              명령으로 로그인
+                            </button>
+                            <button
+                              disabled={off}
+                              onClick={menu(() => startLogin(row.id, 'logout'))}
+                            >
+                              로그아웃
+                            </button>
+                            <button
+                              className="danger"
+                              disabled={off}
+                              onClick={menu(() => {
+                                if (
+                                  !window.confirm(
+                                    `${row.label} 계정을 목록에서 제거하고 이 프로필의 로컬 CLI 설정·이력을 삭제할까요? 먼저 로그아웃해야 합니다.`,
+                                  )
                                 )
-                              )
-                                return;
-                              void action(async () => {
-                                await api('/accounts/remove', 'POST', {
-                                  provider,
-                                  id: row.id,
-                                  deleteLocalData: true,
+                                  return;
+                                void action(async () => {
+                                  await api('/accounts/remove', 'POST', {
+                                    provider,
+                                    id: row.id,
+                                    deleteLocalData: true,
+                                  });
+                                  setCommand('');
                                 });
-                                setCommand('');
-                              });
-                            })}
-                          >
-                            제거
-                          </button>
-                        </>
-                      )}
+                              })}
+                            >
+                              제거
+                            </button>
+                          </>
+                        );
+                      })()}
                     </div>
                   </details>
                 </span>

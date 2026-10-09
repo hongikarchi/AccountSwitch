@@ -8,28 +8,32 @@ import { api, connect } from './gateway.ts';
 import { providers, type Provider } from '../core/providers.ts';
 
 // One page: each service's accounts (add, sign in, rename, choose, remove) and every account's
-// usage. The theme follows the system unless light or dark is chosen (kept in this browser).
-type Theme = 'system' | 'light' | 'dark';
+// usage. Light or dark, as chosen (kept in this browser); the system's until one is chosen.
+type Theme = 'light' | 'dark';
 const THEME_KEY = 'accountswitch-theme';
 const dark = matchMedia('(prefers-color-scheme: dark)');
 function savedTheme(): Theme {
   try {
     const value = localStorage.getItem(THEME_KEY);
-    return value === 'light' || value === 'dark' ? value : 'system';
+    if (value === 'light' || value === 'dark') return value;
   } catch {
-    return 'system';
+    /* Not kept. */
   }
+  return dark.matches ? 'dark' : 'light';
 }
-function applyTheme(choice: Theme) {
-  const value = choice === 'system' ? (dark.matches ? 'dark' : 'light') : choice;
+function applyTheme(value: Theme) {
   document.documentElement.dataset.theme = value;
   document.documentElement.style.colorScheme = value;
 }
 applyTheme(savedTheme());
-dark.addEventListener('change', () => applyTheme(savedTheme()));
+
+// One account menu open at a time, closed by a click anywhere else.
+document.addEventListener('click', (event) => {
+  for (const open of document.querySelectorAll('details.account-more[open]'))
+    if (!open.contains(event.target as Node)) open.removeAttribute('open');
+});
 
 const themes: { id: Theme; label: string }[] = [
-  { id: 'system', label: '시스템' },
   { id: 'light', label: '라이트' },
   { id: 'dark', label: '다크' },
 ];
@@ -39,8 +43,7 @@ function ThemeSwitch() {
     setChoice(next);
     applyTheme(next);
     try {
-      if (next === 'system') localStorage.removeItem(THEME_KEY);
-      else localStorage.setItem(THEME_KEY, next);
+      localStorage.setItem(THEME_KEY, next);
     } catch {
       /* Not kept; applies until the page reloads. */
     }
@@ -83,7 +86,6 @@ function App() {
     <main className="app">
       <header className="app-head">
         <h1>AccountSwitch</h1>
-        <small>Claude·ChatGPT 구독 계정을 여러 개 등록하고 사용량을 봅니다.</small>
         <ThemeSwitch />
       </header>
       <div className="services">
