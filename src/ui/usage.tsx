@@ -20,6 +20,7 @@ const usageSchema = z.object({
       signedIn: z.boolean(),
       email: z.string().optional(),
       plan: z.string().optional(),
+      loginEndsAt: z.string().optional(),
       session: windowSchema,
       weekly: windowSchema,
       models: z

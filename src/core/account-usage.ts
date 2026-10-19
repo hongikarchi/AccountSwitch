@@ -29,6 +29,8 @@ export interface AccountUsage {
   signedIn: boolean;
   email?: string;
   plan?: string;
+  /** Claude: when the login itself ends and has to be signed in again. */
+  loginEndsAt?: string;
   /** Claude: 5-hour window; Codex: its shorter window when it has one. */
   session?: UsageWindow;
   /** 7-day window. */
@@ -132,6 +134,8 @@ export class AccountUsageService {
         .object({
           accessToken: z.string(),
           expiresAt: z.number().optional(),
+          // When the login itself ends (refreshing does not move it): sign in again by then.
+          refreshTokenExpiresAt: z.number().optional(),
           subscriptionType: z.string().optional(),
         })
         .passthrough()
@@ -155,6 +159,7 @@ export class AccountUsageService {
       return {
         token: credentials?.accessToken,
         expiresAt: credentials?.expiresAt,
+        loginEndsAt: credentials?.refreshTokenExpiresAt,
         email: account?.emailAddress,
         plan: credentials?.subscriptionType,
       };
@@ -191,6 +196,9 @@ export class AccountUsageService {
       signedIn: !!identity.token,
       email: identity.email,
       plan: identity.plan,
+      ...('loginEndsAt' in identity && identity.loginEndsAt
+        ? { loginEndsAt: new Date(identity.loginEndsAt).toISOString() }
+        : {}),
     };
     if (!identity.token)
       return this.store(key, { ...base, limitReached: false, state: 'signed-out' });

@@ -169,6 +169,16 @@ function LoginPanel({
   );
 }
 
+/** "10.22 로그인 만료" within three days of the login's end (Claude), else nothing. */
+function endingSoon(value?: string) {
+  if (!value) return '';
+  const end = Date.parse(value);
+  if (!(end - Date.now() < 3 * 86400_000)) return '';
+  const date = new Date(end);
+  const two = (n: number) => String(n).padStart(2, '0');
+  return `${two(date.getMonth() + 1)}.${two(date.getDate())} 로그인 만료`;
+}
+
 export function AccountSettings({
   provider,
   usage,
@@ -180,6 +190,11 @@ export function AccountSettings({
   const [data, setData] = useState<z.infer<typeof schema>>();
   const [label, setLabel] = useState('');
   const [message, setMessage] = useState('');
+  const [messageFailed, setMessageFailed] = useState(false);
+  const fail = (text: string) => {
+    setMessage(text);
+    setMessageFailed(true);
+  };
   const [command, setCommand] = useState('');
   const [busy, setBusy] = useState(false);
   const [login, setLogin] = useState<Login>();
@@ -196,6 +211,7 @@ export function AccountSettings({
   const notify = (text: string) => {
     setMessage(text);
     clearTimeout(noticeTimer.current);
+    setMessageFailed(false);
     noticeTimer.current = setTimeout(() => setMessage(''), 5000);
   };
   // Who is signed in to each account (email · plan), from the page's usage view.
@@ -204,7 +220,9 @@ export function AccountSettings({
       row.id,
       {
         signedIn: row.signedIn,
-        text: row.signedIn ? [row.email, row.plan].filter(Boolean).join(' · ') : '로그인 필요',
+        text: row.signedIn
+          ? [row.email, row.plan, endingSoon(row.loginEndsAt)].filter(Boolean).join(' · ')
+          : '로그인 필요',
       },
     ]),
   );
@@ -216,7 +234,7 @@ export function AccountSettings({
         const value = schema.parse(await api('/accounts'));
         if (alive) setData(value);
       } catch {
-        if (alive) setMessage('계정 목록을 불러오지 못했습니다.');
+        if (alive) fail('계정 목록을 불러오지 못했습니다.');
       }
       if (alive) timer = setTimeout(() => void poll(), 2000);
     };
@@ -251,7 +269,7 @@ export function AccountSettings({
           }
         }
       } catch {
-        if (alive) setMessage('로그인 상태를 확인하지 못했습니다. 새로고침하세요.');
+        if (alive) fail('로그인 상태를 확인하지 못했습니다. 새로고침하세요.');
       }
       if (alive) timer = setTimeout(() => void poll(), 1000);
     };
@@ -269,7 +287,7 @@ export function AccountSettings({
       await refresh();
       window.dispatchEvent(new Event('accounts-changed'));
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : '계정 작업 실패');
+      fail(error instanceof Error ? error.message : '계정 작업 실패');
     } finally {
       setBusy(false);
     }
@@ -313,7 +331,7 @@ export function AccountSettings({
     void api('/accounts/order', 'POST', { provider, ids })
       .then((value) => setData(schema.parse(value)))
       .catch((error: unknown) =>
-        setMessage(error instanceof Error ? error.message : '순서를 저장하지 못했습니다.'),
+        fail(error instanceof Error ? error.message : '순서를 저장하지 못했습니다.'),
       );
   };
   const failed =
@@ -410,7 +428,7 @@ export function AccountSettings({
               )}
               {renaming !== row.id && (
                 <span className="account-actions">
-                  {row.id !== 'default' && !active && signedIn === false && !(mine && loggingIn) ? (
+                  {signedIn === false && !(mine && loggingIn) ? (
                     <button
                       className="primary-button"
                       disabled={busy || loggingIn}
@@ -419,7 +437,7 @@ export function AccountSettings({
                       로그인
                     </button>
                   ) : null}
-                  {!active ? (
+                  {!active && signedIn !== false ? (
                     <button
                       title="터미널·VS Code의 기본 로그인을 이 계정으로 바꿉니다"
                       disabled={busy || loggingIn}
@@ -456,9 +474,11 @@ export function AccountSettings({
                       </button>
                       {(() => {
                         // The same items on every account; the ones that do not apply here are
-                        // greyed out (the CLI's own login and the account in use are signed in
-                        // and out with the CLI itself).
-                        const off = busy || loggingIn || row.id === 'default' || active;
+                        // greyed out. Any account can sign in again (the one in use in place);
+                        // the one in use cannot be signed out, nor the CLI's own login removed.
+                        const off = busy || loggingIn;
+                        const inUse = off || active;
+                        const kept = inUse || row.id === 'default';
                         return (
                           <>
                             <button
@@ -491,14 +511,14 @@ export function AccountSettings({
                               명령으로 로그인
                             </button>
                             <button
-                              disabled={off}
+                              disabled={inUse}
                               onClick={menu(() => startLogin(row.id, 'logout'))}
                             >
                               로그아웃
                             </button>
                             <button
                               className="danger"
-                              disabled={off}
+                              disabled={kept}
                               onClick={menu(() => {
                                 if (
                                   !window.confirm(
@@ -587,7 +607,7 @@ export function AccountSettings({
         </div>
       )}
       {message ? (
-        <p role="status" className="account-message">
+        <p role="status" className="account-message" data-error={String(messageFailed)}>
           {message}
         </p>
       ) : null}

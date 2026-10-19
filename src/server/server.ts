@@ -129,8 +129,16 @@ export async function startServer({ directory, port = 0 }: Options) {
   const autoSwitch = new AutoSwitch({ usage: accountUsage, profiles, switchTo });
   autoSwitch.start();
   /** An added account's own folder, to sign in or out; the active one's login is the default. */
+  /**
+   * Where an account signs in: its folder, or (the account in use) the CLI's own login, so a
+   * login that expired is renewed in place. Undefined: the CLI's own.
+   */
+  const loginFolder = (p: z.infer<typeof provider>, id: string) => {
+    if (id !== 'default') profiles.directory(p, id); // An unknown account is refused.
+    return profiles.directory(p, id);
+  };
+  /** An account's own folder while it is not in use (sign out, remove). */
   const ownFolder = (p: z.infer<typeof provider>, id: string) => {
-    if (id === 'default') throw new DomainError('INVALID_INPUT');
     const folder = profiles.directory(p, id);
     if (!folder) throw new DomainError('PROFILE_ACTIVE');
     return folder;
@@ -267,7 +275,7 @@ export async function startServer({ directory, port = 0 }: Options) {
           .strict()
           .parse(await body(request));
         profiles.assertIdle(input.provider);
-        const folder = ownFolder(input.provider, input.id);
+        const folder = loginFolder(input.provider, input.id);
         const key = input.provider === 'codex-cli' ? 'CODEX_HOME' : 'CLAUDE_CONFIG_DIR';
         const args =
           input.provider === 'codex-cli'
@@ -282,8 +290,8 @@ export async function startServer({ directory, port = 0 }: Options) {
         send(200, {
           command:
             process.platform === 'win32'
-              ? `$env:${key}=${quote(folder)}; & ${quote(program)} ${args}`
-              : `${key}=${quote(folder)} ${quote(program)} ${args}`,
+              ? `${folder ? `$env:${key}=${quote(folder)}; ` : ''}& ${quote(program)} ${args}`
+              : `${folder ? `${key}=${quote(folder)} ` : ''}${quote(program)} ${args}`,
         });
         return;
       }
@@ -308,13 +316,17 @@ export async function startServer({ directory, port = 0 }: Options) {
           .strict()
           .parse(await body(request));
         profiles.assertIdle(input.provider);
-        const folder = ownFolder(input.provider, input.id);
+        const logout = url.pathname.endsWith('/logout');
+        // Signing out the account in use would sign out the terminal and VS Code: switch first.
+        const folder = logout
+          ? ownFolder(input.provider, input.id)
+          : loginFolder(input.provider, input.id);
         const program = executable(input.provider);
         if (!program) throw new DomainError('CLI_UNAVAILABLE');
         send(
           202,
           accountLogin.start({
-            operation: url.pathname.endsWith('/logout') ? 'logout' : 'login',
+            operation: logout ? 'logout' : 'login',
             provider: input.provider,
             profileId: input.id,
             directory: folder,

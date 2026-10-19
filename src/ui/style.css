@@ -386,6 +386,12 @@ textarea:focus-visible {
   font-size: 12px;
   color: #2f6b45;
 }
+.account-message[data-error='true'] {
+  color: #b33a2e;
+}
+:root[data-theme='dark'] .account-message[data-error='true'] {
+  color: #f0a093;
+}
 :root[data-theme='dark'] .account-menu,
 :root[data-theme='dark'] .login-code {
   background: #1d2120;

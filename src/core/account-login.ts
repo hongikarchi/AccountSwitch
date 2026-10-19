@@ -69,7 +69,8 @@ export class AccountLogin {
   start(input: {
     provider: Provider;
     profileId: string;
-    directory: string;
+    /** The account's CLI folder; undefined: the CLI's own (~/.claude, ~/.codex). */
+    directory?: string;
     executable: string;
     verify: () => Promise<{ available: boolean; reason?: string }>;
     operation?: 'login' | 'logout';
@@ -81,7 +82,7 @@ export class AccountLogin {
     const logout = input.operation === 'logout';
     const address = !logout && !input.browser;
     const env = codex ? codexEnvironment() : subscriptionEnvironment();
-    env[codex ? 'CODEX_HOME' : 'CLAUDE_CONFIG_DIR'] = input.directory;
+    if (input.directory) env[codex ? 'CODEX_HOME' : 'CLAUDE_CONFIG_DIR'] = input.directory;
     // Claude opens the program named by BROWSER instead of the default browser; a harmless one
     // keeps any browser from opening and Claude prints the address to finish elsewhere.
     if (address && !codex)
