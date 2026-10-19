@@ -487,10 +487,46 @@ body {
   align-items: center;
   gap: 6px;
 }
-.remote-error,
-.cli-missing {
+.remote-error {
   color: #a4442f;
   margin: 0;
+}
+/* A service whose CLI is not installed: the command to install it. */
+.cli-missing {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 6px;
+  background: var(--soft);
+}
+.cli-missing p {
+  margin: 0;
+  font-weight: 600;
+}
+.cli-missing p.cli-step,
+.cli-missing small {
+  font-weight: 400;
+  color: var(--muted);
+}
+.cli-missing code {
+  display: block;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+  overflow-x: auto;
+  white-space: nowrap;
+  user-select: all;
+}
+.cli-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.cli-actions a {
+  color: var(--muted);
+  font-size: 12px;
 }
 .danger {
   color: #a4442f;

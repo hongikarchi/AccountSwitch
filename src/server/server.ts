@@ -346,13 +346,15 @@ export async function startServer({ directory, port = 0 }: Options) {
         return;
       }
       if (url.pathname === '/api/v1/providers' && request.method === 'GET') {
+        // ?installed=1: only whether each CLI is there (cheap enough to ask every few seconds).
+        const quick = url.searchParams.get('installed') === '1';
         send(
           200,
           await Promise.all(
             providers.map(async (p) => ({
               id: p,
               installed: !!executable(p),
-              ...(await status(p, executable(p))),
+              ...(quick ? {} : await status(p, executable(p))),
             })),
           ),
         );

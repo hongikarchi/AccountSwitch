@@ -312,7 +312,7 @@ export function AccountSettings({
   const order = data?.order?.[provider] ?? [];
   const place = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
   const rows = [
-    { id: 'default', label: data?.defaultLabels?.[provider] ?? '기존 CLI 로그인' },
+    { id: 'default', label: data?.defaultLabels?.[provider] ?? '기본 계정' },
     ...(data?.profiles.filter((p) => p.provider === provider) ?? []),
   ]
     .map((row, index) => ({ row, index }))
@@ -398,7 +398,7 @@ export function AccountSettings({
                     value={newName}
                     maxLength={80}
                     autoFocus
-                    placeholder={row.id === 'default' ? '비우면 기존 CLI 로그인' : '계정 이름'}
+                    placeholder={row.id === 'default' ? '비우면 기본 계정' : '계정 이름'}
                     onChange={(event) => setNewName(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === 'Escape') setRenaming(undefined);

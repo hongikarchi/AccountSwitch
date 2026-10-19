@@ -70,17 +70,77 @@ const names: Record<Provider, { name: string; cli: string }> = {
 };
 const installedSchema = z.array(z.object({ id: z.enum(providers), installed: z.boolean() }));
 
+const mac = navigator.userAgent.includes('Mac OS X');
+/** How to install each CLI: the official command for this system, and the official guide. */
+const install: Record<Provider, { command: string; guide: string }> = {
+  'claude-cli': {
+    command: mac
+      ? 'curl -fsSL https://claude.ai/install.sh | bash'
+      : 'irm https://claude.ai/install.ps1 | iex',
+    guide: 'https://docs.claude.com/en/docs/claude-code/setup',
+  },
+  'codex-cli': {
+    command: 'npm install -g @openai/codex',
+    guide: 'https://github.com/openai/codex',
+  },
+};
+
+/** A service whose CLI is not installed: how to install it, checked again by itself. */
+function CliMissing({ provider }: { provider: Provider }) {
+  const [copied, setCopied] = useState(false);
+  const { command, guide } = install[provider];
+  return (
+    <div className="cli-missing">
+      <p>{names[provider].cli}가 설치되어 있지 않습니다.</p>
+      <p className="cli-step">{mac ? '터미널' : 'PowerShell'}에 붙여 넣어 설치하세요.</p>
+      <code>{command}</code>
+      <span className="cli-actions">
+        <button
+          type="button"
+          className="primary-button"
+          onClick={() =>
+            void navigator.clipboard.writeText(command).then(
+              () => setCopied(true),
+              () => setCopied(false),
+            )
+          }
+        >
+          {copied ? '복사했습니다' : '명령 복사'}
+        </button>
+        <a href={guide} target="_blank" rel="noreferrer">
+          설치 안내
+        </a>
+      </span>
+      {provider === 'codex-cli' ? <small>Node.js가 필요합니다 (nodejs.org).</small> : null}
+    </div>
+  );
+}
+
 function App() {
   const { usage, failure, load } = useUsage();
   const [installed, setInstalled] = useState<Record<string, boolean>>();
   useEffect(() => {
-    void api('/providers')
-      .then((value) =>
-        setInstalled(
-          Object.fromEntries(installedSchema.parse(value).map((row) => [row.id, row.installed])),
-        ),
-      )
-      .catch(() => {});
+    let timer: ReturnType<typeof setTimeout>;
+    const check = () =>
+      void api('/providers?installed=1')
+        .then((value) => {
+          const next = Object.fromEntries(
+            installedSchema.parse(value).map((row) => [row.id, row.installed]),
+          );
+          setInstalled((before) => {
+            // Just installed: load the accounts and usage of the new CLI.
+            if (before && providers.some((p) => next[p] && !before[p]))
+              window.dispatchEvent(new Event('accounts-changed'));
+            return next;
+          });
+          // While a CLI is missing, look again every few seconds: no reload after installing.
+          if (providers.some((p) => !next[p])) timer = setTimeout(check, 5000);
+        })
+        .catch(() => {
+          timer = setTimeout(check, 5000);
+        });
+    check();
+    return () => clearTimeout(timer);
   }, []);
   return (
     <main className="app">
@@ -98,14 +158,13 @@ function App() {
           >
             <h2 id={`${provider}-title`}>{names[provider].name}</h2>
             {installed && !installed[provider] ? (
-              <p className="cli-missing">
-                {names[provider].cli}를 찾지 못했습니다. 설치한 뒤 이 화면을 새로고침하세요.
-              </p>
-            ) : null}
-            <AccountSettings
-              provider={provider}
-              usage={usage?.accounts.filter((account) => account.provider === provider)}
-            />
+              <CliMissing provider={provider} />
+            ) : (
+              <AccountSettings
+                provider={provider}
+                usage={usage?.accounts.filter((account) => account.provider === provider)}
+              />
+            )}
           </section>
         ))}
       </div>

@@ -125,7 +125,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let confirm = NSAlert()
         confirm.messageText = "원래 로그인으로 되돌릴까요?"
-        confirm.informativeText = "다른 계정을 사용 중인 서비스를 \"기존 CLI 로그인\"으로 되돌립니다. 추가한 계정은 그대로 남습니다. 앱을 지우기 전에 누르세요."
+        confirm.informativeText = "다른 계정을 사용 중인 서비스를 \"기본 계정\"으로 되돌립니다. 추가한 계정은 그대로 남습니다. 앱을 지우기 전에 누르세요."
         confirm.addButton(withTitle: "되돌리기")
         confirm.addButton(withTitle: "취소")
         guard confirm.runModal() == .alertFirstButtonReturn else { return }
