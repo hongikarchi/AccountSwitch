@@ -1,9 +1,10 @@
 import { join, win32 } from 'node:path';
 import { codexEnvironment, subscriptionEnvironment } from '../cli.ts';
+import { rawUserMcpServer } from './checks.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, findProgram, powershellPath } from './environment.ts';
 import { installBlenderAddon } from './install-blender.ts';
-import { StepStop, type InstallDeps } from './install-deps.ts';
+import { cleanUp, StepStop, type InstallDeps } from './install-deps.ts';
 import { downloadsFolder, fetchBytes, saveDownload } from './install-download.ts';
 import { describeCommand, type SetupLog } from './install-log.ts';
 import { applyRhinoSettings } from './install-rhino.ts';
@@ -29,11 +30,15 @@ export interface StepFailure {
  * - `ran`: a command ran, so the check is worth repeating whatever it answered.
  * - `failure`: what to report if that check does not say installed.
  * - `needsUser`: the same, when it is up to the user.
+ * - `stop`: the same, and no later step may run: the reason would only be bypassed by one.
+ * - `note`: said along with `done`, when that check does say installed.
  */
 export interface StepResult {
   ran: boolean;
   failure?: StepFailure;
   needsUser?: StepFailure;
+  stop?: StepFailure & { status: 'failed' | 'needs-user' };
+  note?: string;
 }
 
 export interface ExecOptions {
@@ -41,6 +46,8 @@ export interface ExecOptions {
   label?: string;
   /** Only how it ended goes to the log, not its output. */
   quiet?: boolean;
+  /** Less than what is left of the item's time, for a command the item can do without. */
+  maxMs?: number;
 }
 
 export interface StepContext {
@@ -101,8 +108,8 @@ export function createStepContext(
     remainingMs,
     childEnv,
     path: (template) => expandPath(template, check.env, check.home),
-    exec: async (request, { label, quiet } = {}) => {
-      const timeoutMs = remainingMs();
+    exec: async (request, { label, quiet, maxMs = Infinity } = {}) => {
+      const timeoutMs = Math.min(remainingMs(), maxMs);
       if (timeoutMs <= 0) throw timeout();
       options.log.line(`$ ${label ?? describeCommand(request.program, request.args)}`);
       const result = await check.run({
@@ -145,7 +152,13 @@ export function createStepContext(
   };
 }
 
-/** A failed winget and what the exit code says. Windows codes can arrive as negative numbers. */
+const REBOOT_NOTE = 'PC를 다시 시작해야 설치가 마무리돼요.';
+const REBOOT_RETRY = 'PC를 다시 시작한 뒤 다시 시도하세요.';
+const REBOOT_SOON = 'PC가 곧 다시 시작될 수 있어요. 열어 둔 파일을 저장하세요.';
+/** ERROR_SUCCESS_REBOOT_REQUIRED and ERROR_SUCCESS_REBOOT_INITIATED, from any installer. */
+const REBOOT_PENDING: Record<number, string> = { 3010: REBOOT_RETRY, 1641: REBOOT_SOON };
+
+/** A step's exit code and what it says. Windows codes can arrive as negative numbers. */
 function judge(
   result: CommandResult,
   declined: number[] = [],
@@ -155,7 +168,89 @@ function judge(
   const code = result.code === null ? null : result.code >>> 0;
   if (code !== null && declined.includes(code))
     throw new StepStop('failed', 'ELEVATION_DECLINED', DECLINED_MESSAGE);
+  if (code !== null && Object.hasOwn(REBOOT_PENDING, code))
+    return {
+      ran: true,
+      note: code === 1641 ? REBOOT_SOON : REBOOT_NOTE,
+      stop: { status: 'needs-user', reason: 'REBOOT_PENDING', message: REBOOT_PENDING[code] },
+    };
   return code === 0 ? { ran: true } : { ran: true, failure };
+}
+
+type WingetStop = NonNullable<StepResult['stop']> & { note?: string };
+
+const WINGET_ALREADY: WingetStop = {
+  status: 'failed',
+  reason: 'WINGET_ALREADY_INSTALLED',
+  message: '이미 설치되어 있다고 나오는데 여기서는 제대로 잡히지 않아요. 로그를 확인해 보세요.',
+};
+const WINGET_POLICY: WingetStop = {
+  status: 'needs-user',
+  reason: 'WINGET_BLOCKED_BY_POLICY',
+  message: '회사나 학교의 정책이 설치를 막고 있어요. 관리자에게 문의하세요.',
+};
+const WINGET_IN_USE: WingetStop = {
+  status: 'failed',
+  reason: 'WINGET_APP_IN_USE',
+  message: '설치할 프로그램이 지금 쓰이고 있어요. 닫은 뒤 다시 시도해 보세요.',
+};
+const WINGET_REBOOT = (message: string, note?: string): WingetStop => ({
+  status: 'needs-user',
+  reason: 'WINGET_REBOOT_REQUIRED',
+  message,
+  ...(note ? { note } : {}),
+});
+
+/**
+ * Exit codes of winget that end the item, because a fallback would bypass or collide with the reason
+ * (SPEC 3.6). Anything else may still fall back. Values from winget's own list, read 2026-11-06:
+ * https://github.com/microsoft/winget-cli/blob/master/doc/windows/package-manager/winget/returnCodes.md
+ * The check after the step still comes first, so "already installed" ends in `done` when it is true.
+ */
+const WINGET_STOPS = new Map<number, WingetStop>([
+  [0x8a15002b, WINGET_ALREADY], // UPDATE_NOT_APPLICABLE
+  [0x8a15010d, WINGET_ALREADY], // INSTALL_ALREADY_INSTALLED
+  [0x8a150061, WINGET_ALREADY], // PACKAGE_ALREADY_INSTALLED
+  [
+    0x8a15010e, // INSTALL_DOWNGRADE
+    {
+      status: 'needs-user',
+      reason: 'WINGET_NEWER_INSTALLED',
+      message: '이미 더 높은 버전이 있어서 그대로 뒀어요.',
+    },
+  ],
+  [0x8a15010f, WINGET_POLICY], // INSTALL_BLOCKED_BY_POLICY
+  [0x8a15003a, WINGET_POLICY], // BLOCKED_BY_POLICY, winget itself turned off by group policy
+  [
+    0x8a150102, // INSTALL_INSTALL_IN_PROGRESS
+    {
+      status: 'failed',
+      reason: 'WINGET_INSTALL_IN_PROGRESS',
+      message: '다른 설치가 진행 중이에요. 끝난 뒤 다시 시도해 보세요.',
+    },
+  ],
+  [0x8a150101, WINGET_IN_USE], // INSTALL_PACKAGE_IN_USE
+  [0x8a150103, WINGET_IN_USE], // INSTALL_FILE_IN_USE
+  [0x8a150111, WINGET_IN_USE], // INSTALL_PACKAGE_IN_USE_BY_APPLICATION
+  [
+    0x8a150105, // INSTALL_DISK_FULL
+    {
+      status: 'failed',
+      reason: 'WINGET_DISK_FULL',
+      message: '디스크 공간이 모자라요. 공간을 비운 뒤 다시 시도해 보세요.',
+    },
+  ],
+  [0x8a150109, WINGET_REBOOT(REBOOT_RETRY, REBOOT_NOTE)], // INSTALL_REBOOT_REQUIRED_TO_FINISH
+  [0x8a15010a, WINGET_REBOOT(REBOOT_RETRY)], // INSTALL_REBOOT_REQUIRED_FOR_INSTALL
+  [0x8a15010b, WINGET_REBOOT(REBOOT_SOON, REBOOT_SOON)], // INSTALL_REBOOT_INITIATED
+]);
+
+function judgeWinget(result: CommandResult, declined: number[]): StepResult {
+  const judged = judge(result, declined);
+  const known = result.code === null ? undefined : WINGET_STOPS.get(result.code >>> 0);
+  if (!known) return judged;
+  const { note, ...stop } = known;
+  return { ran: true, stop, ...(note ? { note } : {}) };
 }
 
 /** Save the install script through the host list, then run what was saved (SPEC 3.3). */
@@ -192,8 +287,29 @@ async function runScript(
   try {
     return await (step.insideClaudeLock ? context.claudeLock(run) : run());
   } finally {
-    files.remove(file);
+    cleanUp(files, context.log, file);
   }
+}
+
+/** On the bytes about to run, as late as possible, so nothing can change between this and the run. */
+async function verifyInstaller(context: StepContext, file: string, sha256: string) {
+  let actual: string;
+  try {
+    actual = await context.deps.files.hash(file);
+  } catch {
+    throw new StepStop(
+      'failed',
+      'HASH_MISMATCH',
+      '내려받은 설치 파일을 확인하지 못해서 실행하지 않았어요.',
+    );
+  }
+  if (actual !== sha256.toLowerCase())
+    throw new StepStop(
+      'failed',
+      'HASH_MISMATCH',
+      '내려받은 설치 파일이 기대한 파일과 달라서 실행하지 않았어요.',
+    );
+  if (context.cancelSignal.aborted) throw new StepStop('failed', 'CANCELLED', CANCELLED_MESSAGE);
 }
 
 async function runInstaller(
@@ -212,12 +328,13 @@ async function runInstaller(
       ? context.path('%SystemRoot%\\System32\\msiexec.exe')
       : fill(step.program);
   try {
+    await verifyInstaller(context, file, step.sha256);
     return judge(
       await context.exec({ program, args: step.args.map(fill) }),
       step.declinedExitCodes,
     );
   } finally {
-    files.remove(file);
+    cleanUp(files, context.log, file);
   }
 }
 
@@ -284,11 +401,42 @@ async function runYak(context: StepContext, step: Extract<InstallStep, { kind: '
 
 const CLAUDE_MISSING = 'Claude Code를 찾지 못했어요. 먼저 설치해 주세요.';
 const MCP_FAILED = 'Claude Code에 등록하지 못했어요. 로그를 확인해 보세요.';
+const MCP_CONFIG_UNREADABLE =
+  'Claude Code 설정 파일을 읽지 못해서 등록을 그대로 뒀어요. 다시 시도해 보세요.';
+const MCP_PUT_BACK = '새 설정으로 등록하지 못해서 원래 설정으로 되돌렸어요.';
+const MCP_NOT_PUT_BACK =
+  '새 설정으로 등록하지 못했고, 원래 설정도 되돌리지 못했어요. 이 연결은 지금 Claude Code에 등록되어 있지 않으니 직접 다시 등록해 주세요.';
+const RESTORE_TIMEOUT_MS = 30 * 1000;
+
+const ended = (failure: StepFailure): StepResult => ({
+  ran: true,
+  stop: { status: 'failed', ...failure },
+});
+
+/**
+ * Put back the entry that `claude mcp remove` took away. Past the item's time and past a cancel, since
+ * otherwise those are exactly what would lose it. `entry` can hold secrets: only how the command ended
+ * is logged, and nothing of it goes anywhere else (SPEC 3.7).
+ */
+async function restoreMcpServer(context: StepContext, claude: string, name: string, entry: object) {
+  const { check } = context.deps;
+  context.log.line(`$ claude mcp add-json: ${name} 되돌리기`);
+  const result = await check.run({
+    program: claude,
+    args: ['mcp', 'add-json', '-s', 'user', name, JSON.stringify(entry)],
+    cwd: check.home,
+    env: context.childEnv(),
+    timeoutMs: RESTORE_TIMEOUT_MS,
+  });
+  context.log.result(result, { quiet: true });
+  return result.code === 0;
+}
 
 /**
  * Inside DefaultLogin.exclusive, without CLAUDE_CONFIG_DIR (SPEC 3.7). Output is not logged: `claude
  * mcp` prints env values. Registered differently, the old entry goes first, and only when the user
- * confirmed; the runner never gets here otherwise.
+ * confirmed; the runner never gets here otherwise. That entry is kept in memory first, and put back
+ * if the add does not succeed.
  */
 async function runClaudeMcp(
   context: StepContext,
@@ -301,18 +449,48 @@ async function runClaudeMcp(
     if (!claude) throw new StepStop('failed', 'CLAUDE_MISSING', CLAUDE_MISSING);
     const failure = { reason: 'MCP_FAILED', message: MCP_FAILED };
     const request = (args: string[]) => ({ program: claude, args, cwd: check.home });
+    let previous: { name: string; entry: object } | undefined;
     if (precheck.status === 'version-mismatch') {
       if (!replace || item.check.kind !== 'mcp')
         throw new StepStop('failed', 'REPLACE_NOT_CONFIRMED', MCP_FAILED);
-      const removed = await context.exec(
-        request(['mcp', 'remove', '-s', 'user', item.check.name]),
-        {
+      const { name } = item.check;
+      const config = check.readFile(win32.join(check.home, '.claude.json'));
+      const entry = config ? rawUserMcpServer(config, name) : null;
+      // Nothing to put back later means nothing may be taken away now.
+      if (entry === null) throw new StepStop('failed', 'MCP_FAILED', MCP_CONFIG_UNREADABLE);
+      // Gone since the check: nothing to remove, and nothing to put back.
+      if (entry) {
+        const removed = await context.exec(request(['mcp', 'remove', '-s', 'user', name]), {
           quiet: true,
-        },
-      );
-      if (removed.code !== 0) return judge(removed, [], failure);
+        });
+        if (removed.code !== 0)
+          return removed.spawnError ? judge(removed, [], failure) : ended(failure);
+        previous = { name, entry };
+      }
     }
-    return judge(await context.exec(request(step.args), { quiet: true }), [], failure);
+    if (!previous)
+      return judge(await context.exec(request(step.args), { quiet: true }), [], failure);
+    const { name, entry } = previous;
+    let added: CommandResult;
+    try {
+      added = await context.exec(request(step.args), { quiet: true });
+    } catch (error) {
+      // A timeout or a cancel: the add was stopped, and the entry is still gone.
+      if (!(error instanceof StepStop)) throw error;
+      const back = await restoreMcpServer(context, claude, name, entry);
+      throw new StepStop(
+        error.status,
+        error.reason,
+        `${error.userMessage} ${back ? MCP_PUT_BACK : MCP_NOT_PUT_BACK}`,
+      );
+    }
+    if (added.code === 0) return { ran: true };
+    const back = await restoreMcpServer(context, claude, name, entry);
+    return ended(
+      back
+        ? { reason: 'MCP_FAILED', message: MCP_PUT_BACK }
+        : { reason: 'MCP_RESTORE_FAILED', message: MCP_NOT_PUT_BACK },
+    );
   });
 }
 
@@ -323,7 +501,7 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
         program: context.path(step.program),
         args: step.args,
       });
-      return judge(result, step.declinedExitCodes);
+      return judgeWinget(result, step.declinedExitCodes);
     }
     case 'powershell-script':
       return runScript(context, step);

@@ -7,17 +7,27 @@ import type { InstallStep, SetupCatalog, SetupGroup, SetupItem } from './types.t
 export const PINS = {
   /** winget's `--version` takes an exact version only, and without it this id installs Node 26. */
   node: '24.22.1',
+  /** node-v24.22.1-x64.msi, from https://nodejs.org/dist/v24.22.1/SHASUMS256.txt */
+  nodeInstallerSha256: '3bda4baf1ee709b33cf920dd633106ddb23951e322bff9c03ec9f64ab8981b01',
   /** Any Node of this major version is left alone. */
   nodeMajor: '24',
   python: '3.13',
   /** Only the fallback installer; winget picks the newest 3.13. */
   pythonInstaller: '3.13.17',
-  /** Only the fallback installer; winget installs the latest Git. */
-  gitInstaller: { tag: 'v2.56.0.windows.4', file: 'Git-2.56.0.4-64-bit.exe' },
+  /** python-3.13.17-amd64.exe, from https://www.python.org/downloads/release/python-31317/ */
+  pythonInstallerSha256: '5da012101ba2e17113a9a1cd901e9ce1441086f2b7ecb5de06ec94163899a190',
+  /** Only the fallback installer; winget installs the latest Git. The hash: its release notes. */
+  gitInstaller: {
+    tag: 'v2.56.0.windows.4',
+    file: 'Git-2.56.0.4-64-bit.exe',
+    sha256: '4961a4a8cc778d8b6e00a5819e5fe4d078b754555aff7aedc2d77a5d74c2de80',
+  },
   rhino: '8',
   rhinomcp: '0.4.1.1',
   cordyceps: '1.5.0',
   blender: '5.2.3',
+  /** blender-5.2.3-windows-x64.msi, from .../release/Blender5.2/blender-5.2.3.sha256 */
+  blenderInstallerSha256: 'a103d4ece8d9acffd2a95c9d8860355b1f209977cc983b4a3d1e1cfb441c8605',
   blenderSeries: '5.2',
   blenderMcp: '1.5.5',
   /** The commit whose server is byte-identical to PyPI 1.5.5; the project publishes no releases. */
@@ -46,7 +56,8 @@ const PY_FOLDERS = [
 const GIT_FOLDERS = [`${PROGRAM_FILES}\\Git\\cmd`, '%LOCALAPPDATA%\\Programs\\Git\\cmd'];
 const RHINO_PACKAGES = '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0';
 const YAK = `${PROGRAM_FILES}\\Rhino 8\\System\\Yak.exe`;
-const BLENDER_USER = `%APPDATA%\\Blender Foundation\\Blender\\${PINS.blenderSeries}`;
+const BLENDER_VERSIONS = '%APPDATA%\\Blender Foundation\\Blender';
+const BLENDER_USER = `${BLENDER_VERSIONS}\\${PINS.blenderSeries}`;
 const BLENDER_FOLDER = `Blender ${PINS.blenderSeries}`;
 const BLENDER_ROOT = `${PROGRAM_FILES}\\Blender Foundation`;
 
@@ -86,12 +97,14 @@ function winget(id: string, ...extra: string[]): InstallStep {
     declinedExitCodes: WINGET_DECLINED,
   };
 }
-function msiFallback(url: string): InstallStep {
+function msiFallback(url: string, sha256: string): InstallStep {
   return {
     kind: 'download-installer',
     url,
+    sha256,
     program: 'msiexec',
-    args: ['/i', FILE, '/passive'],
+    // Never a restart on its own: a file in use could cost an unsaved model (SPEC 3.6).
+    args: ['/i', FILE, '/passive', '/norestart'],
     declinedExitCodes: MSI_DECLINED,
   };
 }
@@ -194,6 +207,7 @@ const items: SetupItem[] = [
         {
           kind: 'download-installer',
           url: `https://github.com/git-for-windows/git/releases/download/${PINS.gitInstaller.tag}/${PINS.gitInstaller.file}`,
+          sha256: PINS.gitInstaller.sha256,
           program: FILE,
           args: ['/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
           declinedExitCodes: INNO_DECLINED,
@@ -222,7 +236,10 @@ const items: SetupItem[] = [
       pathFolders: onPath('node', [`${PROGRAM_FILES}\\nodejs`]),
       steps: [
         winget('OpenJS.NodeJS.LTS', '--version', PINS.node),
-        msiFallback(`https://nodejs.org/dist/v${PINS.node}/node-v${PINS.node}-x64.msi`),
+        msiFallback(
+          `https://nodejs.org/dist/v${PINS.node}/node-v${PINS.node}-x64.msi`,
+          PINS.nodeInstallerSha256,
+        ),
       ],
     },
     pinnedVersion: PINS.node,
@@ -280,8 +297,9 @@ const items: SetupItem[] = [
         {
           kind: 'download-installer',
           url: `https://www.python.org/ftp/python/${PINS.pythonInstaller}/python-${PINS.pythonInstaller}-amd64.exe`,
+          sha256: PINS.pythonInstallerSha256,
           program: FILE,
-          args: ['/passive', 'InstallAllUsers=0', 'PrependPath=1'],
+          args: ['/passive', '/norestart', 'InstallAllUsers=0', 'PrependPath=1'],
           declinedExitCodes: MSI_DECLINED,
         },
       ],
@@ -511,6 +529,7 @@ const items: SetupItem[] = [
       preferredFolder: BLENDER_FOLDER,
       program: 'blender.exe',
       versionPattern: '^Blender (\\d+\\.\\d+\\.\\d+)',
+      uninstallNamePattern: '^Blender(\\s+\\d+(\\.\\d+)*(\\s+LTS)?)?$',
     },
     install: {
       summary: 'winget으로 설치하고, 안 되면 공식 설치 파일을 받아요.',
@@ -521,6 +540,7 @@ const items: SetupItem[] = [
         winget('BlenderFoundation.Blender', '--version', PINS.blender),
         msiFallback(
           `https://download.blender.org/release/Blender${PINS.blenderSeries}/blender-${PINS.blender}-windows-x64.msi`,
+          PINS.blenderInstallerSha256,
         ),
       ],
     },
@@ -550,6 +570,9 @@ const items: SetupItem[] = [
           saveAs: `${PINS.blenderAddon.module}.py`,
           module: PINS.blenderAddon.module,
           blender: `${BLENDER_ROOT}\\${BLENDER_FOLDER}\\blender.exe`,
+          userPrefs: `${BLENDER_USER}\\config\\userpref.blend`,
+          versionsFolder: BLENDER_VERSIONS,
+          series: PINS.blenderSeries,
         },
       ],
     },

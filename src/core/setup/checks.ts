@@ -1,4 +1,4 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { win32 } from 'node:path';
 import { codexEnvironment, executable, subscriptionEnvironment } from '../cli.ts';
@@ -50,6 +50,20 @@ export const DEFAULT_TIMEOUTS: CheckDeps['timeouts'] = {
   mcpLockWaitMs: 60000,
 };
 
+/**
+ * `existsSync` follows a link, and says false for an app-execution alias in WindowsApps (measured on
+ * winget's: `lstat` works, and starting it works). So a link that is there counts as there.
+ */
+export function pathExists(path: string) {
+  if (existsSync(path)) return true;
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function realCheckDeps(
   options: Pick<CheckDeps, 'exclusive'> & Partial<CheckDeps>,
 ): CheckDeps {
@@ -58,7 +72,7 @@ export function realCheckDeps(
     run: runCommand,
     env: process.env,
     home: homedir(),
-    exists: existsSync,
+    exists: pathExists,
     listFolders: (path) => {
       try {
         return readdirSync(path, { withFileTypes: true })
@@ -108,11 +122,11 @@ const packageKey = (name: string) =>
 const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric: true });
 
 /**
- * A user-scope server in ~/.claude.json, where `claude mcp add -s user` puts it. Only what the checks
- * need: `env` and `headers` may hold secrets and are dropped here. Undefined: not registered. Null:
- * the file cannot be understood. `claude mcp get` would tell the same, but it starts the server.
+ * One server of `mcpServers` in ~/.claude.json, whole, secrets included. Only for putting it back
+ * after a failed re-registration (SPEC 3.7): it stays in memory and is never logged. Undefined: not
+ * registered. Null: the file cannot be understood.
  */
-export function userMcpServer(config: Buffer, name: string) {
+export function rawUserMcpServer(config: Buffer, name: string): object | null | undefined {
   let parsed: unknown;
   try {
     parsed = JSON.parse(config.toString('utf8').replace(/^\uFEFF/, ''));
@@ -123,7 +137,17 @@ export function userMcpServer(config: Buffer, name: string) {
   const servers = (parsed as { mcpServers?: unknown }).mcpServers;
   if (!servers || typeof servers !== 'object' || !Object.hasOwn(servers, name)) return undefined;
   const server = (servers as Record<string, unknown>)[name];
-  if (!server || typeof server !== 'object') return undefined;
+  return server && typeof server === 'object' ? server : undefined;
+}
+
+/**
+ * A user-scope server in ~/.claude.json, where `claude mcp add -s user` puts it. Only what the checks
+ * need: `env` and `headers` may hold secrets and are dropped here. Undefined: not registered. Null:
+ * the file cannot be understood. `claude mcp get` would tell the same, but it starts the server.
+ */
+export function userMcpServer(config: Buffer, name: string) {
+  const server = rawUserMcpServer(config, name);
+  if (!server) return server;
   const { command, args, url } = server as { command?: unknown; args?: unknown; url?: unknown };
   return {
     /** The command line of a stdio server. */
@@ -161,6 +185,8 @@ interface Context {
   run: CommandRunner;
   childEnv: NodeJS.ProcessEnv;
   path: (template: string) => string;
+  /** After an install: a file alone (`orFilesExist`) does not count (SPEC 3.4). */
+  requireCommand: boolean;
 }
 
 type Outcome = Omit<CheckResult, 'id' | 'pinnedVersion'>;
@@ -197,7 +223,9 @@ async function checkCommand(
   spec: Extract<CheckSpec, { kind: 'command' }>,
   pinned: string | null,
 ): Promise<Outcome> {
-  const alsoFile = spec.orFilesExist?.some((file) => context.deps.exists(context.path(file)));
+  const alsoFile =
+    !context.requireCommand &&
+    spec.orFilesExist?.some((file) => context.deps.exists(context.path(file)));
   const fallback: Outcome | undefined = alsoFile ? { status: 'installed' } : undefined;
   let foundVersion: string | undefined;
   let notOnPath = false;
@@ -362,6 +390,34 @@ async function checkMcp(
 }
 
 /**
+ * A Blender outside the known folder, from the registry only: it is never started, and winget's
+ * `uninstallPrevious` could remove it (SPEC 3.3). An entry whose folder has no `blender.exe` is a
+ * leftover of an uninstall. Without a snapshot the answer is unknown, so it must not read as missing.
+ */
+function blenderElsewhere(
+  context: Context,
+  spec: Extract<CheckSpec, { kind: 'blender' }>,
+): Outcome {
+  if (!context.snapshot)
+    return { status: 'error', message: 'Blender가 있는지 확인하지 못했어요. 다시 확인해 보세요.' };
+  const name = new RegExp(spec.uninstallNamePattern, 'i');
+  const found = context.snapshot.blenderInstalls
+    .filter((entry) => name.test(entry.name.trim()))
+    .filter(
+      ({ location }) => !location || context.deps.exists(win32.join(location.trim(), spec.program)),
+    )
+    .sort((a, b) => newestFirst(a.version ?? '', b.version ?? ''))[0];
+  if (!found) return { status: 'missing' };
+  const version = found.version?.trim();
+  const place = found.location?.trim();
+  return {
+    status: 'version-mismatch',
+    ...(version ? { foundVersion: version } : {}),
+    message: `다른 곳에 설치된 Blender${version ? ` ${version}` : ''}${place ? `(${place})` : ''}을(를) 찾았어요.`,
+  };
+}
+
+/**
  * Only the known install folders and only `blender.exe --version`, which prints and exits before
  * any window exists. The file's own version resource would not need a run, but it says only `5.2`
  * (measured), and the pin is 5.2.3.
@@ -380,7 +436,7 @@ async function checkBlender(
     .sort((a, b) =>
       a === spec.preferredFolder ? -1 : b === spec.preferredFolder ? 1 : newestFirst(a, b),
     );
-  if (!folders.length) return { status: 'missing' };
+  if (!folders.length) return blenderElsewhere(context, spec);
   const folder = folders[0];
   const series = /\d+\.\d+/.exec(folder)?.[0];
   const result = await context.run(
@@ -500,6 +556,7 @@ function limited(run: CommandRunner, limit: number): CommandRunner {
 export async function runChecks(
   deps: CheckDeps,
   items: SetupItem[] = catalog.items,
+  { requireCommand = false }: { requireCommand?: boolean } = {},
 ): Promise<CheckReport> {
   const startedAt = new Date().toISOString();
   const report = (
@@ -533,6 +590,7 @@ export async function runChecks(
     // Whatever else the engine's environment holds, API keys and account folders stay out of it.
     childEnv: codexEnvironment(subscriptionEnvironment(deps.env as NodeJS.ProcessEnv)),
     path: (template) => expandPath(template, deps.env, deps.home, snapshot?.documents ?? undefined),
+    requireCommand,
   };
   const byId = new Map(items.map((item) => [item.id, item]));
   const started = new Map<string, Promise<CheckResult>>();

@@ -74,6 +74,8 @@ const itemOf = (id: string) => catalog.items.find((item) => item.id === id) as S
 export class SetupRunner {
   private deps: InstallDeps;
   private run: Run | undefined;
+  /** An install ran and the item's own command did not then answer: a file alone won't do (SPEC 3.4). */
+  private unconfirmed = new Set<string>();
 
   constructor(deps: InstallDeps) {
     this.deps = deps;
@@ -299,7 +301,9 @@ export class SetupRunner {
   private async checkFor(run: Run, item: SetupItem) {
     const inRun = new Set(run.progress.items.map((entry) => entry.id));
     const outside = item.dependsOn.filter((id) => !inRun.has(id)).map(itemOf);
-    const report = await runChecks(this.deps.check, [item, ...outside]);
+    const report = await runChecks(this.deps.check, [item, ...outside], {
+      requireCommand: this.unconfirmed.has(item.id),
+    });
     return {
       result: report.results.find((entry) => entry.id === item.id) as CheckResult,
       outside: report.results.filter((entry) => entry.id !== item.id),
@@ -336,6 +340,7 @@ export class SetupRunner {
       deadline: Date.now() + this.deps.itemTimeoutMs,
     });
     if (precheck.status === 'installed') {
+      this.unconfirmed.delete(item.id);
       await this.fixPath(context, item);
       return { status: 'done', message: '이미 설치되어 있어요.' };
     }
@@ -402,13 +407,24 @@ export class SetupRunner {
         throw error;
       }
       if (outcome.ran) {
-        const after = (await runChecks(this.deps.check, [item])).results[0];
+        const after = (await runChecks(this.deps.check, [item], { requireCommand: true }))
+          .results[0];
         if (after.foundVersion) progress.foundVersion = after.foundVersion;
         if (after.status === 'installed') {
+          this.unconfirmed.delete(item.id);
           await this.fixPath(context, item);
-          return { status: 'done' };
+          return { status: 'done', ...(outcome.note ? { message: outcome.note } : {}) };
         }
+        this.unconfirmed.add(item.id);
         if (outcome.needsUser) return { status: 'needs-user', ...outcome.needsUser };
+        if (outcome.stop) return outcome.stop;
+        // Not knowing is no reason to run a second installer on top (SPEC 3.4).
+        if (after.status === 'timeout' || after.status === 'error')
+          return {
+            status: 'failed',
+            reason: 'CHECK_FAILED',
+            message: after.message ?? CHECK_FAILED,
+          };
         last =
           after.status === 'version-mismatch'
             ? {

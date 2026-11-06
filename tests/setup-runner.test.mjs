@@ -336,7 +336,7 @@ test('a failing winget moves to the fallback, and the download is the pinned fil
       assert.equal(msi.program, 'C:\\Windows\\System32\\msiexec.exe');
       assert.equal(msi.args[0], '/i');
       assert.ok(msi.args[1].endsWith(`node-v${PINS.node}-x64.msi`));
-      assert.equal(msi.args[2], '/passive');
+      assert.deepEqual(msi.args.slice(2), ['/passive', '/norestart']);
       // The installer is gone once it ran.
       assert.equal(pc.files.read(msi.args[1]), undefined);
     },

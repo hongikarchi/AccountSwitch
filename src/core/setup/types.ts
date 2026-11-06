@@ -26,7 +26,10 @@ export type CheckSpec =
       commands: VersionCommand[];
       /** Folders to look in when the program is not on PATH (SPEC 3.5 step 2). */
       knownFolders: string[];
-      /** Also installed when one of these files exists, even if the command fails. */
+      /**
+       * Also installed when one of these files exists, even if the command fails. Not after an
+       * install, where the command itself has to answer (SPEC 3.4).
+       */
       orFilesExist?: string[];
       /**
        * Which found versions count as fine, when wider than what gets installed: Node installs
@@ -66,7 +69,10 @@ export type CheckSpec =
       /** Address expected of an HTTP server. */
       url?: string;
     }
-  /** Blender only ever runs from its known folder, `--version` only. */
+  /**
+   * Blender only ever runs from its known folder, `--version` only. One elsewhere is only read about
+   * in the registry's Uninstall keys, by a `DisplayName` matching `uninstallNamePattern` (SPEC 3.3).
+   */
   | {
       kind: 'blender';
       root: string;
@@ -74,6 +80,7 @@ export type CheckSpec =
       preferredFolder: string;
       program: string;
       versionPattern: string;
+      uninstallNamePattern: string;
     }
   /** A module file in the add-ons folder that is also listed in userpref.blend. */
   | { kind: 'blender-addon'; addonsFolder: string; userPrefs: string; module: string }
@@ -101,10 +108,14 @@ export type InstallStep =
   | { kind: 'winget'; program: string; id: string; args: string[]; declinedExitCodes: number[] }
   /** `irm <url> | iex`. `insideClaudeLock`: inside DefaultLogin.exclusive (SPEC 3.7). */
   | { kind: 'powershell-script'; url: string; insideClaudeLock?: boolean }
-  /** Download `url`, then run `<program> <args>`, where `<file>` stands for the download. */
+  /**
+   * Download `url`, refuse it unless it hashes to `sha256`, the value the project publishes, then run
+   * `<program> <args>`, where `<file>` stands for the download (SPEC 3.3).
+   */
   | {
       kind: 'download-installer';
       url: string;
+      sha256: string;
       program: string;
       args: string[];
       declinedExitCodes: number[];
@@ -124,6 +135,8 @@ export type InstallStep =
   /**
    * Download `url`, refuse it unless it hashes to `sha256`, save it as `saveAs` and let `blender`
    * install and enable `module` with telemetry consent off. Never `--factory-startup` (SPEC 3.3).
+   * With no `userPrefs` yet and an older `X.Y` folder in `versionsFolder` than `series`, the old
+   * settings are copied first, because saving the prefs ends Blender's offer to import them.
    */
   | {
       kind: 'blender-addon';
@@ -132,6 +145,9 @@ export type InstallStep =
       saveAs: string;
       module: string;
       blender: string;
+      userPrefs: string;
+      versionsFolder: string;
+      series: string;
     }
   | { kind: 'rhino-settings' }
   /** Nothing to run: tell the user what to do. */

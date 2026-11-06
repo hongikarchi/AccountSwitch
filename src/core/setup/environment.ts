@@ -44,22 +44,46 @@ const snapshotSchema = z.object({
   documents: z.string().nullable(),
   /** Scope name to policy, from `Get-ExecutionPolicy -List`. */
   executionPolicy: z.record(z.string(), z.string()),
+  /**
+   * Uninstall entries named Blender (SPEC 3.3). A shape nobody expected only loses this list, not the
+   * PATH that the rest of the snapshot rebuilds.
+   */
+  blenderInstalls: z
+    .array(
+      z.object({
+        name: z.string(),
+        version: z.string().nullish(),
+        location: z.string().nullish(),
+      }),
+    )
+    .catch([]),
 });
 export type WindowsSnapshot = z.infer<typeof snapshotSchema>;
 
 // .NET returns the two paths from HKLM\...\Session Manager\Environment and HKCU\Environment with
 // their %VARIABLES% expanded. `reg query` would print them in the console code page, which breaks
-// on a Korean user name, so the output is set to UTF-8 here.
+// on a Korean user name, so the output is set to UTF-8 here. The Uninstall keys are only read, and a
+// key that cannot be read must not cost the rest of the answer.
+const UNINSTALL_KEY = 'SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\*';
+const UNINSTALL_KEYS = [
+  `'HKLM:\\${UNINSTALL_KEY}'`,
+  `'HKLM:\\${UNINSTALL_KEY.replace('SOFTWARE\\', 'SOFTWARE\\WOW6432Node\\')}'`,
+  `'HKCU:\\${UNINSTALL_KEY}'`,
+].join(',');
 const SNAPSHOT_SCRIPT = [
   "$ErrorActionPreference='Stop'",
   '[Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false)',
   '$policy=@{}',
   'Get-ExecutionPolicy -List|ForEach-Object{$policy[$_.Scope.ToString()]=$_.ExecutionPolicy.ToString()}',
+  '$blender=@()',
+  `try{$blender=@(Get-ItemProperty -ErrorAction SilentlyContinue -Path ${UNINSTALL_KEYS}|` +
+    "Where-Object{$_.DisplayName -like 'Blender*'}|" +
+    'ForEach-Object{@{name=[string]$_.DisplayName;version=[string]$_.DisplayVersion;location=[string]$_.InstallLocation}})}catch{}',
   "@{machinePath=[Environment]::GetEnvironmentVariable('Path','Machine');" +
     "userPath=[Environment]::GetEnvironmentVariable('Path','User');" +
     "pythonUtf8=[Environment]::GetEnvironmentVariable('PYTHONUTF8','User');" +
     "documents=[Environment]::GetFolderPath('MyDocuments');" +
-    'executionPolicy=$policy}|ConvertTo-Json -Compress',
+    'executionPolicy=$policy;blenderInstalls=$blender}|ConvertTo-Json -Compress',
 ].join(';');
 const SNAPSHOT_TIMEOUT_MS = 15000;
 

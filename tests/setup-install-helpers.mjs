@@ -1,10 +1,12 @@
 // A pretend Windows PC for the install tests: every command, download and file lands here, so no
 // test can install anything. The state file goes to a temporary folder.
+import { createHash } from 'node:crypto';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, win32 } from 'node:path';
 import { realCheckDeps } from '../src/core/setup/checks.ts';
 import { buildInstallDeps } from '../src/core/setup/install-deps.ts';
+import { catalog } from '../src/core/setup/manifest.ts';
 import { SetupRunner } from '../src/core/setup/runner.ts';
 
 export const HOME = 'C:\\Users\\tester';
@@ -28,6 +30,19 @@ export const notThere = () => ({
   spawnError: 'ENOENT',
 });
 
+/** What the default fake download serves, standing in for a real installer. */
+export const PRETEND_INSTALLER = 'installer bytes';
+
+const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+
+/** The hash the catalog pins for an installer of this file name. */
+export function pinnedHash(fileName) {
+  return catalog.items
+    .flatMap((item) => item.install.steps)
+    .find((step) => step.kind === 'download-installer' && step.url.endsWith(`/${fileName}`))
+    ?.sha256;
+}
+
 /** Files in memory, with the shape of InstallFiles. */
 export function memoryFiles(initial = {}) {
   const store = new Map(Object.entries(initial).map(([k, v]) => [k, Buffer.from(v)]));
@@ -37,6 +52,15 @@ export function memoryFiles(initial = {}) {
     write: (path, data) => store.set(path, Buffer.from(data)),
     copy: (from, to) => store.set(to, store.get(from)),
     remove: (path) => store.delete(path),
+    // The pretend installer hashes as its pin says, since a test has no real installer. Any other
+    // bytes get their real hash, so a test can serve a tampered file.
+    hash: async (path) => {
+      const bytes = store.get(path);
+      if (!bytes) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      if (bytes.toString() === PRETEND_INSTALLER)
+        return pinnedHash(win32.basename(path)) ?? sha256(bytes);
+      return sha256(bytes);
+    },
     save: async (path, body) => {
       store.set(path, Buffer.from(await new Response(body).arrayBuffer()));
     },
@@ -73,6 +97,7 @@ export function fakePc({
   userPath = BIN,
   machinePath = 'C:\\Windows\\System32',
   pythonUtf8 = '1',
+  blenderInstalls = [],
   running = [],
   pip = [],
   exclusive,
@@ -138,6 +163,7 @@ export function fakePc({
           pythonUtf8: pc.pythonUtf8,
           documents: `${HOME}\\Documents`,
           executionPolicy: pc.policy,
+          blenderInstalls,
         }),
       );
     }
@@ -192,7 +218,14 @@ export function fakePc({
     run,
     exists: (path) => paths.has(lower(path)),
     listFolders: (path) => folders[path] ?? [],
-    readFile: (path) => files.read(path),
+    // As the real one: a check takes a file it cannot read for one that is not there.
+    readFile: (path) => {
+      try {
+        return files.read(path);
+      } catch {
+        return undefined;
+      }
+    },
     executable: (provider) => {
       const file = provider === 'claude-cli' ? `${BIN}\\claude.exe` : `${APPDATA}\\npm\\codex.cmd`;
       return paths.has(lower(file)) ? file : undefined;
@@ -214,7 +247,7 @@ export function fakePc({
       fetch ??
       (async (url) => {
         pc.downloads.push(url);
-        return new Response('installer bytes');
+        return new Response(PRETEND_INSTALLER);
       }),
     files,
     ...(now ? { now } : {}),

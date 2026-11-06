@@ -13,11 +13,14 @@ The wizard targets a fresh Windows PC with no developer tools. winget ships with
 - Pins: Python 3.13, Node 24, Blender 5.2.3, rhinomcp 0.4.1.1 (plugin and `uvx` server together), Cordyceps 1.5.0, blender-mcp 1.5.5. Everything else installs latest.
 - PATH is re-read from the registry by code after each install (SPEC 3.5); no reliance on the user restarting anything.
 - Elevation prompts are expected; the user answers them. Prefer user-scope packages to reduce prompts.
+- Every fixed-version installer the engine downloads carries the SHA-256 its project publishes, checked on disk right before it runs. All four are published, so none is computed from a download: Git's release notes, Node's `SHASUMS256.txt`, python.org's release page, Blender's `.sha256` file.
+- winget's exit code decides whether the fallback may run. Reasons a second installer would bypass or collide with (policy, install in progress, file in use, disk full, restart needed, already installed) end the item instead (SPEC 3.6).
 
 ## Consequences
 
 - Pins must be bumped deliberately in the manifest and SPEC together.
 - Fallback download URLs need upkeep when publishers move files.
+- A pin bump also needs the new hash from the publisher; a wrong hash makes the fallback refuse to run, and that is the intended failure.
 - Node is pinned to an exact 24.x because winget has no 24-only id, `OpenJS.NodeJS.LTS` moved to 26 on 2026-10-28, and `--version` accepts only exact versions.
 - The blender-mcp add-on is pinned by commit and SHA-256 because the project publishes no GitHub releases and its repository was renamed `mcp-for-blender`.
 - Git and Python gained fallback URLs because Windows Sandbox has no winget, so M3 could not otherwise pass there.
