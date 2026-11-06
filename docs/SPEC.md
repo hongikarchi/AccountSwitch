@@ -45,7 +45,7 @@ The first screen of the wizard offers two choices:
 
 Rules for both modes:
 
-- 버전 다름 offers an install only for MCP items (다시 등록, sent in `replace` after a confirmation) and items with `warnIfOtherVersion` (Blender, after its warning). Any other different version has no install offer, because the app does not replace a user's install.
+- 버전 다름 offers an install only for MCP items (다시 등록, sent in `replace` after a confirmation) and, in 점검만 mode, items with `warnIfOtherVersion` (Blender, after its warning). Auto mode never installs over another version (3.3), so it offers neither that nor a button that would do nothing. Any other different version has no install offer, because the app does not replace a user's install.
 - `timeout` and `error` mean the state is unknown, so they offer only 다시 확인, never an install.
 - An item the user has to install (`install.automatic: false`, Rhino) has no checkbox, only its link. It is part of the run when its group is ticked, and the runner reports it `needs-user`.
 - When `setup-state.json` exists, the tab skips the first screen and opens the checklist of its `mode`; 처음으로 goes back to the first screen.

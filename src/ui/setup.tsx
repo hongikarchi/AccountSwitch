@@ -427,7 +427,7 @@ export function SetupTab({ active }: { active: boolean }) {
   };
   /** Asks first when these items change something the user already has. */
   const requestRun = (items: string[], runMode: SetupMode) => {
-    const entries = overview ? confirmationsFor(overview.catalog, report, items) : [];
+    const entries = overview ? confirmationsFor(overview.catalog, report, items, runMode) : [];
     if (entries.length) setConfirming({ items, mode: runMode, entries });
     else void startRun(items, runMode);
   };
@@ -535,11 +535,12 @@ export function SetupTab({ active }: { active: boolean }) {
     const results = resultsById(report);
     const lastItems = new Map((lastRun?.items ?? []).map((entry) => [entry.id, entry]));
     const auto = mode === 'auto';
+    const listMode = auto ? 'auto' : 'check';
     const outcome = lastRun ? runOutcome(lastRun) : undefined;
     const selected = checkedInOrder(catalog, checked);
     const startable = canStart(catalog, checked);
     const anythingToInstall = catalog.items.some((item) => {
-      const action = actionFor(item, results.get(item.id));
+      const action = actionFor(item, results.get(item.id), listMode);
       return (
         (action.kind === 'install' || action.kind === 'register-again') &&
         (!catalog.groups.find((group) => group.id === item.group)?.optional ||
@@ -549,7 +550,7 @@ export function SetupTab({ active }: { active: boolean }) {
 
     const row = (item: SetupItem) => {
       const result = results.get(item.id);
-      const action = actionFor(item, result);
+      const action = actionFor(item, result, listMode);
       const isChecked = checked.has(item.id);
       const view = stepFromCheck(catalog, item, result, {
         ...(auto ? { checked } : {}),
@@ -557,8 +558,6 @@ export function SetupTab({ active }: { active: boolean }) {
       });
       const canInstall = action.kind === 'install' || action.kind === 'register-again';
       const verb = action.kind === 'register-again' ? '다시 등록' : '설치';
-      if (auto && canInstall && isChecked && action.kind === 'install' && action.warning)
-        view.notes.push({ text: action.warning, tone: 'muted' });
       const control = !canInstall ? undefined : auto ? (
         <label className="step-check">
           <input

@@ -34,16 +34,17 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 - [x] T-035 Verify check results on this PC; record which items report 버전 다름 and why. 2026-11-06: no item reports 버전 다름; a run takes under a second and left `~/.claude.json` untouched. Node 24.15.0 passes against pin 24.22.1 because any 24.x is accepted; `python` is missing because only 3.14 is reachable through `py`. The Sandbox half of M2 still waits for T-048.
 
 ## M3 Installs
+nCode for T-040 to T-047 is done and tested with fakes only. Nothing has really been installed; T-048 is the first real run.
 
-- [ ] T-040 Runner: one run at a time, per-item timeout, logs, cancel, retry, skip (SPEC 3.4).
-- [ ] T-041 winget by full path with fallback downloads (ADR-002); verify package ids and the Node 24 pin.
-- [ ] T-042 Base items `git`, `node`, `uv`, `python`, `claude`, `codex`.
-- [ ] T-043 `env` item: execution policy, user PATH append with `WM_SETTINGCHANGE`, `PYTHONUTF8`.
-- [ ] T-044 Python base and bundles.
-- [ ] T-045 Blender 5.2.3, blender-mcp add-on install and enable, MCP registration.
-- [ ] T-046 Rhino: detect Rhino 8, Yak installs (verify syntax), MCP registrations inside `DefaultLogin.exclusive` (SPEC 3.7).
-- [ ] T-049 `rhino-settings` (SPEC 3.8): backup, read-only warning, startup `_mcpstart` (find the element by setting it once in Rhino Options and diffing the settings file), starter `.gh` made once in a real Grasshopper session, `~/.claude/CLAUDE.md` marked block. Refuse while Rhino runs.
-- [ ] T-047 Elevation messages and `ELEVATION_DECLINED` handling (SPEC 3.6).
+- [~] T-040 Runner: one run at a time, per-item timeout, logs, cancel, retry, skip (SPEC 3.4).
+- [~] T-041 winget by full path with fallback downloads (ADR-002); verify package ids and the Node 24 pin.
+- [~] T-042 Base items `git`, `node`, `uv`, `python`, `claude`, `codex`.
+- [~] T-043 `env` item: execution policy, user PATH append with `WM_SETTINGCHANGE`, `PYTHONUTF8`.
+- [~] T-044 Python base and bundles.
+- [~] T-045 Blender 5.2.3, blender-mcp add-on install and enable, MCP registration.
+- [~] T-046 Rhino: detect Rhino 8, Yak installs (verify syntax), MCP registrations inside `DefaultLogin.exclusive` (SPEC 3.7).
+- [~] T-049 `rhino-settings` (SPEC 3.8): backup, read-only warning, startup `_mcpstart` (find the element by setting it once in Rhino Options and diffing the settings file), starter `.gh` made once in a real Grasshopper session, `~/.claude/CLAUDE.md` marked block. Refuse while Rhino runs. Parts 1 and 4 are done with fakes; parts 2 and 3 wait for a Rhino session with the user, so the item ends `needs-user` until then.
+- [~] T-047 Elevation messages and `ELEVATION_DECLINED` handling (SPEC 3.6).
 - [ ] T-048 Windows Sandbox run of auto mode end to end; note timings.
 
 ## M4 Launcher

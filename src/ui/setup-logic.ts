@@ -83,9 +83,14 @@ export function resultsById(report: CheckReport | null | undefined) {
 /**
  * What can be done about a row. An install offered here is the only way into a run, and it never
  * covers an existing program unless the catalog says how: auto mode leaves a user's install alone
- * (SPEC 3.3), and a state nobody could check gets 다시 확인, not an install.
+ * (SPEC 3.3), and a state nobody could check gets 다시 확인, not an install. The runner keeps another
+ * version in auto mode whatever is asked, so offering it there would be a button that does nothing.
  */
-export function actionFor(item: SetupItem, result: CheckResult | undefined): InstallAction {
+export function actionFor(
+  item: SetupItem,
+  result: CheckResult | undefined,
+  mode: SetupMode = 'check',
+): InstallAction {
   if (result?.status === 'missing') {
     if (item.install.automatic) return { kind: 'install' };
     const step = manualStep(item);
@@ -93,7 +98,7 @@ export function actionFor(item: SetupItem, result: CheckResult | undefined): Ins
   }
   if (result?.status === 'version-mismatch') {
     if (item.check.kind === 'mcp') return { kind: 'register-again' };
-    if (item.install.warnIfOtherVersion)
+    if (item.install.warnIfOtherVersion && mode === 'check')
       return { kind: 'install', warning: item.install.warnIfOtherVersion };
   }
   return { kind: 'none' };
@@ -168,11 +173,12 @@ export function confirmationsFor(
   catalog: SetupCatalog,
   report: CheckReport | null | undefined,
   ids: readonly string[],
+  mode: SetupMode = 'check',
 ): Confirmation[] {
   const results = resultsById(report);
   return catalog.items.flatMap((item): Confirmation[] => {
     if (!ids.includes(item.id)) return [];
-    const action = actionFor(item, results.get(item.id));
+    const action = actionFor(item, results.get(item.id), mode);
     if (action.kind === 'register-again') {
       const version =
         item.pinnedVersion && item.pinnedVersion !== 'latest'
@@ -247,7 +253,8 @@ export function stepFromCheck(
 ): StepView {
   const base = { id: item.id, label: item.label, description: item.description, elevating: false };
   if (!result) return { ...base, node: 'pending', meta: '확인하는 중', notes: [], parts: [] };
-  const action = actionFor(item, result);
+  // Only auto mode's checklist passes `checked`.
+  const action = actionFor(item, result, options.checked ? 'auto' : 'check');
   const notes: StepNote[] = [];
   let node: NodeState =
     result.status === 'installed'

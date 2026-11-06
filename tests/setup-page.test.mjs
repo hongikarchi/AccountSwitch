@@ -134,7 +134,11 @@ test('a missing Blender has no warning; another version has to be agreed to', ()
   assert.equal(asked.length, 1);
   assert.equal(asked[0].text, item('blender').install.warnIfOtherVersion);
   assert.equal(asked[0].replace, false);
-  assert.deepEqual(runRequest(['blender'], 'auto', asked), { items: ['blender'], mode: 'auto' });
+  assert.deepEqual(runRequest(['blender'], 'check', asked), { items: ['blender'], mode: 'check' });
+  // Auto mode keeps another version whatever is asked, so it offers nothing and asks nothing.
+  const other = { status: 'version-mismatch', foundVersion: '4.5.0' };
+  assert.deepEqual(actionFor(item('blender'), other, 'auto'), { kind: 'none' });
+  assert.deepEqual(confirmationsFor(catalog, report({ blender: other }), ['blender'], 'auto'), []);
 });
 
 test('an MCP item with another version goes in replace only after being asked', () => {
