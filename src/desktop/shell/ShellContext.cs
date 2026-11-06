@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -22,6 +23,7 @@ namespace AccountSwitch.Desktop
         private readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer();
         private ShellForm form;
         private int restarts;
+        private bool askingToQuit;
         // The tray icon this object owns; null while the shared AppIcon stands in for it.
         private Icon trayIcon;
         private bool trayShownForLightTaskbar;
@@ -55,7 +57,7 @@ namespace AccountSwitch.Desktop
             updateItem = new ToolStripMenuItem("업데이트 확인", null, (s, e) => OnUpdateClick());
             menu.Items.Add(updateItem);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add("종료", null, (s, e) => Quit());
+            menu.Items.Add("종료", null, (s, e) => RequestQuit());
             tray = new NotifyIcon { Text = "AccountSwitch", ContextMenuStrip = menu };
             ShowTrayIcon();
             tray.Visible = true;
@@ -160,6 +162,39 @@ namespace AccountSwitch.Desktop
             backgroundItem.Checked = Settings.Background;
         }
 
+        /// <summary>
+        /// The user asked to quit: while an install run is active, ask first (SPEC 3.4). The quit
+        /// signal (uninstaller, updater hooks) goes straight to Quit, since nobody may be there to answer.
+        /// </summary>
+        public void RequestQuit(bool applyUpdate = false)
+        {
+            if (Quitting || askingToQuit) return;
+            if (QuitGuard.ShouldAsk(File.Exists(QuitGuard.MarkerFile(Paths.Data)), engine.RunningOwn))
+            {
+                DialogResult answer;
+                askingToQuit = true;
+                try
+                {
+                    // Over the window when it shows; from the tray the window stays hidden.
+                    var owner = form != null && !form.IsDisposed && form.Visible ? form : null;
+                    answer = MessageBox.Show(
+                        owner,
+                        applyUpdate ? QuitGuard.UpdateQuestion : QuitGuard.QuitQuestion,
+                        "AccountSwitch",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning,
+                        MessageBoxDefaultButton.Button2);
+                }
+                finally
+                {
+                    askingToQuit = false;
+                }
+                // The quit signal may have ended the program while the question was open.
+                if (Quitting || answer != DialogResult.Yes) return;
+            }
+            Quit(applyUpdate);
+        }
+
         public void Quit(bool applyUpdate = false)
         {
             if (Quitting) return;
@@ -177,7 +212,7 @@ namespace AccountSwitch.Desktop
 
         private void OnUpdateClick()
         {
-            if (Updater.State == "ready") Quit(true);
+            if (Updater.State == "ready") RequestQuit(applyUpdate: true);
             else _ = Updater.Check();
         }
 

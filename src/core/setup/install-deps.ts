@@ -59,12 +59,15 @@ export interface InstallDeps {
   itemTimeoutMs: number;
   /** SPEC 3.4: after a cancel, how long the current command may go on. */
   cancelGraceMs: number;
+  /** SPEC 3.4: when the engine closes, how long the current command may go on. */
+  stopGraceMs: number;
 }
 
 export type InstallOverrides = Partial<Omit<InstallDeps, 'check' | 'directory'>>;
 
 export const ITEM_TIMEOUT_MS = 15 * 60 * 1000;
 export const CANCEL_GRACE_MS = 30 * 1000;
+export const STOP_GRACE_MS = 10 * 1000;
 
 /**
  * Ends a step. `fallback`: the next step may still try. Otherwise the item ends here, like a declined
@@ -187,6 +190,7 @@ export function buildInstallDeps(
     now: () => new Date(),
     itemTimeoutMs: ITEM_TIMEOUT_MS,
     cancelGraceMs: CANCEL_GRACE_MS,
+    stopGraceMs: STOP_GRACE_MS,
     ...overrides,
   };
 }

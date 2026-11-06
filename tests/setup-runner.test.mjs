@@ -1789,19 +1789,6 @@ test('environment values given to a command never reach the log', () =>
     },
   ));
 
-test('stop closes an active run without waiting for the grace period', () =>
-  withRunner(
-    { on: (request, name, pc) => (name === 'winget' ? hanging(pc, request) : undefined) },
-    async ({ runner, pc }) => {
-      runner.start(auto('git', 'uv'));
-      await until(() => pc.finishCommand, 'winget started');
-      runner.stop();
-      await runner.settled();
-      assert.equal(pc.named('winget')[0].signal.aborted, true);
-      assert.equal(runner.progress().phase, 'cancelled');
-    },
-  ));
-
 // --- All of it
 
 test('a fresh PC in auto mode: base group, in order, nothing but the planned programs', () =>

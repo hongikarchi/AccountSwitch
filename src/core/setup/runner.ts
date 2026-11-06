@@ -13,6 +13,7 @@ import {
 } from './install-steps.ts';
 import { ensureItemOnPath } from './install-windows.ts';
 import { catalog } from './manifest.ts';
+import { setRunMarker } from './run-marker.ts';
 import { finishSetupState, recordSetupItem } from './state.ts';
 import type {
   CheckResult,
@@ -21,6 +22,7 @@ import type {
   RunProgress,
   RunRequest,
   SetupItem,
+  SetupStateItem,
 } from './types.ts';
 
 // One install run at a time, in catalog order (SPEC 3.4). Installs start only from `start`, which
@@ -41,9 +43,11 @@ interface Run {
   cancelRequested: boolean;
   /** Fires at once on a cancel: downloads and a wait for the lock stop here. */
   cancel: AbortController;
-  /** Fires when the current command outlasted the grace period, or the engine is closing. */
+  /** Fires when the current command outlasted the grace period. */
   kill: AbortController;
   graceTimer?: NodeJS.Timeout;
+  /** The engine is closing; `stop` has done its work. */
+  stopping: boolean;
   /** While `waiting`: goes on after a skip, a retry or a cancel. */
   resume?: () => void;
   ended: Promise<void>;
@@ -106,11 +110,13 @@ export class SetupRunner {
       cancelRequested: false,
       cancel: new AbortController(),
       kill: new AbortController(),
+      stopping: false,
       ended: Promise.resolve(),
       log: new SetupLog(this.deps.files, this.deps.directory, this.deps.now),
     };
     this.run = run;
     run.log.line(`--- 설치 시작 (${request.mode}): ${items.map((item) => item.id).join(', ')}`);
+    this.mark(run, true);
     run.ended = this.drive(run);
     return this.progress() as RunProgress;
   }
@@ -150,15 +156,35 @@ export class SetupRunner {
     return this.progress() as RunProgress;
   }
 
-  /** The engine is closing: no grace period. */
+  /**
+   * The engine is closing: stop like a cancel, with a grace period that fits before the PC program
+   * gives up on the engine (SPEC 3.4). The state file is right from here on, even if the engine goes
+   * down before the run ends; the current item's own result replaces this if it ends in time.
+   */
   stop() {
     const run = this.run;
-    if (!run || !this.active()) return;
+    if (!run || !this.active() || run.stopping) return;
+    run.stopping = true;
     run.cancelRequested = true;
     run.progress.cancelling = true;
+    run.log.line('--- 프로그램을 끝내는 중이라 설치를 멈춰요');
     run.cancel.abort();
-    run.kill.abort();
+    clearTimeout(run.graceTimer);
+    run.graceTimer = setTimeout(() => run.kill.abort(), this.deps.stopGraceMs);
+    run.graceTimer.unref?.();
+    const at = this.deps.now().toISOString();
+    for (const item of run.progress.items)
+      if (item.status === 'pending' || item.status === 'running')
+        this.write(run, item.id, { status: 'cancelled', at });
     run.resume?.();
+  }
+
+  private mark(run: Run, active: boolean) {
+    try {
+      setRunMarker(this.deps.directory, active);
+    } catch (error) {
+      run.log.line(`setup-running 쓰기 실패: ${(error as Error).message}`);
+    }
   }
 
   private waitingOn(id: string) {
@@ -219,15 +245,20 @@ export class SetupRunner {
     } catch (error) {
       run.log.line(`setup-state.json 쓰기 실패: ${(error as Error).message}`);
     }
+    this.mark(run, false);
   }
 
   private record(run: Run, item: RunItemProgress) {
+    this.write(run, item.id, {
+      status: item.status,
+      ...(item.foundVersion ? { version: item.foundVersion } : {}),
+      at: item.finishedAt ?? this.deps.now().toISOString(),
+    });
+  }
+
+  private write(run: Run, id: string, entry: SetupStateItem) {
     try {
-      recordSetupItem(this.deps.directory, run.progress.mode, item.id, {
-        status: item.status,
-        ...(item.foundVersion ? { version: item.foundVersion } : {}),
-        at: item.finishedAt ?? this.deps.now().toISOString(),
-      });
+      recordSetupItem(this.deps.directory, run.progress.mode, id, entry);
     } catch (error) {
       run.log.line(`setup-state.json 쓰기 실패: ${(error as Error).message}`);
     }

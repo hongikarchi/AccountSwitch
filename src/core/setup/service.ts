@@ -1,15 +1,23 @@
 import { DomainError } from '../errors.ts';
 import { realCheckDeps, refreshEnginePath, runChecks, type CheckDeps } from './checks.ts';
-import { buildInstallDeps, realInstallFiles, type InstallOverrides } from './install-deps.ts';
+import {
+  buildInstallDeps,
+  realInstallFiles,
+  STOP_GRACE_MS,
+  type InstallOverrides,
+} from './install-deps.ts';
 import { readLogTail } from './install-log.ts';
 import { catalog } from './manifest.ts';
+import { setRunMarker } from './run-marker.ts';
 import { SetupRunner } from './runner.ts';
 import { readSetupState, recordCheck, shouldAutoOpen } from './state.ts';
 import type { CheckReport, RunProgress, RunRequest, SetupOverview } from './types.ts';
 
 // What /api/v1/setup answers from. Nothing here starts a program until a route asks.
 
-const CLOSE_WAIT_MS = 2000;
+/** After the grace period, how long a closing engine still waits for the run to end (SPEC 3.4). */
+const CLOSE_MARGIN_MS = 2000;
+export const CLOSE_WAIT_MS = STOP_GRACE_MS + CLOSE_MARGIN_MS;
 
 export class SetupService {
   private deps: CheckDeps;
@@ -19,6 +27,7 @@ export class SetupService {
   private last: CheckReport | null = null;
   private running: Promise<CheckReport> | undefined;
   private pathReady: Promise<unknown> | undefined;
+  private closing = false;
 
   constructor(
     directory: string,
@@ -29,6 +38,13 @@ export class SetupService {
     this.directory = directory;
     this.deps = realCheckDeps({ exclusive, ...overrides });
     this.installOverrides = installOverrides;
+    // One service per engine, and a second engine attaches before it gets here: a marker found now
+    // was left by an engine that went down during a run.
+    try {
+      setRunMarker(directory, false);
+    } catch {
+      // It only costs one question when quitting.
+    }
   }
 
   /** Made when the first run starts, so asking about runs can never reach anything real. */
@@ -39,6 +55,7 @@ export class SetupService {
   }
 
   startRun(request: RunRequest): RunProgress {
+    if (this.closing) throw new DomainError('SETUP_RUN_ACTIVE');
     return this.runner().start(request);
   }
 
@@ -72,16 +89,24 @@ export class SetupService {
     return readLogTail(files, this.directory, now?.() ?? new Date());
   }
 
-  /** The engine is closing: stop the run, and wait for it only briefly. */
+  /** The engine is closing: stop the run gently, and wait for it no longer than SPEC 3.4 allows. */
   async close() {
+    this.closing = true;
     if (!this.installer) return;
     this.installer.stop();
+    const grace = this.installOverrides.stopGraceMs ?? STOP_GRACE_MS;
     let timer: NodeJS.Timeout | undefined;
     const late = new Promise<void>((resolve) => {
-      timer = setTimeout(resolve, CLOSE_WAIT_MS);
+      timer = setTimeout(resolve, grace + CLOSE_MARGIN_MS);
     });
     await Promise.race([this.installer.settled(), late]);
     clearTimeout(timer);
+    // A run still not over is cut off with the engine.
+    try {
+      setRunMarker(this.directory, false);
+    } catch {
+      // The next engine removes it.
+    }
   }
 
   async overview(): Promise<SetupOverview> {

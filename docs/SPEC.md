@@ -119,6 +119,16 @@ New module `src/core/setup/` (manifest, checks, runner) and endpoints:
 - Each item: check first (installed is `done` without running anything; a check that cannot answer is `failed` with reason `CHECK_FAILED`, since an unknown state must not install over a user's program), then the steps in order. After a step that ran, whatever its exit code, the item is checked again: installed means `done`.
 - The page polls `GET /api/v1/setup/run` every second while a run is active, like sign-in polling today.
 
+Quitting during a run:
+
+- **Marker.** While a run is active (`running` or `waiting`) the empty file `setup-running` exists in the data folder, so the shell knows even with the window hidden in the tray. The engine removes a leftover one when it starts. A failed marker write is logged and never stops a run.
+- **The shell asks first.** On tray 종료, a window close that really quits (background mode off), and 재시작하여 업데이트: if the marker exists and the engine this shell started is running, it asks "설치가 아직 진행 중이에요. 지금 끝내면 설치가 중간에 멈출 수 있어요. 그래도 끝낼까요?" (the update wording says 업데이트), default 아니요. 아니요 changes nothing; an update stays ready for later. A stale marker costs one question, never a blocked quit.
+- **No question** when the window only hides to the tray, when Windows shuts down or logs off, on a `--quit` signal (nobody may be there to answer; it stops the same gentle way), or when the shell only attached to another server, since quitting then stops nothing.
+- **The engine closes gently.** Standard input closing, `SIGINT` and `SIGTERM` all stop a run like a cancel: downloads stop at once, nothing new starts, the current command may end, and what outlasts 10 s is killed (its own process tree only, never by name). The engine waits at most 12 s for the run, while sign-ins close in parallel, which fits inside the 15 s the shell waits (`Engine.Stop`). No run starts while closing (`SETUP_RUN_ACTIVE`).
+- **`setup-state.json` tells the truth.** At that moment each item not finished is written with status `cancelled`, so the file is right even if the engine goes down before the run ends. The current item's real result replaces it if it ends in time; a killed one is `failed`. `finishedAt` is written when the run ends; without it the run was cut off. This differs from a user's cancel, which writes nothing for items not reached.
+- **After a restart** `GET /api/v1/setup/run` is `{ run: null }` and `runActive` is `false`, because a run lives only in the engine that started it. The runner writes an item only when it ends or at the stop above, so no item is ever stored as `running`, and the page re-checks instead of reading item statuses from the file.
+- An elevated installer cannot be killed from the unelevated engine and may finish on its own after the run reports `cancelled`. The next check shows what is really there.
+
 ### 3.5 PATH and environment
 
 After every install item, and before every check:
