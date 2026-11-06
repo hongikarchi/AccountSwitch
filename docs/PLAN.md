@@ -27,6 +27,34 @@ M1 goes first because the wizard screens are built from the same components. M2 
 - Rhino cannot be licensed in the sandbox: there, test the "Rhino 8을 먼저 설치하세요" path; test plugin detection on this PC, where both plugins are installed.
 - Never kill Rhino or Blender by name (CLAUDE.md).
 
+### First real install run (T-048), in order
+
+Everything in M3 has so far run against fakes only. Windows Sandbox proves:
+
+1. The portable build with a scratch `ACCOUNTSWITCH_DATA`: a check reports everything missing and PATH comes from the registry.
+2. Base group in auto mode. winget is absent, so ENOENT leads to each fallback: Git, Node MSI, Python. One fallback passes its hash check on the real file.
+3. Node `spawn` of the Git and Python installers works, with no error 740 and no blocked hidden window. `/norestart` is accepted by the Python bundle; note its exit code when a restart is pending.
+4. Downloads pass the allowlist on the real redirects: github.com to release-assets, claude.ai to downloads.claude.ai, astral.sh.
+5. The `uv` and `claude` scripts work through `iex` on the saved copy with `-NonInteractive`. Record whether `claude.exe install` writes `~/.claude.json`; if it does not, drop the lock from that step (it can hold the account lock for up to 15 minutes, SPEC 3.7).
+6. `codex` installs through `node npm-cli.js`.
+7. `py-base` and the three bundles install. Note whether `pyhwp` and `rtree` build on 3.13.
+8. `env`: the read-PATH script runs for real, the value stays `REG_EXPAND_SZ` with other entries untouched, the policy is `RemoteSigned`, `PYTHONUTF8=1`.
+9. A new `cmd` window finds git, node, uv, uvx, py, claude and codex.
+10. Blender group: MSI fallback, then the add-on command on 5.2.3. `userpref.blend` lists the module, the telemetry preference is off, existing preferences survive. `copy_prev` works under `-b` and old settings arrive; note how far back it accepts a version folder. Note the `DisplayName` of an LTS Blender if one can be installed.
+11. `blender-mcp`, `rhinomcp-mcp`, `cordyceps-mcp` land in `~/.claude.json` and a check reports installed. `add-json` round trip: a real entry with `env`, passed as a JSON argument, comes back identical.
+12. Rhino missing: `rhino` is `needs-user`, its plugins and settings are `skipped`, and the run finishes.
+13. Cancel during a slow install: the tree dies after the grace period, and only that tree. Quit during a run: the dialog, then a gentle stop.
+14. The log has no tokens and no environment values. Note timings.
+
+The Sandbox cannot prove these; they need the user on a real PC:
+
+- 아니요 on a real prompt for `msiexec` and the Python bundle (1602 or 1223, SPEC 3.6). Reports say the Sandbox runs without a prompt.
+- Yak installs on a PC where Rhino is licensed.
+- Rhino parts 2 and 3 (SPEC 3.8): set the startup commands once in Rhino Options, close Rhino, diff the settings file; make the starter `.gh` in a real Grasshopper session.
+- Disable the add-on once and confirm the module name leaves `userpref.blend` (SPEC 3.3).
+
+Known limit: a quit during an MCP restore can cut it short, because the engine waits at most 12 s and the restore may take up to 30 s (SPEC 3.7).
+
 ## 3. Checks at the end of every milestone
 
 1. `npm test`, `npm run typecheck`, `npm run format:check`.

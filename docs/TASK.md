@@ -46,7 +46,7 @@ Code for T-040 to T-047 is done and tested with fakes only. Nothing has really b
 - [~] T-046 Rhino: detect Rhino 8, Yak installs (verify syntax), MCP registrations inside `DefaultLogin.exclusive` (SPEC 3.7).
 - [~] T-049 `rhino-settings` (SPEC 3.8): backup, read-only warning, startup `_mcpstart` (find the element by setting it once in Rhino Options and diffing the settings file), starter `.gh` made once in a real Grasshopper session, `~/.claude/CLAUDE.md` marked block. Refuse while Rhino runs. Parts 1 and 4 are done with fakes; parts 2 and 3 wait for a Rhino session with the user, so the item ends `needs-user` until then.
 - [~] T-047 Elevation messages and `ELEVATION_DECLINED` handling (SPEC 3.6).
-- [ ] T-048 Windows Sandbox run of auto mode end to end; note timings.
+- [ ] T-048 Windows Sandbox run of auto mode end to end; note timings. Checklist in PLAN §2; start only with the user present (T-004).
 
 ## M4 Launcher
 
