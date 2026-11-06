@@ -9,6 +9,8 @@ export interface SetupGroup {
   description: string;
   /** Optional groups stay unchecked until the user ticks the group (SPEC 3.3). */
   optional: boolean;
+  /** A program the user works with, listed first on auto mode's program screen (SPEC 3.2). */
+  program?: boolean;
 }
 
 /** One version command. `versionPattern` is a regular expression whose first group is the version. */

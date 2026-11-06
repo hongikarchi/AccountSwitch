@@ -83,23 +83,24 @@ A superscript count at 0.75 em, top-aligned, in the stepper group label only. It
 
 ### 5.1 Header
 
-Two things only. Left: tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: logo mark (24 px black tile). Header height 64 px, hairline below. **Claude Code 열기** sits with 새로고침 (5.3), the theme toggle at the foot of the page (5.2).
+Two things only. Left: tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: the theme toggle (5.2). Header height 64 px, hairline below. The launch buttons sit with 새로고침 (5.3).
 
-The name "AccountSwitch" is on the window's title bar right above, so the wordmark is hidden from view at every width. It stays in the page as the heading and gives the logo tile its accessible name.
-
+The window's title bar right above already carries the icon and the name "AccountSwitch", so the page has no logo (user, 2026-11-07). The name stays in the page as a heading hidden from view.
 
 ### 5.2 Theme toggle
 
-At the foot of the page, right-aligned, on both tabs, at the window's bottom edge when the page is short: settled once and rarely touched, so it does not compete with the header. A pill 96 × 28 px. The track is `--inverse-bg`; a knob `--bg` 46 × 24 px slides between halves. Labels "Light" and "Dark" (12 px, 500): the active label sits in the knob in `--text`, the other on the track in `--inverse-text` at 70 %. Knob moves with `transform` 260 ms `cubic-bezier(.2,.8,.2,1)`; the page colors cross-fade 200 ms. `role="switch"`, `aria-checked`, Korean `aria-label="화면 테마"`. With `prefers-reduced-motion`, no slide.
+At the right end of the header, on both tabs. A pill 96 × 28 px. The track is `--inverse-bg`; a knob `--bg` 46 × 24 px slides between halves. Labels "Light" and "Dark" (12 px, 500): the active label sits in the knob in `--text`, the other on the track in `--inverse-text` at 70 %. Knob moves with `transform` 260 ms `cubic-bezier(.2,.8,.2,1)`; the page colors cross-fade 200 ms. `role="switch"`, `aria-checked`, Korean `aria-label="화면 테마"`. With `prefers-reduced-motion`, no slide.
 
 ### 5.3 Account section (계정 tab)
 
 - Two columns (Claude | ChatGPT), 32 px apart, when the window is wider than 880 px, else stacked 48 px apart. The shell opens at 760 px, so stacked is the usual view.
 - Section head: provider mark dot (8 px, provider color) + name (H1) + count of accounts (Small, muted).
 - Each account is one box: 1 px `--line`, 10 px radius, 20 px padding, 12 px between boxes. The user missed the per-account boxes of 0.2 once they were gone (2026-11-06). Row: name (Body 500) with 사용 중 as a small provider-colored text marker, meta line (Small, muted: e-mail · plan · login end), right side actions (사용 or 로그인 as secondary button, ⋯ menu).
-- Usage under the row, 16 px below it, its lines 8 px apart: label column (5시간, 7일, model limits; Label) · thin 4 px bar (track `--line`, fill provider color, red at limit) · percent (Number) · reset time (Small, muted). Fixed column widths so bars align across rows.
+- Usage under the row, 12 px below it, its lines 6 px apart: inside a box, things sit a little closer than the space around it (user, 2026-11-07). Label column (5시간, 7일, model limits; Label) · thin 4 px bar (track `--line`, fill provider color, red at limit) · percent (Number) · reset time (Small, muted). Fixed column widths so bars align across rows.
 - Adding an account is folded into one text button "+ 계정 추가" under the list. Pressing it opens the name field with 추가 and 취소; it closes again once the account is added.
-- The bottom row of the tab: 자동 전환 and the time of the last check on the left; **Claude Code 열기** (primary, Windows only) then 새로고침 on the right. The launcher's menu opens upward. Its disabled help and its failures sit on a line of their own under the two buttons: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead.
+- The window a line stands for is named by what the service reports: "5시간", "7일". A service that does not report a shorter window has no line for it, so a line never stands empty and "짧은 한도" is gone (user, 2026-11-07).
+- The bottom row of the tab: 자동 전환 on the left; **Claude Code 열기** and **GPT 열기** (both primary: they are peers, Windows only) then 새로고침 on the right. Pressing a launch button goes straight to the folder dialog, with no menu. Their disabled help and their failures sit on a line of their own under the buttons: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead.
+- Under the buttons, right-aligned: the time of the last check, so that turning on 자동 전환 pushes nothing (user, 2026-11-07). Notes about auto switch and failures take the same line from the left.
 - Drag to reorder keeps today's behavior; the dragged row lifts with the menu shadow.
 
 ### 5.4 Buttons
@@ -125,12 +126,14 @@ Vertical, after the reference stepper, in black and white:
 - Needs user (e.g. Rhino missing): `--text` ring with an arrow; one link-style action.
 - 버전 다름: `--text` ring with `≠`. Unknown (no answer from a check): `--faint` ring with `?`. Skipped: `--faint` ring with `–`.
 - Each step: meta line (Small, muted: found version or time), title (H2), one-line description (Body, muted), group label above the first step of a group (Label).
-- Optional groups appear as one collapsed row with a checkbox and a count ("6개 중 3개 설치됨") until ticked, even when partly installed, because opening one would check its missing items.
+- Optional groups appear as one collapsed row with a checkbox and a count ("6개 중 3개 설치됨") until ticked, even when partly installed, because opening one would check its missing items. The program screen below uses the same row.
 - Each group is its own list, so connectors break between groups. 32 px between steps, 40 px between groups.
 - Summary bar at the bottom, sticking to the window's bottom edge: "8개 중 5개 완료" and the primary 시작 / 계속 button. A confirmation (Blender warning, MCP 다시 등록) is one inline panel above the bar, not a modal.
 - 처음으로 is a text button at the right of the checklist title, back to the first screen.
 
 The first screen of the wizard: Display title "이 PC를 준비할게요", two large choice rows (이미 세팅했어요 — 점검만 / 자동으로 설정해 주세요), each with one line of explanation.
+
+The program screen, after 자동으로 설정해 주세요: title "어떤 프로그램을 쓰세요?" with 처음으로 at its right, rows to tick for Rhino, Blender and CAD (disabled, "준비 중"), then the Python groups under the same "필요하면 더 고르세요" label as the checklist. The summary bar says what pressing 다음 will do, in plain words, with 항목 직접 고르기 (text) and 다음 (primary).
 
 ### 5.7 Empty and error states
 
@@ -149,7 +152,7 @@ Window minimum 480 × 560 (shell). Content max width 1040 px, side padding 32 px
 **Chosen (user, 2026-11-06): concept 1** in `assets/brand/concepts/concept-1.png` (git-ignored): a black rounded-square tile holding a white horizontal pill track with a black circular knob on the right. Use it everywhere:
 
 - App icon and macOS icon: the tile as is.
-- Header: the tile at 24 px at the right end. The name stays in the page as hidden Pretendard text, not a generated wordmark (5.1).
+- Inside the page: nowhere. The title bar carries it (5.1).
 - Tray: the tile at 16–32 px. Light taskbar: black tile. Dark taskbar: inverted (white tile, black track, white knob).
 - Redraw on a 24 px grid; the generated image has jagged edges and is a reference only.
 

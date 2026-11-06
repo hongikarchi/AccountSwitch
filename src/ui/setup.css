@@ -344,6 +344,10 @@
   column-gap: 16px;
   cursor: pointer;
 }
+.group-row[data-disabled='true'] {
+  color: var(--muted);
+  cursor: default;
+}
 .group-box {
   display: grid;
   place-items: center;

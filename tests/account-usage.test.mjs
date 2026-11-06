@@ -221,3 +221,10 @@ test('auto switch never moves to a login the provider refused', async (t) => {
     switched: false,
   });
 });
+
+test('a Codex window says how long it is; none shorter than a week leaves no session', async (t) => {
+  const { service } = await fixture(t);
+  const usage = await service.get('codex-cli', 'default', true);
+  assert.equal(usage.session, undefined);
+  assert.equal(usage.weekly.windowSeconds, 604800);
+});

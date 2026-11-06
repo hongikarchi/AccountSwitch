@@ -1,17 +1,16 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { isAbsolute, resolve, win32 } from 'node:path';
-import { z } from 'zod';
-import { executable, subscriptionEnvironment } from './cli.ts';
+import { codexEnvironment, executable, subscriptionEnvironment } from './cli.ts';
 import { DomainError } from './errors.ts';
+import { providers, type Provider } from './providers.ts';
 
-// "Claude Code 열기" (SPEC 4): the recent folders, and the browser fallback that opens the terminal
-// when there is no desktop window. src/desktop/shell/ClaudeLauncher.cs is the same launch for the
-// window; change both together.
+// "Claude Code 열기" and "GPT 열기" (SPEC 4): the browser fallback that opens the terminal when
+// there is no desktop window. src/desktop/shell/CliLauncher.cs is the same launch for the window;
+// change both together.
 
-const MAX_RECENT = 8;
 const TITLE_VARIABLE = 'ACCOUNTSWITCH_LAUNCH_TITLE';
-const CLAUDE_VARIABLE = 'ACCOUNTSWITCH_LAUNCH_CLAUDE';
+const PROGRAM_VARIABLE = 'ACCOUNTSWITCH_LAUNCH_PROGRAM';
 
 /**
  * The whole command line, one fixed string: the folder and the program travel outside it, so
@@ -23,7 +22,7 @@ const CLAUDE_VARIABLE = 'ACCOUNTSWITCH_LAUNCH_CLAUDE';
  * `^"` is a literal quote for the inner command line and does not end a quoted part of the outer
  * one. /S makes the inner cmd strip exactly the outermost pair, whatever the path holds.
  */
-export const LAUNCH_ARGUMENTS = `/D /S /V:OFF /C "start "%${TITLE_VARIABLE}%" "%ComSpec%" /D /S /V:OFF /K ^"^"%^${CLAUDE_VARIABLE}%^"^""`;
+export const LAUNCH_ARGUMENTS = `/D /S /V:OFF /C "start "%${TITLE_VARIABLE}%" "%ComSpec%" /D /S /V:OFF /K ^"^"%^${PROGRAM_VARIABLE}%^"^""`;
 
 /** Why a folder cannot be used, or undefined when it can. */
 export function folderProblem(folder: string) {
@@ -42,13 +41,19 @@ export function folderProblem(folder: string) {
 }
 
 /** `Claude Code - <folder name>`; a drive root has no name of its own. */
-export function launchTitle(folder: string) {
-  return `Claude Code - ${win32.basename(folder) || folder}`;
+export function launchTitle(folder: string, provider: Provider = 'claude-cli') {
+  const name = provider === 'codex-cli' ? 'Codex' : 'Claude Code';
+  return `${name} - ${win32.basename(folder) || folder}`;
 }
 
 /** The absolute cmd.exe: never found by name, since the chosen folder is searched first. */
 export function commandProcessor(source: NodeJS.ProcessEnv = process.env) {
   return win32.join(source.SystemRoot || 'C:\\Windows', 'System32', 'cmd.exe');
+}
+
+/** The npm package a codex.exe lies in, or undefined when it came some other way. */
+export function codexPackageRoot(program: string) {
+  return /^(.*[\\/]node_modules[\\/]@openai[\\/]codex)[\\/]node_modules[\\/]/i.exec(program)?.[1];
 }
 
 /**
@@ -59,89 +64,62 @@ export function launchEnvironment(
   folder: string,
   program: string,
   source: NodeJS.ProcessEnv = process.env,
+  provider: Provider = 'claude-cli',
 ) {
-  const env = subscriptionEnvironment(source);
+  const env = provider === 'codex-cli' ? codexEnvironment(source) : subscriptionEnvironment(source);
   for (const key of Object.keys(env)) if (/^(CLAUDECODE|ComSpec)$/i.test(key)) delete env[key];
   env.ComSpec = commandProcessor(source);
-  env[TITLE_VARIABLE] = launchTitle(folder);
-  env[CLAUDE_VARIABLE] = program;
-  // Claude Code would otherwise replace the window title with its own.
-  env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
+  env[TITLE_VARIABLE] = launchTitle(folder, provider);
+  env[PROGRAM_VARIABLE] = program;
+  if (provider === 'claude-cli') {
+    // Claude Code would otherwise replace the window title with its own.
+    env.CLAUDE_CODE_DISABLE_TERMINAL_TITLE = '1';
+  } else {
+    // What npm's wrapper script would set; the binary finds its own tools through these.
+    const root = codexPackageRoot(program);
+    if (root) {
+      env.CODEX_MANAGED_BY_NPM = '1';
+      env.CODEX_MANAGED_PACKAGE_ROOT = root;
+    }
+  }
   return env;
 }
 
-const stored = z.object({ recent: z.array(z.string()) });
-const sameFolder = (folder: string) =>
-  process.platform === 'win32' ? folder.toLowerCase() : folder;
-
 export interface LauncherOptions {
-  /** launcher.json in the data folder. */
-  file: string;
   spawnProcess?: typeof spawn;
-  program?: () => string | undefined;
+  program?: (provider: Provider) => string | undefined;
   platform?: NodeJS.Platform;
 }
 
 export class Launcher {
   options: LauncherOptions;
 
-  constructor(options: LauncherOptions) {
+  constructor(options: LauncherOptions = {}) {
     this.options = options;
   }
 
-  private program() {
-    return (this.options.program ?? (() => executable('claude-cli')))();
+  private program(provider: Provider) {
+    return (this.options.program ?? executable)(provider);
   }
 
   private platform() {
     return this.options.platform ?? process.platform;
   }
 
-  /** Up to 8 folders, most recent first; a folder that is gone is left out. */
-  recent() {
-    let list: string[] = [];
-    try {
-      list = stored.parse(JSON.parse(readFileSync(this.options.file, 'utf8'))).recent;
-    } catch {
-      // No file yet, or one this version cannot read: start over.
-    }
-    return this.distinct(list);
-  }
-
-  private distinct(list: string[]) {
-    const seen = new Set<string>();
-    const result: string[] = [];
-    for (const entry of list) {
-      if (folderProblem(entry)) continue;
-      const folder = resolve(entry);
-      if (seen.has(sameFolder(folder))) continue;
-      seen.add(sameFolder(folder));
-      result.push(folder);
-    }
-    return result.slice(0, MAX_RECENT);
-  }
-
-  remember(folder: string) {
-    const problem = folderProblem(folder);
-    if (problem) throw new DomainError(problem);
-    const recent = this.distinct([folder, ...this.recent()]);
-    const temporary = `${this.options.file}.${process.pid}.tmp`;
-    writeFileSync(temporary, JSON.stringify({ version: 1, recent }), { mode: 0o600 });
-    renameSync(temporary, this.options.file);
-    return recent;
-  }
-
-  /** What the page needs for its button. */
+  /** What the page needs for its buttons. */
   status() {
-    return { platform: this.platform(), installed: !!this.program(), recent: this.recent() };
+    return {
+      platform: this.platform(),
+      installed: Object.fromEntries(providers.map((p) => [p, !!this.program(p)])),
+    };
   }
 
   /** Open the terminal in a folder (browser fallback; the desktop window does this itself). */
-  async open(folder: string) {
+  async open(provider: Provider, folder: string) {
     if (this.platform() !== 'win32') throw new DomainError('UNSUPPORTED_PLATFORM');
     const problem = folderProblem(folder);
     if (problem) throw new DomainError(problem);
-    const program = this.program();
+    const program = this.program(provider);
     if (!program || program.includes('"') || !existsSync(program))
       throw new DomainError('CLI_UNAVAILABLE');
     const directory = resolve(folder);
@@ -151,7 +129,7 @@ export class Launcher {
       try {
         child = (this.options.spawnProcess ?? spawn)(commandProcessor(), [LAUNCH_ARGUMENTS], {
           cwd: directory,
-          env: launchEnvironment(directory, program),
+          env: launchEnvironment(directory, program, process.env, provider),
           shell: false,
           windowsHide: true,
           windowsVerbatimArguments: true,

@@ -176,12 +176,14 @@ const groups: SetupGroup[] = [
     label: 'Rhino',
     description: 'Claude Code가 Rhino와 Grasshopper를 다룰 수 있게 연결해요.',
     optional: true,
+    program: true,
   },
   {
     id: 'blender',
     label: 'Blender',
     description: 'Blender를 설치하고 Claude Code와 연결해요.',
     optional: true,
+    program: true,
   },
 ];
 

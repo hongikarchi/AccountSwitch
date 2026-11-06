@@ -18,6 +18,7 @@ import {
   parseOverview,
   parseReport,
   parseRun,
+  pickerGroups,
   runAnnouncement,
   runOutcome,
   runRequest,
@@ -429,4 +430,22 @@ test('a failure is told in Korean, never as a bare code', () => {
   );
   assert.equal(failureMessage(new Error('네트워크 오류'), known), '네트워크 오류');
   assert.match(failureMessage('what', known), /다시 시도/);
+});
+
+test('the program screen lists programs first and installs only what the ticked groups miss', () => {
+  const { programs, others } = pickerGroups(catalog);
+  assert.deepEqual(
+    programs.map((group) => group.id),
+    ['rhino', 'blender'],
+  );
+  assert.deepEqual(
+    others.map((group) => group.id),
+    ['py-gis', 'py-3d', 'py-hwp'],
+  );
+  const state = report({ git: missing, 'blender-mcp': missing, 'rhinomcp-mcp': missing });
+  const items = (picked) =>
+    checkedInOrder(catalog, defaultChecked(catalog, state, new Set(picked)));
+  assert.deepEqual(items([]), ['git']);
+  assert.deepEqual(items(['blender']), ['git', 'blender-mcp']);
+  assert.deepEqual(items(['rhino', 'blender']), ['git', 'rhinomcp-mcp', 'blender-mcp']);
 });

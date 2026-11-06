@@ -8,27 +8,42 @@ using System.Text.RegularExpressions;
 namespace AccountSwitch.Desktop
 {
     /// <summary>
-    /// "Claude Code 열기" (SPEC 4): a cmd.exe /K terminal in a folder, running claude.exe. The same
-    /// launch as src/core/launcher.ts, which has the tests and the browser fallback; change both.
+    /// "Claude Code 열기" and "GPT 열기" (SPEC 4): a cmd.exe /K terminal in a folder, running the CLI.
+    /// The same launch as src/core/launcher.ts, which has the tests and the browser fallback; change both.
     /// </summary>
-    internal static class ClaudeLauncher
+    internal static class CliLauncher
     {
+        private const string Claude = "claude-cli";
+        private const string Codex = "codex-cli";
         private const string TitleVariable = "ACCOUNTSWITCH_LAUNCH_TITLE";
-        private const string ClaudeVariable = "ACCOUNTSWITCH_LAUNCH_CLAUDE";
+        private const string ProgramVariable = "ACCOUNTSWITCH_LAUNCH_PROGRAM";
 
         /// <summary>
         /// The whole command line, one fixed string, so nothing a folder is called can reach cmd's
         /// parser as a command. See LAUNCH_ARGUMENTS in src/core/launcher.ts for how it reads.
         /// </summary>
         internal const string Arguments =
-            "/D /S /V:OFF /C \"start \"%" + TitleVariable + "%\" \"%ComSpec%\" /D /S /V:OFF /K ^\"^\"%^" + ClaudeVariable + "%^\"^\"\"";
+            "/D /S /V:OFF /C \"start \"%" + TitleVariable + "%\" \"%ComSpec%\" /D /S /V:OFF /K ^\"^\"%^" + ProgramVariable + "%^\"^\"\"";
 
         private static readonly Regex LocalFolder = new Regex(@"^[A-Za-z]:[\\/][^<>:""|?*]*$");
         // subscriptionEnvironment in src/core/cli.ts, plus another session's marker: Claude Code
         // refuses to start when it thinks it is nested.
-        private static readonly Regex NotInherited = new Regex(
+        private static readonly Regex NotInheritedByClaude = new Regex(
             "^(ANTHROPIC_|CLAUDE_CODE_|CLAUDE_CONFIG_DIR$|CLAUDE_AGENT_SDK_|CLAUDE_ENV_FILE$|CLAUDECODE$)",
             RegexOptions.IgnoreCase);
+        // codexEnvironment in src/core/cli.ts, plus the same marker as above.
+        private static readonly Regex NotInheritedByCodex = new Regex(
+            "^(OPENAI_|CODEX_API_KEY$|CODEX_ACCESS_TOKEN$|CODEX_AUTH_|CODEX_THREAD_ID$|CODEX_INTERNAL_|CODEX_HOME$|CODEX_CONFIG_|CLAUDECODE$)",
+            RegexOptions.IgnoreCase);
+        // codexPackageRoot in src/core/launcher.ts.
+        private static readonly Regex CodexPackage = new Regex(
+            @"^(.*[\\/]node_modules[\\/]@openai[\\/]codex)[\\/]node_modules[\\/]",
+            RegexOptions.IgnoreCase);
+
+        public static bool Knows(string provider) => provider == Claude || provider == Codex;
+
+        /// <summary>What the window title and the folder dialog call it.</summary>
+        public static string Name(string provider) => provider == Codex ? "Codex" : "Claude Code";
 
         /// <summary>The failure reason (SPEC 4) when this folder cannot be used, else null.</summary>
         public static string FolderProblem(string folder)
@@ -64,8 +79,10 @@ namespace AccountSwitch.Desktop
             return string.Join(";", parts);
         }
 
-        /// <summary>claude.exe as executable('claude-cli') in src/core/cli.ts finds it, else null.</summary>
-        public static string FindClaude(string path)
+        /// <summary>The program as executable() in src/core/cli.ts finds it, else null.</summary>
+        public static string Find(string provider, string path) => provider == Codex ? FindCodex(path) : FindClaude(path);
+
+        private static string FindClaude(string path)
         {
             string home = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
             string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
@@ -79,6 +96,38 @@ namespace AccountSwitch.Desktop
             return candidates.FirstOrDefault(file => !string.IsNullOrEmpty(file) && file.IndexOf('"') < 0 && File.Exists(file));
         }
 
+        private static string FindCodex(string path)
+        {
+            string roaming = Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
+            string local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            var candidates = new List<string>
+            {
+                Environment.GetEnvironmentVariable("ACCOUNTSWITCH_CODEX_PATH"),
+                Path.Combine(roaming, "npm", "node_modules", "@openai", "codex", "node_modules", "@openai", "codex-win32-x64", "vendor", "x86_64-pc-windows-msvc", "bin", "codex.exe"),
+                NewestDesktopCodex(Path.Combine(local, "OpenAI", "Codex", "bin")),
+            };
+            candidates.AddRange((path ?? "").Split(';').Select(folder => InFolder(folder, "codex.exe")));
+            return candidates.FirstOrDefault(file => !string.IsNullOrEmpty(file) && file.IndexOf('"') < 0 && File.Exists(file));
+        }
+
+        private static string NewestDesktopCodex(string folder)
+        {
+            try
+            {
+                return Directory.GetDirectories(folder)
+                    .Where(version => Regex.IsMatch(Path.GetFileName(version), "^[a-zA-Z0-9._-]+$"))
+                    .Take(200)
+                    .Select(version => Path.Combine(version, "codex.exe"))
+                    .Where(File.Exists)
+                    .OrderByDescending(File.GetLastWriteTimeUtc)
+                    .FirstOrDefault();
+            }
+            catch (Exception error) when (error is IOException || error is UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
         private static string InFolder(string folder, string name)
         {
             try { return folder.Length > 0 ? Path.Combine(folder, name) : null; }
@@ -86,7 +135,7 @@ namespace AccountSwitch.Desktop
         }
 
         /// <summary>The hidden cmd that opens the terminal; everything that varies is outside its command line.</summary>
-        public static ProcessStartInfo Prepare(string folder, string program, string path)
+        public static ProcessStartInfo Prepare(string provider, string folder, string program, string path)
         {
             string processor = Path.Combine(Environment.SystemDirectory, "cmd.exe");
             var start = new ProcessStartInfo(processor, Arguments)
@@ -96,22 +145,36 @@ namespace AccountSwitch.Desktop
                 CreateNoWindow = true,
             };
             var environment = start.EnvironmentVariables;
-            foreach (var key in environment.Keys.Cast<string>().Where(key => NotInherited.IsMatch(key)).ToList())
+            Regex notInherited = provider == Codex ? NotInheritedByCodex : NotInheritedByClaude;
+            foreach (var key in environment.Keys.Cast<string>().Where(key => notInherited.IsMatch(key)).ToList())
                 environment.Remove(key);
             environment["PATH"] = path;
             environment["ComSpec"] = processor;
-            environment[TitleVariable] = Title(folder);
-            environment[ClaudeVariable] = program;
-            // Claude Code would otherwise replace the window title with its own.
-            environment["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"] = "1";
+            environment[TitleVariable] = Title(provider, folder);
+            environment[ProgramVariable] = program;
+            if (provider == Codex)
+            {
+                // What npm's wrapper script would set; the binary finds its own tools through these.
+                Match package = CodexPackage.Match(program);
+                if (package.Success)
+                {
+                    environment["CODEX_MANAGED_BY_NPM"] = "1";
+                    environment["CODEX_MANAGED_PACKAGE_ROOT"] = package.Groups[1].Value;
+                }
+            }
+            else
+            {
+                // Claude Code would otherwise replace the window title with its own.
+                environment["CLAUDE_CODE_DISABLE_TERMINAL_TITLE"] = "1";
+            }
             return start;
         }
 
         /// <summary>Claude Code - folder name; a drive root has no name of its own.</summary>
-        public static string Title(string folder)
+        public static string Title(string provider, string folder)
         {
             string name = Path.GetFileName(folder.TrimEnd('\\', '/'));
-            return "Claude Code - " + (string.IsNullOrEmpty(name) ? folder : name);
+            return Name(provider) + " - " + (string.IsNullOrEmpty(name) ? folder : name);
         }
 
         /// <summary>The full path without a trailing separator, except a drive root's.</summary>
@@ -123,16 +186,16 @@ namespace AccountSwitch.Desktop
         }
 
         /// <summary>Open the terminal. Returns the failure reason, or null when it opened.</summary>
-        public static string Open(string folder)
+        public static string Open(string provider, string folder)
         {
             string problem = FolderProblem(folder);
             if (problem != null) return problem;
             string path = CurrentPath();
-            string program = FindClaude(path);
+            string program = Find(provider, path);
             if (program == null) return "CLI_UNAVAILABLE";
             try
             {
-                using (var process = Process.Start(Prepare(Normalize(folder), program, path)))
+                using (var process = Process.Start(Prepare(provider, Normalize(folder), program, path)))
                 {
                     // `start` returns as soon as the terminal has its window; the hidden cmd ends with it.
                     if (process.WaitForExit(10000)) return process.ExitCode == 0 ? null : "LAUNCH_FAILED";

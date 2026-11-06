@@ -1,27 +1,18 @@
-import {
-  useCallback,
-  useEffect,
-  useId,
-  useRef,
-  useState,
-  type FormEvent,
-  type KeyboardEvent,
-} from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import type { z } from 'zod';
 import { api, errors } from './gateway.ts';
+import { providers, type Provider } from '../core/providers.ts';
 import {
+  cliNames,
   failureMessage,
-  folderName,
-  openedSchema,
-  parentFolder,
-  recentSchema,
   shellReplySchema,
   statusSchema,
   typedFolder,
 } from './launcher-logic.ts';
 
-// "Claude Code 열기" (SPEC 4, DESIGN 5.3 and 5.5). The desktop window opens the terminal itself and
-// answers by message; in a browser there is no window to ask, so the engine opens it.
+// "Claude Code 열기" and "GPT 열기" (SPEC 4, DESIGN 5.3). The desktop window opens the folder dialog
+// and the terminal itself and answers only a failure; in a browser there is no window to ask, so
+// the page asks for a path and the engine opens the terminal.
 
 declare global {
   interface Window {
@@ -38,40 +29,26 @@ const shell = window.chrome?.webview;
 
 const RECHECK_MS = 5000;
 
-const problemOf = (error: unknown, fromRecent: boolean) => {
+const labels: Record<Provider, string> = {
+  'claude-cli': 'Claude Code 열기',
+  'codex-cli': 'GPT 열기',
+};
+
+const problemOf = (error: unknown, provider: Provider) => {
   const { code, message } = error as { code?: string; message?: string };
   // These two are about the engine, not the folder, and the gateway has put them in words.
   if (message === errors.NETWORK_UNAVAILABLE || code === 'UNAUTHORIZED') return message;
-  return failureMessage(code, fromRecent);
+  return failureMessage(code, provider);
 };
 
 export function useLauncher() {
   const [status, setStatus] = useState<z.infer<typeof statusSchema>>();
   const [failure, setFailure] = useState<string>();
-  // The folder the window was asked to open, to tell a vanished recent folder from anything else.
-  const asked = useRef<string>(undefined);
-  // Only the newest answer counts: a recheck started before a folder was added knows less.
-  const latest = useRef(0);
 
   const recheck = useCallback(() => {
-    const request = ++latest.current;
     void api('/launcher')
-      .then((value) => {
-        const next = statusSchema.parse(value);
-        if (request === latest.current) setStatus(next);
-      })
+      .then((value) => setStatus(statusSchema.parse(value)))
       // Answered by the next look; an engine that is gone has its own message elsewhere.
-      .catch(() => undefined);
-  }, []);
-
-  const remember = useCallback((folder: string) => {
-    const request = ++latest.current;
-    void api('/launcher/recent', 'POST', { folder })
-      .then((value) => {
-        const { recent } = recentSchema.parse(value);
-        if (request === latest.current) setStatus((now) => now && { ...now, recent });
-      })
-      // The terminal is open; a list that did not update is not worth a message.
       .catch(() => undefined);
   }, []);
 
@@ -81,9 +58,10 @@ export function useLauncher() {
     return () => window.removeEventListener('focus', recheck);
   }, [recheck]);
 
-  // Installing can happen in this page's 설치 tab, with no focus event to wait for: while Claude
-  // Code is missing (or nothing is known yet), also look every few seconds, as the 계정 tab does.
-  const waiting = !status || (status.platform === 'win32' && !status.installed);
+  // Installing can happen in this page's 설치 tab, with no focus event to wait for: while a CLI is
+  // missing (or nothing is known yet), also look every few seconds, as the 계정 tab does.
+  const waiting =
+    !status || (status.platform === 'win32' && providers.some((p) => !status.installed[p]));
   useEffect(() => {
     if (!waiting) return;
     const timer = setInterval(recheck, RECHECK_MS);
@@ -95,53 +73,33 @@ export function useLauncher() {
     const answer = ({ data }: { data: unknown }) => {
       const reply = shellReplySchema.safeParse(data).data;
       if (!reply) return;
-      if (reply.type === 'claude.opened') {
-        asked.current = undefined;
-        remember(reply.folder);
-      } else if (reply.type === 'claude.cancelled') {
-        asked.current = undefined;
-      } else {
-        setFailure(failureMessage(reply.reason, asked.current !== undefined));
-        // BUSY answers this request only; the one under way still has its own answer coming.
-        if (reply.reason !== 'BUSY') asked.current = undefined;
-        // The folder or Claude Code may have gone away.
-        recheck();
-      }
+      setFailure(failureMessage(reply.reason, reply.provider));
+      // The folder or the CLI may have gone away.
+      recheck();
     };
     shell.addEventListener('message', answer);
     return () => shell.removeEventListener('message', answer);
-  }, [remember, recheck]);
+  }, [recheck]);
 
-  /** Opens through the engine and answers with what went wrong, if anything. */
+  /** The desktop window's way: its folder dialog, then the terminal. */
+  const open = useCallback((provider: Provider) => {
+    setFailure(undefined);
+    shell?.postMessage({ type: 'launcher.open', provider });
+  }, []);
+
+  /** The browser's way: answers with what went wrong, if anything. */
   const openInEngine = useCallback(
-    async (folder: string, fromRecent: boolean) => {
+    async (provider: Provider, folder: string) => {
       try {
-        const opened = openedSchema.parse(await api('/launcher/open', 'POST', { folder }));
-        remember(opened.folder);
+        await api('/launcher/open', 'POST', { provider, folder });
         return undefined;
       } catch (error) {
-        // The folder or Claude Code may have gone away.
+        // The folder or the CLI may have gone away.
         recheck();
-        return problemOf(error, fromRecent);
+        return problemOf(error, provider);
       }
     },
-    [remember, recheck],
-  );
-
-  /** A folder from the recent list, or no folder for the window's own dialog. */
-  const open = useCallback(
-    (folder?: string) => {
-      setFailure(undefined);
-      if (shell) {
-        asked.current = folder;
-        shell.postMessage(
-          folder === undefined ? { type: 'claude.open' } : { type: 'claude.open', folder },
-        );
-      } else if (folder !== undefined) {
-        void openInEngine(folder, true).then(setFailure);
-      }
-    },
-    [openInEngine],
+    [recheck],
   );
 
   const dismiss = useCallback(() => setFailure(undefined), []);
@@ -154,7 +112,15 @@ const HELP_ID = 'launcher-help';
 const shown = ({ status }: Launcher) => status?.platform === 'win32';
 
 /** The browser's stand-in for the folder dialog. */
-function PathForm({ launcher, close }: { launcher: Launcher; close: () => void }) {
+function PathForm({
+  launcher,
+  provider,
+  close,
+}: {
+  launcher: Launcher;
+  provider: Provider;
+  close: () => void;
+}) {
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string>();
@@ -166,7 +132,7 @@ function PathForm({ launcher, close }: { launcher: Launcher; close: () => void }
     if (!folder || busy) return;
     setBusy(true);
     setProblem(undefined);
-    const failed = await launcher.openInEngine(folder, false);
+    const failed = await launcher.openInEngine(provider, folder);
     setBusy(false);
     if (!failed) return close();
     setProblem(failed);
@@ -175,7 +141,7 @@ function PathForm({ launcher, close }: { launcher: Launcher; close: () => void }
   return (
     <form className="launcher-popover launcher-path" onSubmit={(event) => void submit(event)}>
       <label className="launcher-label" htmlFor={`${id}-path`}>
-        폴더 경로
+        {cliNames[provider]}를 열 폴더 경로
       </label>
       <input
         ref={input}
@@ -206,38 +172,27 @@ function PathForm({ launcher, close }: { launcher: Launcher; close: () => void }
   );
 }
 
-/** The header button and its menu. */
-export function LauncherButton({ launcher }: { launcher: Launcher }) {
-  const [view, setView] = useState<'closed' | 'menu' | 'path'>('closed');
+/** One launch button: straight to the folder dialog, with a path field in a browser. */
+export function LauncherButton({ launcher, provider }: { launcher: Launcher; provider: Provider }) {
+  const [typing, setTyping] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  const firstFocus = useRef<'first' | 'last'>('first');
-  const id = useId();
-  const installed = launcher.status?.installed === true;
+  const installed = launcher.status?.installed[provider] === true;
 
   const closeAndFocus = useCallback(() => {
-    setView('closed');
+    setTyping(false);
     trigger.current?.focus();
   }, []);
 
-  // Claude Code went away with the menu open; it must not come back open with Claude Code.
+  // The CLI went away with the field open; it must not come back open with the CLI.
   useEffect(() => {
-    if (!installed) setView('closed');
+    if (!installed) setTyping(false);
   }, [installed]);
 
   useEffect(() => {
-    if (view !== 'menu') return;
-    const items = menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]');
-    items?.[firstFocus.current === 'first' ? 0 : items.length - 1].focus();
-  }, [view]);
-
-  // One menu open at a time: a click on an account menu lands here, and main.tsx closes those.
-  useEffect(() => {
-    if (view === 'closed') return;
+    if (!typing) return;
     const outside = (event: MouseEvent) => {
-      // Not contains(): 폴더 선택… has left the page by the time its own click gets here.
-      if (root.current && !event.composedPath().includes(root.current)) setView('closed');
+      if (root.current && !event.composedPath().includes(root.current)) setTyping(false);
     };
     const escape = (event: globalThis.KeyboardEvent) => {
       if (event.key === 'Escape') closeAndFocus();
@@ -248,118 +203,36 @@ export function LauncherButton({ launcher }: { launcher: Launcher }) {
       document.removeEventListener('click', outside);
       document.removeEventListener('keydown', escape);
     };
-  }, [view, closeAndFocus]);
+  }, [typing, closeAndFocus]);
 
-  if (!shown(launcher) || !launcher.status) return null;
-  const { recent } = launcher.status;
-
-  const openMenu = (focus: 'first' | 'last') => {
-    firstFocus.current = focus;
-    launcher.dismiss();
-    setView('menu');
-  };
-  const chooseFolder = () => {
-    if (shell) {
-      closeAndFocus();
-      launcher.open();
-    } else {
-      setView('path');
-    }
-  };
-  const chooseRecent = (folder: string) => {
-    closeAndFocus();
-    launcher.open(folder);
-  };
-  const moveInMenu = (event: KeyboardEvent) => {
-    const items = [...(menu.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? [])];
-    const at = items.indexOf(document.activeElement as HTMLElement);
-    const moves: Record<string, number> = {
-      ArrowDown: at + 1,
-      ArrowUp: at - 1,
-      Home: 0,
-      End: items.length - 1,
-    };
-    const to = moves[event.key];
-    if (to === undefined) return;
-    event.preventDefault();
-    items[(to + items.length) % items.length].focus();
-  };
+  if (!shown(launcher)) return null;
 
   return (
     <div
       className="launcher"
       ref={root}
-      // Tab leaving the menu closes it. A window losing focus has no target: the user may be
+      // Tab leaving the field closes it. A window losing focus has no target: the user may be
       // copying a path from Explorer, and what they typed must still be there.
       onBlur={(event) => {
         const to = event.relatedTarget;
-        if (to && !root.current?.contains(to)) setView('closed');
+        if (to && !root.current?.contains(to)) setTyping(false);
       }}
     >
       <button
         ref={trigger}
         type="button"
-        className="primary-button launcher-button"
+        className="primary-button"
         disabled={!installed}
-        aria-haspopup="menu"
-        aria-expanded={view !== 'closed'}
-        aria-controls={view === 'menu' ? id : undefined}
         aria-describedby={installed ? undefined : HELP_ID}
-        onClick={() => (view === 'closed' ? openMenu('first') : setView('closed'))}
-        onKeyDown={(event) => {
-          if (view !== 'closed' || (event.key !== 'ArrowDown' && event.key !== 'ArrowUp')) return;
-          event.preventDefault();
-          openMenu(event.key === 'ArrowDown' ? 'first' : 'last');
+        onClick={() => {
+          if (shell) return launcher.open(provider);
+          launcher.dismiss();
+          setTyping((now) => !now);
         }}
       >
-        Claude Code 열기
-        <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
-          <path
-            d="M2 3.5 5 6.5l3-3"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
-        </svg>
+        {labels[provider]}
       </button>
-      {view === 'menu' ? (
-        <div
-          ref={menu}
-          id={id}
-          className="launcher-popover"
-          role="menu"
-          aria-label="Claude Code를 열 폴더"
-          onKeyDown={moveInMenu}
-        >
-          <button type="button" role="menuitem" tabIndex={-1} onClick={chooseFolder}>
-            폴더 선택…
-          </button>
-          {recent.length > 0 ? (
-            <div className="launcher-recent" role="group" aria-label="최근 폴더">
-              <div className="launcher-label" aria-hidden="true">
-                최근 폴더
-              </div>
-              {recent.map((folder) => (
-                <button
-                  key={folder}
-                  type="button"
-                  role="menuitem"
-                  tabIndex={-1}
-                  title={folder}
-                  onClick={() => chooseRecent(folder)}
-                >
-                  <span className="launcher-name">{folderName(folder)}</span>
-                  {/* Cut at its start: the folders nearest the name tell two of a name apart. */}
-                  <span className="launcher-parent">
-                    <bdi dir="ltr">{parentFolder(folder)}</bdi>
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-      {view === 'path' ? <PathForm launcher={launcher} close={closeAndFocus} /> : null}
+      {typing ? <PathForm launcher={launcher} provider={provider} close={closeAndFocus} /> : null}
     </div>
   );
 }
@@ -376,10 +249,11 @@ export function LauncherNotice({ launcher }: { launcher: Launcher }) {
         </button>
       </div>
     );
-  if (launcher.status?.installed) return null;
+  const missing = providers.filter((p) => !launcher.status?.installed[p]).map((p) => cliNames[p]);
+  if (!missing.length) return null;
   return (
     <div className="launcher-notice">
-      <p id={HELP_ID}>설치 탭에서 Claude Code를 먼저 설치하세요</p>
+      <p id={HELP_ID}>설치 탭에서 {missing.join('와 ')}를 먼저 설치하세요</p>
     </div>
   );
 }

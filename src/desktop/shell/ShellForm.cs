@@ -97,20 +97,29 @@ namespace AccountSwitch.Desktop
             // An exception out of async void would end the program, so none may leave this method.
             try { message = new JavaScriptSerializer().DeserializeObject(e.WebMessageAsJson) as Dictionary<string, object>; }
             catch (Exception) { return; }
-            if (message == null || !message.TryGetValue("type", out object type) || !"claude.open".Equals(type)) return;
+            if (message == null || !message.TryGetValue("type", out object type) || !"launcher.open".Equals(type)) return;
+            string provider = message.TryGetValue("provider", out object named) ? named as string : null;
+            if (!CliLauncher.Knows(provider)) return;
+            void Failed(string why) => PostToPage(new Dictionary<string, object>
+            {
+                ["type"] = "launcher.failed",
+                ["provider"] = provider,
+                ["reason"] = why,
+            });
             if (launching)
             {
-                PostToPage(new Dictionary<string, object> { ["type"] = "claude.failed", ["reason"] = "BUSY" });
+                Failed("BUSY");
                 return;
             }
             launching = true;
             try
             {
-                PostToPage(await OpenClaude(message.TryGetValue("folder", out object folder) ? folder : null));
+                string reason = await OpenTerminal(provider);
+                if (reason != null) Failed(reason);
             }
             catch (Exception)
             {
-                PostToPage(new Dictionary<string, object> { ["type"] = "claude.failed", ["reason"] = "LAUNCH_FAILED" });
+                Failed("LAUNCH_FAILED");
             }
             finally
             {
@@ -118,30 +127,22 @@ namespace AccountSwitch.Desktop
             }
         }
 
-        private async System.Threading.Tasks.Task<Dictionary<string, object>> OpenClaude(object requested)
+        /// <summary>The folder dialog, then the terminal. The failure reason, or null when it opened or was cancelled.</summary>
+        private async System.Threading.Tasks.Task<string> OpenTerminal(string provider)
         {
-            Dictionary<string, object> Failed(string why) => new Dictionary<string, object> { ["type"] = "claude.failed", ["reason"] = why };
-            if (requested != null && !(requested is string)) return Failed("FOLDER_INVALID");
-            string folder = requested as string;
-            if (folder == null)
+            // Nothing to choose a folder for when it could not open anyway.
+            if (CliLauncher.Find(provider, CliLauncher.CurrentPath()) == null) return "CLI_UNAVAILABLE";
+            string folder;
+            try
             {
-                // Nothing to choose a folder for when it could not open anyway.
-                if (ClaudeLauncher.FindClaude(ClaudeLauncher.CurrentPath()) == null) return Failed("CLI_UNAVAILABLE");
-                try
-                {
-                    folder = FolderPicker.Pick(Handle, "Claude Code를 열 폴더 선택", "이 폴더 열기");
-                }
-                catch (Exception)
-                {
-                    return Failed("DIALOG_FAILED");
-                }
-                if (folder == null) return new Dictionary<string, object> { ["type"] = "claude.cancelled" };
+                folder = FolderPicker.Pick(Handle, CliLauncher.Name(provider) + "를 열 폴더 선택", "이 폴더 열기");
             }
-            string chosen = folder;
-            string reason = await System.Threading.Tasks.Task.Run(() => ClaudeLauncher.Open(chosen));
-            return reason != null
-                ? Failed(reason)
-                : new Dictionary<string, object> { ["type"] = "claude.opened", ["folder"] = ClaudeLauncher.Normalize(chosen) };
+            catch (Exception)
+            {
+                return "DIALOG_FAILED";
+            }
+            if (folder == null) return null;
+            return await System.Threading.Tasks.Task.Run(() => CliLauncher.Open(provider, folder));
         }
 
         private bool IsOwnPage(string address) =>

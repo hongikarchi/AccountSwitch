@@ -24,6 +24,7 @@ import {
   parseOverview,
   parseReport,
   parseRun,
+  pickerGroups,
   resultsById,
   runAnnouncement,
   runOutcome,
@@ -92,7 +93,7 @@ function FirstScreen({ choose }: { choose: (mode: SetupMode) => void }) {
           <span className="choice-text">
             <span className="choice-title">자동으로 설정해 주세요</span>
             <span className="choice-detail">
-              없는 것을 찾아 보여 드려요. 시작을 누르면 차례대로 설치해요.
+              쓰는 프로그램을 고르면 필요한 것을 차례대로 설치해요.
             </span>
           </span>
           <Chevron />
@@ -125,6 +126,91 @@ function PageHead({ title, detail, back }: { title: string; detail?: string; bac
         </button>
       ) : null}
     </div>
+  );
+}
+
+/** Auto mode's first question (SPEC 3.2): nothing happens here until 다음 is pressed. */
+function ProgramScreen({
+  overview,
+  report,
+  picked,
+  setPicked,
+  checking,
+  busy,
+  error,
+  next,
+  manual,
+  back,
+}: {
+  overview: SetupOverview;
+  report: CheckReport | null;
+  picked: ReadonlySet<string>;
+  setPicked: (next: ReadonlySet<string>) => void;
+  checking: boolean;
+  busy: boolean;
+  error: string;
+  next: () => void;
+  manual: () => void;
+  back: () => void;
+}) {
+  const { catalog } = overview;
+  const { programs, others } = pickerGroups(catalog);
+  const row = (group: (typeof programs)[number]) => (
+    <OptionalGroup
+      key={group.id}
+      label={group.label}
+      description={group.description}
+      count={groupCount(catalog, report, group.id)}
+      open={picked.has(group.id)}
+      toggle={(on) => {
+        const after = new Set(picked);
+        if (on) after.add(group.id);
+        else after.delete(group.id);
+        setPicked(after);
+      }}
+    />
+  );
+  return (
+    <>
+      <PageHead
+        title="어떤 프로그램을 쓰세요?"
+        detail="고른 프로그램을 쓸 수 있게 설치하고 Claude Code와 연결해요."
+        back={back}
+      />
+      <div className="stepper">
+        {programs.map(row)}
+        <OptionalGroup
+          label="CAD"
+          description="ZWCAD 연결은 다음 버전에 들어가요."
+          count="준비 중"
+          open={false}
+          disabled
+        />
+        {others.length ? <p className="optional-label">필요하면 더 고르세요</p> : null}
+        {others.map(row)}
+      </div>
+      <SummaryBar
+        line={picked.size ? `${picked.size}개를 골랐어요` : '기본 프로그램만 설치해요'}
+        detail={
+          checking
+            ? '이 PC에 무엇이 있는지 확인하는 중이에요.'
+            : '다음을 누르면 기본 프로그램과 고른 프로그램에서 없는 것만 바로 설치해요.'
+        }
+        error={error}
+      >
+        <button type="button" className="text-button" disabled={checking || busy} onClick={manual}>
+          항목 직접 고르기
+        </button>
+        <button
+          type="button"
+          className="primary-button"
+          disabled={checking || busy || !report}
+          onClick={next}
+        >
+          다음
+        </button>
+      </SummaryBar>
+    </>
   );
 }
 
@@ -241,6 +327,9 @@ export function SetupTab({ active }: { active: boolean }) {
   const [lastRun, setLastRun] = useState<RunProgress | null>(null);
   const [connectionLost, setConnectionLost] = useState(0);
   const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
+  // Auto mode's program screen, until 다음 or 항목 직접 고르기 is pressed.
+  const [picking, setPicking] = useState(false);
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState<{
     items: string[];
@@ -288,6 +377,7 @@ export function SetupTab({ active }: { active: boolean }) {
   const finishRun = useCallback(
     (ended: RunProgress | null, known = overviewRef.current) => {
       following.current = false;
+      setPicking(false);
       setRun(null);
       setLastRun(ended);
       setConfirming(null);
@@ -383,6 +473,8 @@ export function SetupTab({ active }: { active: boolean }) {
   const choose = (next: SetupMode) => {
     focusTitle.current = true;
     setMode(next);
+    setPicking(next === 'auto');
+    setPicked(new Set());
     setLastRun(null);
     setActionError('');
     // 점검만 is recorded, or the wizard would reopen on every start of a PC without Claude Code.
@@ -393,6 +485,7 @@ export function SetupTab({ active }: { active: boolean }) {
     checkSeq.current += 1;
     setChecking(false);
     setMode(null);
+    setPicking(false);
     setLastRun(null);
     setReport(null);
     setCheckError('');
@@ -430,6 +523,27 @@ export function SetupTab({ active }: { active: boolean }) {
     const entries = overview ? confirmationsFor(overview.catalog, report, items, runMode) : [];
     if (entries.length) setConfirming({ items, mode: runMode, entries });
     else void startRun(items, runMode);
+  };
+
+  /** Leaves the program screen with the checklist that the choice makes. */
+  const applyPicked = () => {
+    const nextChecked = defaultChecked(overview!.catalog, report, picked);
+    chooseGroups(picked);
+    setChecked(nextChecked);
+    return nextChecked;
+  };
+  /** 다음: the press that installs. With nothing to install, the checklist says where things are. */
+  const startPicked = () => {
+    const { catalog } = overview!;
+    const nextChecked = applyPicked();
+    const items = checkedInOrder(catalog, nextChecked);
+    const starts = canStart(catalog, nextChecked);
+    // A question to answer first has its panel on the checklist.
+    if (!starts || confirmationsFor(catalog, report, items, 'auto').length) {
+      focusTitle.current = true;
+      setPicking(false);
+    }
+    if (starts) requestRun(items, 'auto');
   };
 
   const act = async (send: () => Promise<unknown>) => {
@@ -524,6 +638,24 @@ export function SetupTab({ active }: { active: boolean }) {
             다시 시도
           </button>
         </EmptyState>
+      );
+    if (mode === 'auto' && picking)
+      return (
+        <ProgramScreen
+          overview={overview}
+          report={report}
+          picked={picked}
+          setPicked={setPicked}
+          checking={checking}
+          busy={busy}
+          error={actionError || checkError}
+          next={startPicked}
+          manual={() => {
+            applyPicked();
+            setPicking(false);
+          }}
+          back={backToFirst}
+        />
       );
     return checklist();
   };

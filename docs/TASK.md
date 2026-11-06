@@ -24,6 +24,8 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 - [x] T-024 Buttons, menus, empty and error states per DESIGN §5.4–5.7.
 - [x] T-025 Screenshots light and dark at 480 and 1100 px; confirm `src/core` and `src/server` untouched.
 - [~] T-026 Room pass after the user's first look in the real window (cramped, big type too big, header too full): smaller type scale, more space, header down to tabs and logo, theme toggle to the page foot without numbers, launcher left of 새로고침, one box per account, add-account folded (DESIGN §2, §4, §5, §7).
+- [~] T-027 Third pass after the user's look (2026-11-07): the toggle takes the logo's place at the top right and the page has no logo; a little less space inside an account box; the last-check time moves under the buttons so 자동 전환 pushes nothing.
+- [x] T-028 Usage lines name the window the service reports. Local Codex logs of a Pro account show one window of 10080 minutes and none shorter, so "짧은 한도" stood empty; that line is gone when the service sends no shorter window.
 
 ## M2 Setup checks
 
@@ -32,6 +34,7 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 - [x] T-032 Endpoints `GET /api/v1/setup`, `POST /api/v1/setup/check`; server tests.
 - [x] T-033 설치 tab: first screen (two modes), stepper per DESIGN §5.6 rendering check results. Run screens are built too, checked against faked run routes until the runner is merged.
 - [x] T-034 Auto-open rule (SPEC 3.1) and `setup-state.json`.
+- [~] T-036 Program screen in auto mode (SPEC 3.2): tick programs, 다음 installs what they and the base group miss. Checked with a faked server; the real run is T-048.
 - [x] T-035 Verify check results on this PC; record which items report 버전 다름 and why. 2026-11-06: no item reports 버전 다름; a run takes under a second and left `~/.claude.json` untouched. Node 24.15.0 passes against pin 24.22.1 because any 24.x is accepted; `python` is missing because only 3.14 is reachable through `py`. The Sandbox half of M2 still waits for T-048.
 
 ## M3 Installs
@@ -52,8 +55,9 @@ Code for T-040 to T-047 is done and tested with fakes only. Nothing has really b
 ## M4 Launcher
 
 - [~] T-050 Shell: `WebMessageReceived` handler, `IFileOpenDialog` folder picker, `cmd.exe /K` launch with title.
-- [x] T-051 Engine: `POST /api/v1/launcher/recent`, `launcher.json`; browser fallback launch.
-- [~] T-052 Page: header button with recent-folder menu; disabled state when Claude Code is missing. Code done and checked with a faked shell; the real window, dialog and terminal still need a look by hand.
+- [x] T-051 Engine: browser fallback launch. The recent list (`launcher.json`) was removed by T-053.
+- [~] T-052 Page: launch button; disabled state when its CLI is missing. Code done and checked with a faked shell; the real window, dialog and terminal still need a look by hand.
+- [~] T-053 No menu and no recent list: the button goes straight to the folder dialog. **GPT 열기** does the same for Codex CLI, in the shell and the engine (SPEC 4). The real terminal still needs a look by hand.
 
 ## M5 Logo and icons
 

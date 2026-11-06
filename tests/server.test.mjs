@@ -108,35 +108,31 @@ test('the launcher routes need the session and origin; open never starts a real 
 
     // Refused without the session, and from another page, before anything is looked at.
     assert.equal((await fetch(origin + '/api/v1/launcher')).status, 401);
-    for (const path of ['recent', 'open']) {
-      assert.equal((await post(path, { folder: project }, { Origin: origin })).status, 401);
-      assert.equal(
-        (await post(path, { folder: project }, { Cookie: cookie, Origin: 'http://evil.example' }))
-          .status,
-        403,
-      );
-      assert.equal((await post(path, { folder: project }, { Cookie: cookie })).status, 403);
-      assert.equal((await post(path, { folder: 7 })).status, 400);
-      assert.equal((await post(path, { folder: project, extra: 1 })).status, 400);
-    }
+    const good = { provider: 'claude-cli', folder: project };
+    assert.equal((await post('open', good, { Origin: origin })).status, 401);
+    assert.equal(
+      (await post('open', good, { Cookie: cookie, Origin: 'http://evil.example' })).status,
+      403,
+    );
+    assert.equal((await post('open', good, { Cookie: cookie })).status, 403);
+    assert.equal((await post('open', { ...good, folder: 7 })).status, 400);
+    assert.equal((await post('open', { ...good, extra: 1 })).status, 400);
+    assert.equal((await post('open', { folder: project })).status, 400);
+    assert.equal((await post('open', { ...good, provider: 'other' })).status, 400);
     assert.equal(started.length, 0);
 
     const first = await (await status()).json();
-    assert.deepEqual(first, { platform: process.platform, installed: true, recent: [] });
+    assert.equal(first.platform, process.platform);
+    assert.equal(first.installed['claude-cli'], true);
+    assert.equal(typeof first.installed['codex-cli'], 'boolean');
 
-    const remembered = await post('recent', { folder: project });
-    assert.deepEqual([remembered.status, await remembered.json()], [200, { recent: [project] }]);
-    assert.deepEqual((await (await status()).json()).recent, [project]);
-    const missing = await post('recent', { folder: join(directory, 'nothing') });
-    assert.deepEqual([missing.status, (await missing.json()).code], [409, 'FOLDER_NOT_FOUND']);
-
-    const opened = await post('open', { folder: project });
+    const opened = await post('open', good);
     if (process.platform === 'win32') {
       assert.deepEqual([opened.status, await opened.json()], [200, { folder: project }]);
       assert.equal(started.length, 1);
       assert.equal(started[0].options.cwd, project);
       assert.ok(!started[0].args.join(' ').includes(directory));
-      const refused = await post('open', { folder: join(directory, 'nothing') });
+      const refused = await post('open', { ...good, folder: join(directory, 'nothing') });
       assert.deepEqual([refused.status, (await refused.json()).code], [409, 'FOLDER_NOT_FOUND']);
     } else {
       assert.deepEqual([opened.status, (await opened.json()).code], [409, 'UNSUPPORTED_PLATFORM']);

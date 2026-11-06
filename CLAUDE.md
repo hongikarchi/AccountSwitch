@@ -1,6 +1,6 @@
 # Working notes
 
-AccountSwitch is a desktop app for Windows (C# WinForms + WebView2 shell, `src/desktop/shell/`) and macOS (Swift, `src/desktop/mac/`). Both run the same local Node server (`src/server/`, built into `AccountSwitch-engine.exe`) and the same React page (`src/ui/`). Today it manages several Claude Code and Codex CLI subscription accounts. Version 0.3 adds a setup wizard that prepares a fresh Windows PC for modeling with Claude Code, a "open Claude Code in a folder" launcher, and a black-and-white redesign.
+AccountSwitch is a desktop app for Windows (C# WinForms + WebView2 shell, `src/desktop/shell/`) and macOS (Swift, `src/desktop/mac/`). Both run the same local Node server (`src/server/`, built into `AccountSwitch-engine.exe`) and the same React page (`src/ui/`). Today it manages several Claude Code and Codex CLI subscription accounts. Version 0.3 adds a setup wizard that prepares a fresh Windows PC for modeling with Claude Code, a launcher that opens Claude Code or Codex CLI in a folder, and a black-and-white redesign.
 
 `README.md` describes shipped behavior. For the current work read only the document you need:
 

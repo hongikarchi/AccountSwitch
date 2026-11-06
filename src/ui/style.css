@@ -72,14 +72,6 @@ body {
   background: var(--bg);
 }
 /* The foot stays at the window's bottom edge when a page is short. */
-#root {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-}
-#root > * {
-  width: 100%;
-}
 [hidden] {
   display: none !important;
 }
@@ -215,16 +207,6 @@ select {
   gap: 32px;
   height: 64px;
 }
-.brand {
-  display: flex;
-  flex: none;
-  align-items: center;
-  margin-left: auto;
-}
-.logo-mark {
-  display: block;
-  flex: none;
-}
 /* Hidden from view at every width: the window's title bar shows the name (5.1). */
 .wordmark {
   position: absolute;
@@ -259,20 +241,14 @@ select {
 .tab:focus-visible {
   outline-offset: -2px;
 }
-/* Theme toggle (5.2): at the foot of the page, a pill, the knob sliding under the active label. */
-.app-foot {
-  display: flex;
-  justify-content: flex-end;
-  max-width: 1104px;
-  margin: auto auto 0;
-  padding: 0 32px 32px;
-}
+/* Theme toggle (5.2): at the right end of the header, a pill, the knob sliding under the active label. */
 .theme-toggle {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
   flex: none;
+  margin-left: auto;
   width: 96px;
   height: 28px;
   min-height: 0;
@@ -340,9 +316,6 @@ select {
   .app-body {
     padding-inline: 20px;
   }
-  .app-foot {
-    padding-inline: 20px;
-  }
   .app-head-inner {
     gap: 24px;
   }
@@ -381,7 +354,7 @@ select {
 }
 .account-block {
   display: grid;
-  gap: 16px;
+  gap: 12px;
   padding: 20px;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
@@ -473,7 +446,7 @@ select {
 /* Usage under a row: fixed columns, so bars align across rows and accounts. */
 .account-usage {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 .usage-line {
   display: grid;
@@ -531,7 +504,7 @@ select {
   color: var(--danger);
 }
 
-/* Auto switch and refresh, once at the bottom of the page. */
+/* Auto switch, the launch buttons and refresh, once at the bottom of the page. */
 .usage-toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -557,6 +530,18 @@ select {
   align-items: center;
   gap: 8px;
   min-height: 36px;
+}
+.toolbar-notes {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+.toolbar-notes:empty {
+  display: none;
+}
+.toolbar-checked {
+  margin-left: auto;
 }
 
 /* Menus (5.5). */
@@ -791,17 +776,12 @@ select {
   }
 }
 
-/* Claude Code launcher (SPEC 4): the button, its menu (5.5), and the line under the header (5.1). */
+/* Launch buttons (SPEC 4): the buttons, the browser's path field (5.5), and the line under them (5.3). */
 .launcher {
   position: relative;
   flex: none;
 }
-.launcher-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-/* Upward: the button is at the bottom of the tab. 320 px fits a 480 px window left of the button's right edge. */
+/* The browser's path field, upward: the button is at the bottom of the tab. */
 .launcher-popover {
   position: absolute;
   bottom: calc(100% + 4px);
@@ -818,64 +798,11 @@ select {
   background: var(--bg);
   box-shadow: var(--shadow-menu);
 }
-.launcher-popover [role='menuitem'] {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  min-height: 36px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: var(--radius-control);
-  background: transparent;
-  font-weight: 400;
-  text-align: left;
-}
-.launcher-popover [role='menuitem']:hover,
-.launcher-popover [role='menuitem']:focus {
-  background: var(--panel);
-}
-.launcher-popover [role='menuitem']:focus-visible {
-  outline-offset: -2px;
-}
-.launcher-recent {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid var(--line);
-}
 .launcher-label {
   color: var(--muted);
   font-size: 12px;
   line-height: 16px;
   font-weight: 500;
-}
-.launcher-recent > .launcher-label {
-  padding: 8px 8px 4px;
-}
-.launcher-name,
-.launcher-parent {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.launcher-name {
-  flex: 0 1 auto;
-  max-width: 60%;
-}
-.launcher-parent {
-  flex: 1 1 0;
-  min-width: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 18px;
-  direction: rtl;
-}
-/* A keyboard has no hover for the title: the path in full, on as many lines as it takes. */
-.launcher-popover [role='menuitem']:focus-visible .launcher-parent {
-  padding-block: 8px;
-  white-space: normal;
-  overflow-wrap: anywhere;
 }
 .launcher-path {
   gap: 8px;

@@ -5,7 +5,6 @@ import { z } from 'zod';
 import { AccountSettings, ServiceHead } from './account-settings.tsx';
 import { EmptyState, UsageToolbar, useUsage } from './usage.tsx';
 import { LauncherButton, LauncherNotice, useLauncher } from './launcher.tsx';
-import { LogoMark } from './logo.tsx';
 import { SetupTab, useSetupAutoOpen } from './setup.tsx';
 import { api, connect } from './gateway.ts';
 import { providers, type Provider } from '../core/providers.ts';
@@ -198,11 +197,9 @@ function AppHead({ tab, choose }: { tab: Tab; choose: (tab: Tab) => void }) {
     <header className="app-head">
       <div className="app-head-inner">
         <Tabs current={tab} choose={choose} />
-        <div className="brand" title="AccountSwitch">
-          <LogoMark />
-          {/* Hidden from view (DESIGN 5.1); it still names the logo. */}
-          <h1 className="wordmark">AccountSwitch</h1>
-        </div>
+        {/* Hidden from view: the window's title bar shows the name and the icon (DESIGN 5.1). */}
+        <h1 className="wordmark">AccountSwitch</h1>
+        <ThemeToggle />
       </div>
     </header>
   );
@@ -213,7 +210,9 @@ function Launcher() {
   const launcher = useLauncher();
   return (
     <>
-      <LauncherButton launcher={launcher} />
+      {providers.map((provider) => (
+        <LauncherButton key={provider} launcher={launcher} provider={provider} />
+      ))}
       <LauncherNotice launcher={launcher} />
     </>
   );
@@ -308,9 +307,6 @@ function App() {
           </div>
         )}
       </main>
-      <footer className="app-foot">
-        <ThemeToggle />
-      </footer>
     </>
   );
 }

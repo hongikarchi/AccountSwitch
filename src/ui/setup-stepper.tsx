@@ -130,26 +130,29 @@ export function OptionalGroup({
   count,
   open,
   toggle,
+  disabled,
   children,
 }: {
   label: string;
   description: string;
   count: string;
   open: boolean;
-  toggle: (on: boolean) => void;
-  children: ReactNode;
+  toggle?: (on: boolean) => void;
+  disabled?: boolean;
+  children?: ReactNode;
 }) {
   const descriptionId = useId();
   return (
     <section className="step-section" data-optional="true">
-      <label className="group-row">
+      <label className="group-row" data-disabled={disabled ? 'true' : undefined}>
         <span className="group-box">
           <input
             type="checkbox"
             aria-label={label}
             aria-describedby={descriptionId}
             checked={open}
-            onChange={(event) => toggle(event.target.checked)}
+            disabled={disabled}
+            onChange={(event) => toggle?.(event.target.checked)}
           />
         </span>
         <span className="group-text">

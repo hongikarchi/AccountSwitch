@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { api, errors } from './gateway.ts';
+import { showsSession, windowLabel } from './usage-logic.ts';
 
 const tileIcons = {
   install: 'M12 4v10M8 10.5l4 4 4-4M5 19.5h14',
@@ -42,9 +43,15 @@ export function EmptyState({
   );
 }
 
-// Every account's sign-in and usage (5-hour or shorter window, 7 days, reset times), loaded once
+// Every account's sign-in and usage (the shorter window, 7 days, reset times), loaded once
 // for the page and shown inside each account's row; the usage lookup switch sits at the bottom.
-const windowSchema = z.object({ percent: z.number(), resetsAt: z.string().nullable() }).optional();
+const windowSchema = z
+  .object({
+    percent: z.number(),
+    resetsAt: z.string().nullable(),
+    windowSeconds: z.number().optional(),
+  })
+  .optional();
 const usageSchema = z.object({
   settings: z.object({ autoSwitch: z.boolean(), threshold: z.number() }),
   autoSwitch: z
@@ -139,10 +146,12 @@ export function AccountUsageLines({ account }: { account?: AccountUsage }) {
   if (!account?.signedIn || account.state === 'signed-out') return null;
   return (
     <div className="account-usage">
-      <Line
-        label={account.provider === 'claude-cli' ? '5시간' : '짧은 한도'}
-        value={account.session}
-      />
+      {showsSession(account) ? (
+        <Line
+          label={account.provider === 'claude-cli' ? '5시간' : windowLabel(account.session)}
+          value={account.session}
+        />
+      ) : null}
       <Line label="7일" value={account.weekly} />
       {account.models?.map((model) => (
         <Line key={model.name} label={model.name} value={model} />
@@ -173,7 +182,7 @@ export function UsageToolbar({
   usage?: Usage;
   failure: string;
   load: (refresh?: boolean) => Promise<void>;
-  /** Shown left of 새로고침: the Claude Code launcher. */
+  /** Shown left of 새로고침: the launch buttons. */
   children?: ReactNode;
 }) {
   const [saving, setSaving] = useState(false);
@@ -229,24 +238,27 @@ export function UsageToolbar({
           </select>
         ) : null}
       </label>
-      {checked ? <small>{when(checked)} 확인</small> : null}
-      {settings?.autoSwitch && last ? (
-        <small>
-          자동 전환 · {service(last.provider)} → {lastTo?.email ?? '다른 계정'} ({when(last.at)})
-        </small>
-      ) : null}
-      {settings?.autoSwitch && autoFailure ? (
-        <small className="remote-error">
-          자동 전환 실패 · {service(autoFailure.provider)}:{' '}
-          {errors[autoFailure.code] ?? autoFailure.code}
-        </small>
-      ) : null}
-      {failure ? <small className="remote-error">{failure}</small> : null}
       <div className="toolbar-actions">
         {children}
         <button type="button" disabled={!usage} onClick={() => void load(true)}>
           새로고침
         </button>
+      </div>
+      {/* Its own line under the buttons: 자동 전환 growing must not push any of this (DESIGN 5.3). */}
+      <div className="toolbar-notes">
+        {settings?.autoSwitch && last ? (
+          <small>
+            자동 전환 · {service(last.provider)} → {lastTo?.email ?? '다른 계정'} ({when(last.at)})
+          </small>
+        ) : null}
+        {settings?.autoSwitch && autoFailure ? (
+          <small className="remote-error">
+            자동 전환 실패 · {service(autoFailure.provider)}:{' '}
+            {errors[autoFailure.code] ?? autoFailure.code}
+          </small>
+        ) : null}
+        {failure ? <small className="remote-error">{failure}</small> : null}
+        {checked ? <small className="toolbar-checked">{when(checked)} 확인</small> : null}
       </div>
     </footer>
   );

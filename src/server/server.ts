@@ -100,10 +100,7 @@ export async function startServer({
   setupChecks,
   setupInstall,
 }: Options) {
-  const launcher = new Launcher({
-    file: join(directory, 'launcher.json'),
-    spawnProcess: launcherSpawn,
-  });
+  const launcher = new Launcher({ spawnProcess: launcherSpawn });
   const accountLogin = new AccountLogin();
   const profiles = new AccountProfiles(join(directory, 'profiles'), (p) => accountLogin.busy(p));
   const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
@@ -222,21 +219,17 @@ export async function startServer({
         ?.split('=')[1];
       if (!equal(cookie, session)) throw new DomainError('UNAUTHORIZED');
 
-      // "Claude Code 열기": whether it can open, the recent folders, and the browser fallback.
+      // "Claude Code 열기" and "GPT 열기": whether each can open, and the browser fallback.
       if (url.pathname === '/api/v1/launcher' && request.method === 'GET') {
         send(200, launcher.status());
         return;
       }
-      if (
-        ['/api/v1/launcher/recent', '/api/v1/launcher/open'].includes(url.pathname) &&
-        request.method === 'POST'
-      ) {
+      if (url.pathname === '/api/v1/launcher/open' && request.method === 'POST') {
         const input = z
-          .object({ folder: z.string().max(4096) })
+          .object({ provider, folder: z.string().max(4096) })
           .strict()
           .parse(await body(request));
-        if (url.pathname.endsWith('/open')) send(200, await launcher.open(input.folder));
-        else send(200, { recent: launcher.remember(input.folder) });
+        send(200, await launcher.open(input.provider, input.folder));
         return;
       }
       if (url.pathname === '/api/v1/accounts' && request.method === 'GET') {
