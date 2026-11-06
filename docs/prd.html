@@ -1,0 +1,344 @@
+<title>[AccountSwitch]-PRD</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: one topic per screen, flipped with next/previous (same system as the user's other PRDs), dressed in AccountSwitch 0.3's black-and-white look */
+:root{--bg:#FFFFFF;--bg-alt:#F5F5F5;--surface:#FFFFFF;--text:#111111;--muted:#666666;--faint:#A6A6A6;--line:#E5E5E5;--accent:#111111;--accent-hover:#333333;--accent-soft:#EFEFEF;--inv-bg:#111111;--inv-fg:#FFFFFF;--warn:#D4351C;--warn-soft:rgba(212,53,28,.08);--ok:#111111;--ok-soft:#EFEFEF;--claude:#D97757;--gpt:#10A37F;box-sizing:border-box;height:100%}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#0C0C0C;--bg-alt:#171717;--surface:#1C1C1C;--text:#F2F2F2;--muted:#A0A0A0;--faint:#5E5E5E;--line:#272727;--accent:#F2F2F2;--accent-hover:#D0D0D0;--accent-soft:#222222;--inv-bg:#F2F2F2;--inv-fg:#0C0C0C;--warn:#FF6A55;--warn-soft:rgba(255,106,85,.12);--ok:#F2F2F2;--ok-soft:#222222;--claude:#E08A6D;--gpt:#2FBF98;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0C0C0C;--bg-alt:#171717;--surface:#1C1C1C;--text:#F2F2F2;--muted:#A0A0A0;--faint:#5E5E5E;--line:#272727;--accent:#F2F2F2;--accent-hover:#D0D0D0;--accent-soft:#222222;--inv-bg:#F2F2F2;--inv-fg:#0C0C0C;--warn:#FF6A55;--warn-soft:rgba(255,106,85,.12);--ok:#F2F2F2;--ok-soft:#222222;--claude:#E08A6D;--gpt:#2FBF98;color-scheme:dark}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--text);font-family:"Noto Sans KR","Malgun Gothic","Apple SD Gothic Neo",system-ui,sans-serif;font-size:15px;line-height:1.5;letter-spacing:-.01em;word-break:keep-all;-webkit-font-smoothing:antialiased;overflow:hidden;transition:background-color .2s,color .2s}
+a{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--text);outline-offset:2px}
+.app{height:100%;display:flex;flex-direction:column;max-width:560px;margin:0 auto}
+.bar{flex:0 0 auto;border-bottom:1px solid var(--line)}
+.bar-in{display:flex;align-items:center;gap:10px;padding-block:0;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));height:52px}
+.bar-t{font-weight:700;font-size:15px;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cnt{margin-left:auto;font-size:13px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.tocb{font:inherit;font-size:13px;font-weight:600;color:var(--text);background:transparent;border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+.tg{position:relative;flex:0 0 auto;display:flex;width:112px;height:30px;padding:0;border:0;border-radius:999px;background:var(--inv-bg);cursor:pointer;font:inherit}
+.tg::before{content:"";position:absolute;top:3px;left:3px;width:calc(50% - 3px);height:24px;border-radius:999px;background:var(--bg);transition:transform .26s cubic-bezier(.2,.8,.2,1)}
+.tg[aria-checked="true"]::before{transform:translateX(100%)}
+.tg span{position:relative;flex:1;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;letter-spacing:-.02em;color:var(--inv-fg);opacity:.7;transition:color .26s,opacity .26s}
+.tg span.on{color:var(--text);opacity:1}
+.tg sup,.big-tg sup{font-size:.6em;margin-left:1px;font-weight:500}
+.pg{height:2px;background:var(--line)}.pg i{display:block;height:100%;width:0;background:var(--text);transition:width .3s}
+main{flex:1 1 auto;position:relative;overflow:hidden}
+.page{position:absolute;inset:0;padding-block:24px 14px;padding-left:max(20px,env(safe-area-inset-left,0px));padding-right:max(20px,env(safe-area-inset-right,0px));display:none;overflow:hidden}
+.page.on{display:block;animation:pin .25s ease}
+.page.scroll{overflow-y:auto}
+@keyframes pin{from{opacity:0;transform:translateX(var(--dir,14px))}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.page.on{animation:none}.pg i,.tg::before,.tg span,body{transition:none}}
+h1,h2,h3{margin:0;text-wrap:balance}
+h2{font-size:27px;line-height:1.18;font-weight:700;letter-spacing:-.04em;margin-bottom:6px}
+h3{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--muted);margin:18px 0 8px}
+.lead{margin:0 0 18px;color:var(--muted);font-size:15px}
+.note{margin:14px 0 0;font-size:13px;color:var(--muted)}
+.cover{display:flex;flex-direction:column;justify-content:center;min-height:100%;padding-block:8px}
+.kick{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 14px;letter-spacing:.02em}
+.cover h1{font-size:38px;line-height:1.12;font-weight:700;letter-spacing:-.05em;margin-bottom:18px}
+.sub{font-size:15px;color:var(--muted);margin:0 0 24px;max-width:400px}
+.meta{font-size:12px;color:var(--muted);margin:0}
+.mark-row{display:flex;align-items:center;gap:14px;margin-bottom:28px}
+.mark-row b{font-size:17px;letter-spacing:-.02em}
+.stack{display:flex;flex-direction:column;gap:0}
+.card{padding:14px 0;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.card:first-child{border-top:0;padding-top:4px}
+.card b{font-size:16px;font-weight:600}.card span{font-size:14px;color:var(--muted)}
+.card.num{flex-direction:row;gap:14px;align-items:flex-start}
+.card.num i{font-style:normal;flex:0 0 auto;font-size:12px;font-weight:600;color:var(--faint);margin-top:3px;font-variant-numeric:tabular-nums;width:20px}
+.card.num div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sum{display:flex;flex-direction:column;gap:16px}
+.sum section{display:flex;flex-direction:column;gap:4px}
+.sum h4{margin:0 0 4px;font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--muted)}
+.sum p{margin:0;font-size:14px;padding:7px 0;border-top:1px solid var(--line)}
+.sum p:first-of-type{border-top:0;padding-top:0}
+.it{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:15px}
+.it:first-child{border-top:0}
+.it span{min-width:0}
+.it small{display:block;font-size:13px;color:var(--muted)}
+.it b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.it b.pin{font-size:13px;border:1px solid var(--text);border-radius:999px;padding:1px 8px}
+.grp{margin-top:6px}
+.grp h3:first-child{margin-top:0}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cmp div{background:var(--bg-alt);border-radius:10px;padding:14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.cmp s{font-size:12px;color:var(--muted);text-decoration:none;font-weight:600;letter-spacing:.02em}
+.cmp b{font-size:17px;letter-spacing:-.02em}
+.cmp span{font-size:13px;color:var(--muted)}
+.cmp ul{margin:4px 0 0;padding-left:16px;font-size:13px}
+.cmp li{margin:2px 0}
+.rules{display:flex;flex-direction:column}
+.rules div{padding:10px 0;border-top:1px solid var(--line);display:flex;flex-direction:column}
+.rules div:first-child{border-top:0;padding-top:0}
+.rules b{font-size:15px;font-weight:600}.rules span{font-size:13px;color:var(--muted)}
+.steps{list-style:none;margin:0;padding:0;counter-reset:s}
+.steps li{position:relative;padding:10px 0 10px 34px;border-top:1px solid var(--line);display:flex;flex-direction:column}
+.steps li:first-child{border-top:0}
+.steps li::before{counter-increment:s;content:"M" counter(s);position:absolute;left:0;top:12px;font-size:12px;font-weight:600;color:var(--faint);font-variant-numeric:tabular-nums}
+.steps b{font-size:15px;font-weight:600}
+.steps span{font-size:13px;color:var(--muted)}
+.qs{margin:0;padding:0;list-style:none}
+.qs li{position:relative;padding:11px 0 11px 26px;border-top:1px solid var(--line);font-size:14px;display:flex;flex-direction:column}
+.qs li:first-child{border-top:0}
+.qs li::before{content:"?";position:absolute;left:2px;top:10px;font-weight:700;font-size:15px}
+.qs b{font-size:15px;font-weight:600}.qs span{font-size:13px;color:var(--muted)}
+.qs em{font-style:normal;font-size:12px;font-weight:600;margin-top:4px}
+.kpi{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi div{background:var(--bg-alt);border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;min-width:0}
+.kpi b{font-size:22px;font-weight:600;letter-spacing:-.03em;font-variant-numeric:tabular-nums}.kpi span{font-size:13px;color:var(--muted)}
+/* Stepper preview (DESIGN 5.6) */
+.stp{list-style:none;margin:0;padding:0}
+.stp li{position:relative;display:grid;grid-template-columns:24px 1fr;column-gap:14px;padding-bottom:16px}
+.stp li:last-child{padding-bottom:0}
+.stp li::after{content:"";position:absolute;left:11.5px;top:28px;bottom:2px;width:1px;background:var(--line)}
+.stp li.done::after{background:var(--text)}
+.stp li:last-child::after{display:none}
+.nd{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;border:1.5px solid var(--faint);color:var(--faint);background:var(--bg)}
+.done .nd{background:var(--text);border-color:var(--text);color:var(--bg)}
+.run .nd{border:2px solid var(--text);color:var(--text)}
+.fail .nd{border:2px solid var(--warn);color:var(--warn)}
+.stp small{display:block;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.stp b{display:block;font-size:15px;font-weight:600;line-height:1.3}
+.stp span{display:block;font-size:13px;color:var(--muted)}
+.pend b,.pend span{color:var(--faint)}
+.fail span{color:var(--warn)}
+.acts{display:flex;gap:6px;margin-top:6px}
+.acts i{font-style:normal;font-size:12px;font-weight:600;border:1px solid var(--line);border-radius:6px;padding:3px 8px}
+/* Account preview (DESIGN 5.3) */
+.acc{border-top:1px solid var(--line);padding:12px 0}
+.acc-h{display:flex;align-items:baseline;gap:8px;margin-bottom:6px}
+.acc-h b{font-size:22px;letter-spacing:-.03em;font-weight:600}
+.acc-h i{width:8px;height:8px;border-radius:50%;display:inline-block;transform:translateY(-3px)}
+.acc-h small{font-size:12px;color:var(--muted)}
+.row{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.row b{font-size:14px;font-weight:600}.row small{font-size:12px;color:var(--muted)}
+.use{display:grid;grid-template-columns:44px 1fr 46px;gap:10px;align-items:center;font-size:12px;color:var(--muted);margin-top:6px}
+.use u{display:block;height:4px;background:var(--line);border-radius:2px;overflow:hidden;text-decoration:none}
+.use u i{display:block;height:100%}
+.use b{font-size:16px;color:var(--text);font-weight:500;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.big-tg{margin:4px 0 16px}
+.big-tg .tg{width:200px;height:48px}
+.big-tg .tg::before{height:40px;top:4px;left:4px;width:calc(50% - 4px)}
+.big-tg .tg span{font-size:18px}
+.cons{display:grid;grid-template-columns:1fr 1fr;gap:14px 10px}
+.cons figure{margin:0;display:flex;flex-direction:column;gap:6px;min-width:0}
+.cons img{display:block;width:100%;max-width:100%;aspect-ratio:3/2;object-fit:contain;background:#FAF8F3;border-radius:8px}
+.cons figcaption{display:flex;flex-direction:column}
+.cons b{font-size:14px;font-weight:600}.cons span{font-size:12px;color:var(--muted)}
+.logos{display:flex;align-items:flex-end;gap:22px;margin:6px 0 4px}
+.logos div{display:flex;flex-direction:column;align-items:center;gap:6px;font-size:11px;color:var(--muted)}
+.tile{fill:var(--text)}.knob{fill:var(--bg)}
+.tile-inv{fill:var(--bg)}.knob-inv{fill:var(--text)}
+.nav{flex:0 0 auto;display:flex;gap:10px;padding-block:10px 12px;padding-left:max(18px,env(safe-area-inset-left,0px));padding-right:max(18px,env(safe-area-inset-right,0px));border-top:1px solid var(--line);background:var(--bg)}
+.pb{font:inherit;font-size:15px;font-weight:600;border-radius:10px;padding:12px 16px;cursor:pointer;border:0}
+.pb.prev{background:var(--bg-alt);color:var(--text)}.pb.prev[disabled]{opacity:.4;cursor:default}
+.pb.next{flex:1;background:var(--inv-bg);color:var(--inv-fg);display:flex;flex-direction:column;align-items:center;line-height:1.2}
+.pb.next:hover{opacity:.9}
+.pb.next small{font-size:12px;font-weight:500;opacity:.7}
+.toc{position:fixed;inset:0;z-index:80;display:none;background:rgba(0,0,0,.4);align-items:flex-end;justify-content:center}
+.toc.open{display:flex}
+.sheet{background:var(--surface);width:100%;max-width:560px;border-radius:16px 16px 0 0;padding:16px 12px calc(16px + env(safe-area-inset-bottom,0px));max-height:80%;overflow:auto}
+.sheet ol{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:2px}
+.sheet button{font:inherit;width:100%;text-align:left;display:flex;gap:10px;align-items:center;padding:9px 10px;border:0;background:none;color:var(--text);border-radius:8px;cursor:pointer;font-size:15px}
+.sheet button span{width:20px;font-size:12px;color:var(--muted);flex:0 0 auto;font-variant-numeric:tabular-nums}
+.sheet button[aria-current="true"]{background:var(--accent-soft);font-weight:700}
+@media (max-width:420px){.cmp{grid-template-columns:1fr}.cover h1{font-size:32px}.bar-t{font-size:14px}}
+</style>
+
+<div class="app">
+<header class="bar"><div class="bar-in"><span class="bar-t">[AccountSwitch]-PRD</span><span class="cnt" id="cnt" aria-live="polite"></span><button class="tg" id="tg" type="button" role="switch" aria-checked="false" aria-label="화면 테마"><span data-v="light">Light<sup>01</sup></span><span data-v="dark">Dark<sup>02</sup></span></button><button class="tocb" id="tocb" type="button">목차</button></div><div class="pg"><i id="pg"></i></div></header>
+<main id="pages">
+
+<section class="page" id="intro" data-title="표지"><div class="fit"><div class="cover">
+<div class="mark-row"><svg width="40" height="40" viewBox="0 0 48 48" aria-hidden="true"><rect class="tile" x="0" y="0" width="48" height="48" rx="11"/><rect class="tile-inv" x="9" y="16" width="30" height="16" rx="8"/><circle class="knob-inv" cx="31" cy="24" r="5"/></svg><b>AccountSwitch 0.3</b></div>
+<p class="kick">WINDOWS · 계정 전환 + 첫 세팅</p>
+<h1>설치 하나로,<br>바로 Claude Code<br>모델링까지.</h1>
+<p class="sub">계정을 바꿔 쓰던 앱에 첫 세팅을 합쳐요. 처음 쓰는 사람도 AccountSwitch만 설치하면 필요한 도구를 점검하고 깔고, 폴더를 골라 바로 Claude Code를 열어요.</p>
+<p class="meta">PRD v0.2 · 2026.11.06 · 자세한 동작은 repo의 docs/SPEC.md</p></div></div></section>
+
+<section class="page" id="summary" data-title="한눈에"><div class="fit"><h2>한눈에</h2><p class="lead">이번에 할 일, 정해 주셔야 할 것, 조심할 것이에요.</p>
+<div class="sum">
+<section><h4>할 일</h4><p>설치 마법사: 이 PC를 점검하고 빠진 도구를 하나씩 깔아요</p><p>Claude Code 열기: 폴더를 고르면 그 자리에서 바로 열려요</p><p>흑백 디자인과 새 로고, 작업 표시줄 아이콘</p><p>0.3.0 릴리스. 아직 안 나간 0.2.2 고침도 같이 나가요</p></section>
+<section><h4>물어볼 것</h4><p>지금은 없어요. 로고까지 다 정했어요</p></section>
+<section><h4>고려할 것</h4><p>쓰던 사람의 로그인은 절대 끊기지 않아야 해요</p><p>공개 저장소라 개인 경로·이름·키를 넣지 않아요</p><p>태그를 올리면 설치된 모든 앱이 자동으로 업데이트돼요</p></section>
+</div></div></section>
+
+<section class="page" id="core" data-title="핵심 결과물"><div class="fit"><h2>핵심 결과물 세 가지</h2><p class="lead">계정 전환 기능은 그대로 두고, 앞에 세 가지를 더해요.</p>
+<div class="stack">
+<div class="card num"><i>01</i><div><b>설치 마법사</b><span>Git, Node, uv, Python, Claude Code, Codex에 라이노·Blender까지. 이미 있는 건 확인만 하고, 없는 것만 깔아요</span></div></div>
+<div class="card num"><i>02</i><div><b>Claude Code 열기</b><span>버튼을 누르고 폴더를 고르면 그 폴더에서 Claude Code가 켜져요. cd를 몰라도 돼요</span></div></div>
+<div class="card num"><i>03</i><div><b>새 디자인과 로고</b><span>흑백으로 정리하고 글자 크기로 위계를 잡아요. 색은 Claude 주황과 ChatGPT 초록에만 써요</span></div></div>
+</div></div></section>
+
+<section class="page" id="flow" data-title="설치 화면 흐름"><div class="fit"><h2>설치는 한 단계씩 보여요</h2><p class="lead">처음에 두 가지 중에 골라요. 이미 세팅했으면 점검만, 아니면 자동 설정.</p>
+<ol class="stp" aria-label="설치 단계 예시">
+<li class="done"><div class="nd" aria-hidden="true">✓</div><div><small>2.54 · 설치돼 있음</small><b>Git for Windows</b><span>Claude Code가 쓰는 Git Bash</span></div></li>
+<li class="done"><div class="nd" aria-hidden="true">✓</div><div><small>24.15 · 방금 설치</small><b>Node.js 24</b><span>Codex CLI와 일부 플러그인이 써요</span></div></li>
+<li class="run"><div class="nd" aria-hidden="true">…</div><div><small>설치 중</small><b>Claude Code</b><span>공식 설치 방식(네이티브)으로 깔아요</span></div></li>
+<li class="fail"><div class="nd" aria-hidden="true">!</div><div><small>멈춤</small><b>Python 3.13</b><span>권한 확인에서 '아니요'를 눌렀어요</span><div class="acts"><i>다시 시도</i><i>건너뛰기</i></div></div></li>
+<li class="pend"><div class="nd" aria-hidden="true"></div><div><small>대기</small><b>Codex CLI</b><span>Node.js 다음에 깔아요</span></div></li>
+</ol>
+<p class="note">실패하면 그 단계에서 멈추고 다시 시도나 건너뛰기를 골라요. 이미 Claude Code를 쓰고 있는 사람에게는 이 화면이 자동으로 뜨지 않아요. 위쪽 '설치' 탭에서 언제든 열어요.</p></div></section>
+
+<section class="page" id="base" data-title="기본 설치 항목"><div class="fit"><h2>기본으로 깔 것</h2><p class="lead">모델링을 시작하는 데 꼭 필요한 것만 넣었어요. 버전이 중요한 것은 고정해요.</p>
+<div>
+<div class="it"><span>Git for Windows</span><b>최신</b></div>
+<div class="it"><span>Node.js</span><b class="pin">24</b></div>
+<div class="it"><span>uv · uvx<small>MCP 서버 실행, 프로젝트별 파이썬</small></span><b>최신</b></div>
+<div class="it"><span>Python</span><b class="pin">3.13</b></div>
+<div class="it"><span>Claude Code<small>공식 설치(네이티브), npm 아님</small></span><b>최신</b></div>
+<div class="it"><span>Codex CLI</span><b>최신</b></div>
+<div class="it"><span>환경 설정<small>PowerShell 실행 허용, PATH, 한글 깨짐 방지</small></span><b>자동</b></div>
+<div class="it"><span>파이썬 기본 패키지<small>엑셀, PDF, 이미지, 웹 읽기 등 9개</small></span><b>최신</b></div>
+</div></div></section>
+
+<section class="page" id="options" data-title="선택 묶음"><div class="fit"><h2>필요한 사람만 고르는 것</h2><p class="lead">체크해야 깔려요.</p>
+<div class="grp">
+<h3>라이노</h3>
+<div class="it"><span>Rhino 8<small>라이선스 때문에 직접 설치. 없으면 안내만 해요</small></span><b>확인만</b></div>
+<div class="it"><span>rhinomcp<small>라이노 패키지 + Claude 등록</small></span><b class="pin">0.4.1.1</b></div>
+<div class="it"><span>Cordyceps<small>라이노 패키지 + Claude 등록</small></span><b class="pin">1.5.0</b></div>
+<h3>BLENDER</h3>
+<div class="it"><span>Blender</span><b class="pin">5.2.3</b></div>
+<div class="it"><span>Blender MCP<small>애드온 설치·켜기 + Claude 등록</small></span><b class="pin">1.5.5</b></div>
+<h3>파이썬 묶음</h3>
+<div class="it"><span>GIS · 3D · 한글 문서<small>지도·지적, 라이노 파일·메시, HWP</small></span><b>최신</b></div>
+<h3>CAD</h3>
+<div class="it"><span>ZWCAD 전문가판<small>시험한 뒤 다음 버전에</small></span><b>나중</b></div>
+</div></div></section>
+
+<section class="page" id="rhino" data-title="라이노 MCP 두 개"><div class="fit"><h2>라이노는 왜 두 개를 깔까</h2><p class="lead">모델링은 스크립트가 해요. 그 스크립트를 켜 놓은 라이노에서 돌리는 손과, 결과를 보는 눈이 따로 있어요.</p>
+<div class="cmp">
+<div><s>RHINOMCP · 손</s><b>라이노 문서에 직접</b><ul><li>열린 라이노에서 Python·C# 스크립트 실행</li><li>객체 조회, 측정, 분석</li><li>되돌리기</li></ul></div>
+<div><s>CORDYCEPS · 눈과 캔버스</s><b>Grasshopper와 화면</b><ul><li>GH 캔버스, 와이어, 스크립트 컴포넌트</li><li>뷰포트 캡처, 조명, 표시 모드</li><li>레이어·선택 같은 간단한 조작</li></ul></div>
+</div>
+<p class="note">둘은 포트(1999, 26929)도 이벤트도 겹치지 않고, 둘 다 .3dm 파일을 열거나 잠그지 않아요(플러그인 코드를 풀어서 확인). 예전에 저장이 안 되던 건 라이노가 강제로 꺼지면서 남긴 잠금 파일(.rhl) 때문일 가능성이 커요. 이 PC는 그걸 알려 주는 경고도 꺼져 있었어요. 하나만 쓰고 싶으면 설치할 때 체크를 끄면 돼요.</p>
+<h3>라이노가 꺼져 있을 때 자동으로 맞춰요</h3>
+<div class="rules">
+<div><b>읽기 전용 경고 켜기</b><span>잠긴 파일을 조용히 읽기 전용으로 여는 일을 막아요</span></div>
+<div><b>켤 때 mcpstart 실행</b><span>rhinomcp가 저절로 켜져요</span></div>
+<div><b>Cordyceps 시작 파일</b><span>Claude가 rhinomcp로 이 GH 파일을 열면 Cordyceps도 켜져요</span></div>
+<div><b>Claude 역할 안내문</b><span>라이노 스크립트는 rhinomcp, GH와 화면은 Cordyceps</span></div>
+</div></div></section>
+
+<section class="page" id="cad" data-title="CAD는 다음 버전"><div class="fit"><h2>CAD는 다음 버전에</h2><p class="lead">협업 도면이 깨지지 않는 방법만 써요. 그래서 시험부터 해요.</p>
+<div class="rules">
+<div><b>열린 ZWCAD에 직접 시켜요</b><span>저장은 ZWCAD가 해서 외부참조, 치수 스타일, 동적 블록, 배치가 그대로 남아요</span></div>
+<div><b>도면 파일을 새로 만들지 않아요</b><span>DXF·DWG를 다시 쓰는 방식은 협업 도면을 깨뜨릴 수 있어요</span></div>
+<div><b>우리는 전문가판이라 COM으로</b><span>바깥에서 열린 ZWCAD를 조종할 수 있는 판이에요. AutoCAD와 같은 방식이라 도구 하나로 둘 다 다뤄요</span></div>
+<div><b>안전 기본값</b><span>사본에서 작업, 자동 저장 안 함, 명령 실행은 매번 승인</span></div>
+</div>
+<p class="note">Autodesk 공식 AutoCAD MCP는 Claude Code에서 못 써요. 커뮤니티 MCP는 아직 초기 단계예요. ZWCAD가 있는 PC에서 한글 레이어, 협력사 AutoCAD로 열었을 때 그대로인지 확인한 뒤에 넣어요.</p></div></section>
+
+<section class="page" id="install-rules" data-title="막히지 않는 설치"><div class="fit"><h2>설치가 막히지 않게</h2><p class="lead">사람이 할 일은 권한 창에서 '예'를 누르는 것뿐이에요.</p>
+<div class="rules">
+<div><b>winget 먼저, 안 되면 공식 설치 파일</b><span>윈도우에 들어 있는 설치 도구예요. 회사 PC처럼 막혀 있으면 공식 사이트에서 받아요</span></div>
+<div><b>권한 창 안내</b><span>창이 뒤에 숨는 일이 많아서 "작업 표시줄을 확인하세요"를 같이 보여줘요</span></div>
+<div><b>PATH는 코드가 점검해요</b><span>설치 직후 새 경로를 다시 읽고, 빠졌으면 직접 넣어요. 재부팅이나 재시작이 필요 없어요</span></div>
+<div><b>버전 고정</b><span>Python 3.13, Blender 5.2.3, 라이노 플러그인은 서버와 같은 버전으로</span></div>
+<div><b>알아서 시작하지 않아요</b><span>버튼을 누르고, 체크한 것만 깔아요</span></div>
+</div></div></section>
+
+<section class="page" id="launcher" data-title="Claude Code 열기"><div class="fit"><h2>폴더를 고르면 바로 열려요</h2><p class="lead">VS Code의 '폴더 열기'처럼요.</p>
+<div class="stack">
+<div class="card num"><i>01</i><div><b>Claude Code 열기</b><span>위쪽 버튼을 눌러요. 최근 폴더 8개가 같이 보여요</span></div></div>
+<div class="card num"><i>02</i><div><b>폴더 선택</b><span>윈도우 기본 폴더 선택 창이 떠요</span></div></div>
+<div class="card num"><i>03</i><div><b>명령 프롬프트 창이 열려요</b><span>그 폴더에서 Claude Code가 바로 켜져요. 지금 '사용' 중인 계정으로요</span></div></div>
+</div>
+<p class="note">터미널은 명령 프롬프트(cmd)예요. PowerShell 실행 정책에 걸리지 않아서 가장 무난해요. Claude Code를 끝내도 창은 남아요.</p></div></section>
+
+<section class="page" id="design" data-title="디자인 방향"><div class="fit"><h2>흑백, 글자 크기로 위계</h2><p class="lead">색은 의미가 있을 때만. Claude 주황, ChatGPT 초록, 오류 빨강.</p>
+<div class="big-tg"><button class="tg" id="tg2" type="button" role="switch" aria-checked="false" aria-label="화면 테마 미리보기"><span data-v="light">Light<sup>01</sup></span><span data-v="dark">Dark<sup>02</sup></span></button></div>
+<div class="acc"><div class="acc-h"><i style="background:var(--claude)"></i><b>Claude</b><small>계정 3</small></div>
+<div class="row"><b>작업용 <small style="color:var(--claude);font-weight:600">사용 중</small></b><small>Max · 11.20 로그인 만료</small></div>
+<div class="use"><span>5시간</span><u><i style="width:42%;background:var(--claude)"></i></u><b>42%</b></div>
+<div class="use"><span>7일</span><u><i style="width:68%;background:var(--claude)"></i></u><b>68%</b></div></div>
+<div class="acc"><div class="acc-h"><i style="background:var(--gpt)"></i><b>ChatGPT</b><small>계정 2</small></div>
+<div class="use"><span>5시간</span><u><i style="width:12%;background:var(--gpt)"></i></u><b>12%</b></div></div>
+<p class="note">위 토글을 눌러 보세요. 실제 앱의 테마 전환도 이렇게 미끄러지듯 바뀌어요. 계정 이름과 수치는 예시예요.</p></div></section>
+
+<section class="page" id="logo" data-title="로고"><div class="fit"><h2>토글이 곧 로고</h2><p class="lead">'바꾼다'를 스위치 하나로. 헤더의 테마 토글과 같은 모양이에요.</p>
+<div class="logos">
+<div><svg width="64" height="64" viewBox="0 0 48 48" aria-hidden="true"><rect class="tile" width="48" height="48" rx="11"/><rect class="tile-inv" x="9" y="16" width="30" height="16" rx="8"/><circle class="knob-inv" cx="31" cy="24" r="5"/></svg>앱 아이콘</div>
+<div><svg width="32" height="32" viewBox="0 0 48 48" aria-hidden="true"><rect class="tile" width="48" height="48" rx="11"/><rect class="tile-inv" x="9" y="16" width="30" height="16" rx="8"/><circle class="knob-inv" cx="31" cy="24" r="5"/></svg>32 px</div>
+<div><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><rect class="tile" x="1" y="4.5" width="14" height="7" rx="3.5"/><circle class="knob" cx="11.5" cy="8" r="2"/></svg>트레이 16</div>
+</div>
+<div class="stack" style="margin-top:14px">
+<div class="card num"><i>01</i><div><b>GPT로 방향 잡기</b><span>Codex 이미지 생성으로 첫 시안 네 장을 뽑았어요</span></div></div>
+<div class="card num"><i>02</i><div><b>손으로 다시 그리기</b><span>16 px에서도 또렷하게 SVG로 다시 그려요. 생성 이미지를 그대로 쓰지 않아요</span></div></div>
+<div class="card num"><i>03</i><div><b>모든 자리에</b><span>앱 아이콘, 작업 표시줄, 트레이(밝은·어두운 작업 표시줄용 두 가지), macOS 아이콘</span></div></div>
+</div>
+<p class="note">위 그림은 방향을 보여 주는 초안이에요. 실제 시안은 다음 장에 있어요.</p></div></section>
+
+<section class="page" id="logo-concepts" data-title="로고 시안"><div class="fit"><h2>첫 시안 네 장</h2><p class="lead">GPT로 방향만 잡았어요. 고른 방향을 SVG로 깨끗하게 다시 그려요.</p>
+<div class="cons">
+<figure><img src="concepts/concept-1.png" alt="시안 1: 검은 사각 타일 안에 흰 토글과 검은 손잡이"><figcaption><b>1 · 앱 아이콘</b><span>검은 타일, 흰 트랙, 검은 손잡이. 작게 줄여도 가장 또렷해요</span></figcaption></figure>
+<figure><img src="concepts/concept-2.png" alt="시안 2: 검은 토글 옆에 AccountSwitch 글자"><figcaption><b>2 · 글자 조합</b><span>헤더와 설치 화면 첫 장에 어울려요</span></figcaption></figure>
+<figure><img src="concepts/concept-3.png" alt="시안 3: 검은 트랙 안에 빈 원과 찬 원"><figcaption><b>3 · 두 계정</b><span>한 계정에서 다른 계정으로. 뜻은 좋지만 16 px에선 빈 원이 뭉개져요</span></figcaption></figure>
+<figure><img src="concepts/concept-4.png" alt="시안 4: 선으로 그린 토글을 세 크기로"><figcaption><b>4 · 선 버전 크기 시험</b><span>가장 작은 크기에서 선이 흐려져요. 트레이는 채운 모양이 나아요</span></figcaption></figure>
+</div>
+<p class="note"><b>1번으로 정했어요.</b> 앱 아이콘, 헤더(타일 + 글자), 트레이 모두 이 타일을 써요. 어두운 작업 표시줄에서는 흰 타일로 뒤집어요. 생성 이미지는 가장자리가 거칠어서 SVG로 다시 그려요.</p></div></section>
+
+<section class="page" id="safe" data-title="기존 사용자"><div class="fit"><h2>쓰던 사람의 로그인은 그대로</h2><p class="lead">새 기능은 더하기만 해요.</p>
+<div class="rules">
+<div><b>계정 전환 코드는 손대지 않아요</b><span>화면 모양만 바뀌고, 로그인을 옮기는 부분과 API는 그대로예요</span></div>
+<div><b>설치 화면이 억지로 뜨지 않아요</b><span>Claude Code가 이미 있으면 늘 보던 계정 화면으로 열려요</span></div>
+<div><b>로그인 파일은 읽지도 쓰지도 않아요</b><span>MCP 등록만 하고, 그것도 계정 전환과 겹치지 않게 순서를 지켜요</span></div>
+<div><b>0.2.2 고침이 함께 나가요</b><span>로그인이 풀린 계정도 ⋯ 메뉴에서 다시 로그인돼요. 코드엔 있지만 아직 배포 전이라, 지금 설치된 0.2.1에는 없어요</span></div>
+</div></div></section>
+
+<section class="page" id="roadmap" data-title="다음 단계"><div class="fit"><h2>다음 단계</h2>
+<ol class="steps">
+<li><b>디자인부터</b><span>흑백 토큰, 헤더와 탭, 테마 토글, 계정 화면</span></li>
+<li><b>점검</b><span>설치는 안 하고 상태만 보여 주는 설치 탭</span></li>
+<li><b>설치</b><span>기본 → 파이썬 묶음 → Blender → 라이노 순서. 시작할 때 Windows Sandbox를 함께 켜고(재시작 필요) 그 안에서 시험</span></li>
+<li><b>Claude Code 열기</b><span>폴더 선택 창, cmd, 최근 폴더</span></li>
+<li><b>로고</b><span>시안, SVG, 아이콘 전부</span></li>
+<li><b>릴리스 0.3.0</b><span>기존 계정 기능 회귀 점검 후, 확인 받고 태그</span></li>
+</ol>
+<h3>성공 기준</h3><div class="kpi"><div><b>30분</b><span>빈 PC에서 자동 설정 끝까지 (목표)</span></div><div><b>0번</b><span>업데이트 후 로그인 끊김</span></div><div><b>cd 0번</b><span>처음 쓰는 사람이 Claude Code를 여는 데</span></div><div><b>16 px</b><span>트레이 아이콘이 또렷하게</span></div></div></div></section>
+
+</main>
+<nav class="nav" aria-label="페이지 넘기기"><button class="pb prev" id="prev" type="button">이전</button><button class="pb next" id="next" type="button"><span id="nl">다음</span><small id="ns"></small></button></nav>
+</div>
+<div class="toc" id="toc" role="dialog" aria-modal="true" aria-label="목차"><div class="sheet"><ol id="tl"></ol></div></div>
+
+<script>
+(function(){
+var P=[].slice.call(document.querySelectorAll('#pages > .page')),N=P.length,cur=0,R=document.documentElement;
+function $(i){return document.getElementById(i)}
+var tl=$('tl');
+P.forEach(function(p,i){var li=document.createElement('li'),b=document.createElement('button');b.type='button';b.innerHTML='<span>'+(i+1)+'</span>'+p.dataset.title;b.onclick=function(){close();go(i)};li.appendChild(b);tl.appendChild(li);});
+function fit(p){var f=p.querySelector('.fit');f.style.zoom='';p.classList.remove('scroll');
+  var cs=getComputedStyle(p),avail=p.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom),h=f.scrollHeight;
+  if(h>avail){var z=Math.max(.74,avail/h);f.style.zoom=z;if(h*z>avail+1)p.classList.add('scroll');}}
+function go(i,d){if(i<0||i>=N)return;P[cur].classList.remove('on');R.style.setProperty('--dir',(d||(i>=cur?1:-1))>0?'14px':'-14px');
+  cur=i;P[cur].classList.add('on');fit(P[cur]);
+  $('cnt').textContent=(cur+1)+' / '+N;$('pg').style.width=((cur+1)/N*100)+'%';$('prev').disabled=cur===0;
+  if(cur===0){$('nl').textContent='시작하기';$('ns').textContent=P[1].dataset.title}
+  else if(cur===N-1){$('nl').textContent='처음으로';$('ns').textContent='표지'}
+  else{$('nl').textContent='다음';$('ns').textContent=P[cur+1].dataset.title}
+  [].forEach.call(tl.querySelectorAll('button'),function(b,k){b.setAttribute('aria-current',k===cur?'true':'false')});
+  try{history.replaceState(null,'','#'+P[cur].id)}catch(e){}}
+$('prev').onclick=function(){go(cur-1,-1)};$('next').onclick=function(){cur===N-1?go(0,-1):go(cur+1,1)};
+function close(){$('toc').classList.remove('open')}
+$('tocb').onclick=function(){$('toc').classList.add('open')};$('toc').onclick=function(e){if(e.target===this)close()};
+document.addEventListener('keydown',function(e){if(e.key==='Escape')close();if(e.target&&e.target.getAttribute&&e.target.getAttribute('role')==='switch')return;if(e.key==='ArrowRight')go(cur+1,1);if(e.key==='ArrowLeft')go(cur-1,-1)});
+var sx=0,sy=0;document.addEventListener('touchstart',function(e){var t=e.touches[0];sx=t.clientX;sy=t.clientY},{passive:true});
+document.addEventListener('touchend',function(e){if($('toc').classList.contains('open'))return;var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;if(Math.abs(dx)>70&&Math.abs(dx)>Math.abs(dy)*1.6){dx<0?go(cur+1,1):go(cur-1,-1)}},{passive:true});
+window.addEventListener('resize',function(){fit(P[cur])});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(function(){fit(P[cur])});
+/* Theme toggle: system theme until chosen, as in the app (DESIGN 5.2) */
+var mq=window.matchMedia?matchMedia('(prefers-color-scheme: dark)'):null;
+function isDark(){var t=R.getAttribute('data-theme');return t?t==='dark':!!(mq&&mq.matches)}
+var T=[$('tg'),$('tg2')];
+function paint(){var d=isDark();T.forEach(function(b){b.setAttribute('aria-checked',d?'true':'false');[].forEach.call(b.querySelectorAll('span'),function(s){s.classList.toggle('on',(s.dataset.v==='dark')===d)})})}
+T.forEach(function(b){b.onclick=function(){R.setAttribute('data-theme',isDark()?'light':'dark');paint()}});
+if(mq&&mq.addEventListener)mq.addEventListener('change',paint);
+paint();
+var h=(location.hash||'').slice(1),s=0;for(var k=0;k<N;k++)if(P[k].id===h)s=k;
+P[0].classList.add('on');cur=0;go(s);
+})();
+</script>

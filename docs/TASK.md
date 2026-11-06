@@ -1,0 +1,65 @@
+# Tasks
+
+Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the user. Keep IDs stable; add new ones at the end of a group.
+
+## Decisions from the user (2026-11-06)
+
+- [x] T-001 Rhino settings item: all four parts, automatic (SPEC 3.8).
+- [x] T-002 Logo concepts through Codex `image_gen`: approved. First run of four concepts saved to `assets/brand/concepts/` (git-ignored).
+- [x] T-003 ZWCAD edition: Professional, so COM when CAD is added (ADR-004).
+- [x] T-004 Windows Sandbox: approved for testing. Enable it at the start of M3, with the user present (administrator prompt and a restart).
+
+## M0 Docs
+
+- [x] T-010 CLAUDE.md, SPEC, DESIGN, PLAN, TASK, ADR-001 to 006.
+- [x] T-011 PRD `docs/prd.html`, published as `[AccountSwitch]-PRD`.
+- [x] T-012 Commit docs on a branch (only when the user asks).
+
+## M1 Design and 계정 tab
+
+- [ ] T-020 Bundle Pretendard `woff2` into the Vite build; confirm the CSP still holds.
+- [ ] T-021 Replace `src/ui/style.css` tokens with DESIGN §3, light and dark.
+- [ ] T-022 Header: logo tile, wordmark, 계정 · 설치 tabs (설치 hidden on macOS), theme toggle per DESIGN §5.2 with motion and reduced-motion fallback.
+- [ ] T-023 Account sections per DESIGN §5.3: two columns over 760 px, hairline rows, aligned usage columns, provider color only on mark, bar, 사용 중.
+- [ ] T-024 Buttons, menus, empty and error states per DESIGN §5.4–5.7.
+- [ ] T-025 Screenshots light and dark at 480 and 1100 px; confirm `src/core` and `src/server` untouched.
+
+## M2 Setup checks
+
+- [ ] T-030 `src/core/setup/manifest.ts` with every item of SPEC 3.3 (ids, labels, groups, dependsOn, pins, mayElevate).
+- [ ] T-031 Checks for each item; registry PATH re-read (SPEC 3.5); unit tests with fake command runners.
+- [ ] T-032 Endpoints `GET /api/v1/setup`, `POST /api/v1/setup/check`; server tests.
+- [ ] T-033 설치 tab: first screen (two modes), stepper per DESIGN §5.6 rendering check results.
+- [ ] T-034 Auto-open rule (SPEC 3.1) and `setup-state.json`.
+- [ ] T-035 Verify check results on this PC; record which items report 버전 다름 and why.
+
+## M3 Installs
+
+- [ ] T-040 Runner: one run at a time, per-item timeout, logs, cancel, retry, skip (SPEC 3.4).
+- [ ] T-041 winget by full path with fallback downloads (ADR-002); verify package ids and the Node 24 pin.
+- [ ] T-042 Base items `git`, `node`, `uv`, `python`, `claude`, `codex`.
+- [ ] T-043 `env` item: execution policy, user PATH append with `WM_SETTINGCHANGE`, `PYTHONUTF8`.
+- [ ] T-044 Python base and bundles.
+- [ ] T-045 Blender 5.2.3, blender-mcp add-on install and enable, MCP registration.
+- [ ] T-046 Rhino: detect Rhino 8, Yak installs (verify syntax), MCP registrations inside `DefaultLogin.exclusive` (SPEC 3.7).
+- [ ] T-049 `rhino-settings` (SPEC 3.8): backup, read-only warning, startup `_mcpstart` (find the element by setting it once in Rhino Options and diffing the settings file), starter `.gh` made once in a real Grasshopper session, `~/.claude/CLAUDE.md` marked block. Refuse while Rhino runs.
+- [ ] T-047 Elevation messages and `ELEVATION_DECLINED` handling (SPEC 3.6).
+- [ ] T-048 Windows Sandbox run of auto mode end to end; note timings.
+
+## M4 Launcher
+
+- [ ] T-050 Shell: `WebMessageReceived` handler, `IFileOpenDialog` folder picker, `cmd.exe /K` launch with title.
+- [ ] T-051 Engine: `POST /api/v1/launcher/recent`, `launcher.json`; browser fallback launch.
+- [ ] T-052 Page: header button with recent-folder menu; disabled state when Claude Code is missing.
+
+## M5 Logo and icons
+
+- [x] T-060 Concept images via Codex `image_gen`: four generated 2026-11-06 in `assets/brand/concepts/`; the user chose concept 1 (DESIGN §8).
+- [ ] T-061 Hand-drawn SVG mark and wordmark; ICO, tray (light and dark), macOS icon and template (SPEC §6).
+- [ ] T-062 Shell picks tray icon by taskbar theme; build scripts copy icons.
+
+## M6 Release
+
+- [ ] T-070 README for 0.3.0; version bump.
+- [ ] T-071 Release checklist (PLAN §4), including the 0.2.2 regression on an expired account.
+- [ ] T-072 Tag `v0.3.0` after the user confirms.
