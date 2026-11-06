@@ -84,10 +84,10 @@ function ThemeToggle() {
     >
       <span className="theme-knob" />
       <span className="theme-label" data-active={String(theme === 'light')}>
-        Light<sup>01</sup>
+        Light
       </span>
       <span className="theme-label" data-active={String(theme === 'dark')}>
-        Dark<sup>02</sup>
+        Dark
       </span>
     </button>
   );
@@ -193,22 +193,27 @@ function CliMissing({ provider }: { provider: Provider }) {
   );
 }
 
-/** Its own component so that the launcher's state changes do not render the accounts again. */
 function AppHead({ tab, choose }: { tab: Tab; choose: (tab: Tab) => void }) {
+  return (
+    <header className="app-head">
+      <div className="app-head-inner">
+        <Tabs current={tab} choose={choose} />
+        <div className="brand" title="AccountSwitch">
+          <LogoMark />
+          {/* Hidden from view (DESIGN 5.1); it still names the logo. */}
+          <h1 className="wordmark">AccountSwitch</h1>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/** Its own component so that the launcher's state changes do not render the accounts again. */
+function Launcher() {
   const launcher = useLauncher();
   return (
     <>
-      <header className="app-head">
-        <div className="app-head-inner">
-          <div className="brand" title="AccountSwitch">
-            <LogoMark />
-            {/* Hidden from view (DESIGN 5.1); it still names the logo. */}
-            <h1 className="wordmark">AccountSwitch</h1>
-          </div>
-          <Tabs current={tab} choose={choose} />
-          <LauncherButton launcher={launcher} />
-        </div>
-      </header>
+      <LauncherButton launcher={launcher} />
       <LauncherNotice launcher={launcher} />
     </>
   );
@@ -287,7 +292,9 @@ function App() {
               </section>
             ))}
           </div>
-          <UsageToolbar usage={usage} failure={failure} load={load} />
+          <UsageToolbar usage={usage} failure={failure} load={load}>
+            <Launcher />
+          </UsageToolbar>
         </div>
         {mac ? null : (
           <div

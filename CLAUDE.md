@@ -6,7 +6,6 @@ AccountSwitch is a desktop app for Windows (C# WinForms + WebView2 shell, `src/d
 
 | Need | Read |
 |---|---|
-| What we promise and why | PRD: `docs/prd.html`, published as `[AccountSwitch]-PRD` https://claude.ai/artifact/YUD6gkysnVeKq8DVkMjLLm |
 | How it behaves | `docs/SPEC.md` |
 | How it looks | `docs/DESIGN.md` |
 | Order, milestones, how to verify | `docs/PLAN.md` |
@@ -16,15 +15,14 @@ AccountSwitch is a desktop app for Windows (C# WinForms + WebView2 shell, `src/d
 ## Language
 
 - Talk to the user in Korean.
-- Human-facing text (PRD, README, every UI string) is plain, intuitive Korean. Explain jargon or avoid it.
+- Human-facing text (README, every UI string) is plain, intuitive Korean. Explain jargon or avoid it.
 - Agent-facing documents (this file, SPEC, PLAN, TASK, DESIGN, ADR) and code comments are in English.
 - Write Korean directly in tool input. Unicode escapes have produced wrong characters.
-- The PRD is a paged HTML artifact, one topic per screen. Its source is `docs/prd.html`; republish from that path to keep the URL.
 
 ## Rules
 
 - The user's current request comes first.
-- **Docs first.** A behavior change updates SPEC and TASK before code. A changed promise goes to the PRD, look and feel to DESIGN, order and verification to PLAN, reasons to `docs/adr/`.
+- **Docs first.** A behavior change updates SPEC and TASK before code. Look and feel goes to DESIGN, order and verification to PLAN, reasons to `docs/adr/`.
 - **Never break account switching.** `src/core/default-login.ts`, `account-profiles.ts`, `token-refresh.ts`, `keychain.ts`, `restore.ts` change only with tests that cover the change. The setup wizard never reads or writes credentials.
 - Every write to `~/.claude.json` made by the setup wizard (for example `claude mcp add`) runs inside `DefaultLogin.exclusive('claude-cli', …)` so it cannot interleave with an account switch (SPEC 3.7).
 - Installs never start on their own. They run only after the user presses a button, and only the items the user left checked.

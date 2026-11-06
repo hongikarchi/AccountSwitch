@@ -12,7 +12,7 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 ## M0 Docs
 
 - [x] T-010 CLAUDE.md, SPEC, DESIGN, PLAN, TASK, ADR-001 to 006.
-- [x] T-011 PRD `docs/prd.html`, published as `[AccountSwitch]-PRD`.
+- [x] T-011 PRD. Removed on 2026-11-06 at the user's request, page and source; the source stays in git history before that date.
 - [x] T-012 Commit docs on a branch (only when the user asks).
 
 ## M1 Design and 계정 tab
@@ -23,7 +23,7 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 - [x] T-023 Account sections per DESIGN §5.3: two columns over 760 px, hairline rows, aligned usage columns, provider color only on mark, bar, 사용 중.
 - [x] T-024 Buttons, menus, empty and error states per DESIGN §5.4–5.7.
 - [x] T-025 Screenshots light and dark at 480 and 1100 px; confirm `src/core` and `src/server` untouched.
-- [~] T-026 Room pass after the user's first look in the real window (cramped, big type too big, header too full): smaller type scale, more space, header down to logo, tabs and launcher, theme toggle to the page foot, add-account folded (DESIGN §2, §4, §5, §7).
+- [~] T-026 Room pass after the user's first look in the real window (cramped, big type too big, header too full): smaller type scale, more space, header down to tabs and logo, theme toggle to the page foot without numbers, launcher left of 새로고침, one box per account, add-account folded (DESIGN §2, §4, §5, §7).
 
 ## M2 Setup checks
 

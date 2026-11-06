@@ -6,7 +6,7 @@ Order is chosen so the riskiest unknowns are measured early and every milestone 
 
 | # | Milestone | Done when |
 |---|---|---|
-| M0 | Docs: PRD, SPEC, DESIGN, PLAN, TASK, ADR, CLAUDE.md | Committed on a branch when the user asks |
+| M0 | Docs: SPEC, DESIGN, PLAN, TASK, ADR, CLAUDE.md | Committed on a branch when the user asks |
 | M1 | Design system and redesign of the 계정 tab, theme toggle, header with tabs | Light and dark screenshots at 480 px and 1100 px match DESIGN; `src/core` and `src/server` unchanged |
 | M2 | Setup engine, read only: manifest, checks, PATH re-read, `GET /setup`, `POST /setup/check`; 설치 tab shows the stepper with real status | Correct status on the development PC (most items present) and in Windows Sandbox (nothing present) |
 | M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `claude`, `codex`, `env`, `py-base`), Python bundles, Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |

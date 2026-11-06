@@ -20,7 +20,7 @@ import {
   typedFolder,
 } from './launcher-logic.ts';
 
-// "Claude Code 열기" (SPEC 4, DESIGN 5.1 and 5.5). The desktop window opens the terminal itself and
+// "Claude Code 열기" (SPEC 4, DESIGN 5.3 and 5.5). The desktop window opens the terminal itself and
 // answers by message; in a browser there is no window to ask, so the engine opens it.
 
 declare global {
@@ -364,7 +364,7 @@ export function LauncherButton({ launcher }: { launcher: Launcher }) {
   );
 }
 
-/** Under the header row, which has no room for a sentence: the disabled help, or what went wrong. */
+/** Under the buttons (DESIGN 5.3): the disabled help, or what went wrong. */
 export function LauncherNotice({ launcher }: { launcher: Launcher }) {
   if (!shown(launcher)) return null;
   if (launcher.failure)

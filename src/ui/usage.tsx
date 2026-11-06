@@ -168,10 +168,13 @@ export function UsageToolbar({
   usage,
   failure,
   load,
+  children,
 }: {
   usage?: Usage;
   failure: string;
   load: (refresh?: boolean) => Promise<void>;
+  /** Shown left of 새로고침: the Claude Code launcher. */
+  children?: ReactNode;
 }) {
   const [saving, setSaving] = useState(false);
   const checked = usage?.accounts
@@ -239,9 +242,12 @@ export function UsageToolbar({
         </small>
       ) : null}
       {failure ? <small className="remote-error">{failure}</small> : null}
-      <button type="button" disabled={!usage} onClick={() => void load(true)}>
-        새로고침
-      </button>
+      <div className="toolbar-actions">
+        {children}
+        <button type="button" disabled={!usage} onClick={() => void load(true)}>
+          새로고침
+        </button>
+      </div>
     </footer>
   );
 }

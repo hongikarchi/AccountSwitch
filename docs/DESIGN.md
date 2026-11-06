@@ -8,7 +8,7 @@ Linked, not copied (public repo). What to take from each:
 
 | Reference | Take | Leave |
 |---|---|---|
-| [Toggle "Future⁰¹ Now⁰²"](https://i.pinimg.com/1200x/92/d8/ed/92d8ed58d67950900269c884a19cf69e.jpg) | Theme toggle shape: a pill track, one half filled black, a light knob carrying the active label, superscript index numbers, large grotesk labels | The poster layout around it |
+| [Toggle "Future⁰¹ Now⁰²"](https://i.pinimg.com/1200x/92/d8/ed/92d8ed58d67950900269c884a19cf69e.jpg) | Theme toggle shape: a pill track, one half filled black, a light knob carrying the active label | The poster layout around it, the index numbers, the large labels |
 | [Chart card states](https://i.pinimg.com/1200x/b8/3e/db/b83edbf399c1e945d201bac072035895.jpg) | Hairline cards on near-white, small grey title over a big number, segmented control, designed empty and error states with a single Retry | Blue line color |
 | [Line chart, Apple style](https://i.pinimg.com/1200x/66/fd/e1/66fde1530b712f66dbf13bb76dce9206.jpg) | One dark line, grey for the projected part, labels on thin leader lines, no gridlines | – |
 | [Store Performance Overview](https://i.pinimg.com/1200x/8a/23/e5/8a23e52d956bbf5235d45b21c42ddee4.jpg) | Type scale: very large tight headline, small labels, big numbers with older values in grey, square monochrome icon tiles, light grey panels without borders | – |
@@ -26,7 +26,7 @@ Avoid (the "AI-made" look): gradients, glass blur, glow, colored shadows, emoji,
 3. Numbers are the content: clear, tabular, aligned right. They never outgrow the section title; the bar beside them already carries the weight.
 4. One primary action per area, in solid black (white in dark mode).
 5. Everything aligns to a 4 px grid and one left edge per column.
-6. Room first (user, 2026-11-06: the first build felt cramped and its big type too big). When a screen feels full, remove or fold something before shrinking anything. A one-off action stays folded until asked for; a hairline only separates two things, it never closes a list.
+6. Room first (user, 2026-11-06: the first build felt cramped and its big type too big). When a screen feels full, remove or fold something before shrinking anything. A one-off action stays folded until asked for. Each account is one outlined box (5.3), the one thing on a page that is a box; elsewhere a hairline only separates two things and never closes a list.
 
 ## 3. Tokens
 
@@ -77,29 +77,29 @@ Font: Pretendard (Korean and Latin, OFL), bundled as `woff2` in the build becaus
 | Small | 12 / 18 | 400 | 0 | Meta: e-mail, plan, reset time, versions |
 | Label | 12 / 16 | 500 | 0, uppercase for Latin | Column labels, step index |
 
-Superscript indices (`⁰¹`, `⁰²`) at 0.6 em, top-aligned, used in the theme toggle and the stepper counter.
+A superscript count at 0.75 em, top-aligned, in the stepper group label only. It says how many items the group has. The theme toggle has no numbers: there they meant nothing (user, 2026-11-06).
 
 ## 5. Components
 
 ### 5.1 Header
 
-Three things only. Left: logo mark (24 px black tile), then tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: **Claude Code 열기** (primary, Windows only). Header height 64 px, hairline below. The theme toggle lives at the foot of the page (5.2).
+Two things only. Left: tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: logo mark (24 px black tile). Header height 64 px, hairline below. **Claude Code 열기** sits with 새로고침 (5.3), the theme toggle at the foot of the page (5.2).
 
-The name "AccountSwitch" is on the window's title bar right above, so the wordmark is hidden from view at every width. It stays in the page as the heading and gives the logo tile its accessible name. The row fits a 480 px window, the shell's minimum, on one line.
+The name "AccountSwitch" is on the window's title bar right above, so the wordmark is hidden from view at every width. It stays in the page as the heading and gives the logo tile its accessible name.
 
-The row has no room for a sentence. The launcher's disabled help and its failures sit on a line of their own directly under the hairline, so the header stays 64 px: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead, which would otherwise cover that line.
 
 ### 5.2 Theme toggle
 
-At the foot of the page, right-aligned, on both tabs, at the window's bottom edge when the page is short: settled once and rarely touched, so it does not compete with the header. A pill 112 × 28 px. The track is `--inverse-bg`; a knob `--bg` 54 × 24 px slides between halves. Labels "Light⁰¹" and "Dark⁰²" (12 px, 500): the active label sits in the knob in `--text`, the other on the track in `--inverse-text` at 70 %. Knob moves with `transform` 260 ms `cubic-bezier(.2,.8,.2,1)`; the page colors cross-fade 200 ms. `role="switch"`, `aria-checked`, Korean `aria-label="화면 테마"`. With `prefers-reduced-motion`, no slide.
+At the foot of the page, right-aligned, on both tabs, at the window's bottom edge when the page is short: settled once and rarely touched, so it does not compete with the header. A pill 96 × 28 px. The track is `--inverse-bg`; a knob `--bg` 46 × 24 px slides between halves. Labels "Light" and "Dark" (12 px, 500): the active label sits in the knob in `--text`, the other on the track in `--inverse-text` at 70 %. Knob moves with `transform` 260 ms `cubic-bezier(.2,.8,.2,1)`; the page colors cross-fade 200 ms. `role="switch"`, `aria-checked`, Korean `aria-label="화면 테마"`. With `prefers-reduced-motion`, no slide.
 
 ### 5.3 Account section (계정 tab)
 
-- Two columns (Claude | ChatGPT), 64 px apart, when the window is wider than 880 px, else stacked 64 px apart. The shell opens at 760 px, so stacked is the usual view.
+- Two columns (Claude | ChatGPT), 32 px apart, when the window is wider than 880 px, else stacked 48 px apart. The shell opens at 760 px, so stacked is the usual view.
 - Section head: provider mark dot (8 px, provider color) + name (H1) + count of accounts (Small, muted).
-- 24 px above and below each account. A hairline only between two accounts: none above the first or below the last. No row boxes. Row: name (Body 500) with 사용 중 as a small provider-colored text marker, meta line (Small, muted: e-mail · plan · login end), right side actions (사용 or 로그인 as secondary button, ⋯ menu).
+- Each account is one box: 1 px `--line`, 10 px radius, 20 px padding, 12 px between boxes. The user missed the per-account boxes of 0.2 once they were gone (2026-11-06). Row: name (Body 500) with 사용 중 as a small provider-colored text marker, meta line (Small, muted: e-mail · plan · login end), right side actions (사용 or 로그인 as secondary button, ⋯ menu).
 - Usage under the row, 16 px below it, its lines 8 px apart: label column (5시간, 7일, model limits; Label) · thin 4 px bar (track `--line`, fill provider color, red at limit) · percent (Number) · reset time (Small, muted). Fixed column widths so bars align across rows.
 - Adding an account is folded into one text button "+ 계정 추가" under the list. Pressing it opens the name field with 추가 and 취소; it closes again once the account is added.
+- The bottom row of the tab: 자동 전환 and the time of the last check on the left; **Claude Code 열기** (primary, Windows only) then 새로고침 on the right. The launcher's menu opens upward. Its disabled help and its failures sit on a line of their own under the two buttons: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead.
 - Drag to reorder keeps today's behavior; the dragged row lifts with the menu shadow.
 
 ### 5.4 Buttons
@@ -149,7 +149,7 @@ Window minimum 480 × 560 (shell). Content max width 1040 px, side padding 32 px
 **Chosen (user, 2026-11-06): concept 1** in `assets/brand/concepts/concept-1.png` (git-ignored): a black rounded-square tile holding a white horizontal pill track with a black circular knob on the right. Use it everywhere:
 
 - App icon and macOS icon: the tile as is.
-- Header: the tile at 24 px. The name stays in the page as hidden Pretendard text, not a generated wordmark (5.1).
+- Header: the tile at 24 px at the right end. The name stays in the page as hidden Pretendard text, not a generated wordmark (5.1).
 - Tray: the tile at 16–32 px. Light taskbar: black tile. Dark taskbar: inverted (white tile, black track, white knob).
 - Redraw on a 24 px grid; the generated image has jagged edges and is a reference only.
 
