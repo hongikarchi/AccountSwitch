@@ -25,7 +25,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         shell.hidden = { [unowned self] in self.hintMenuBar() }
 
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        let image = NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "AccountSwitch")
+        // The symbol stands in when running outside the app bundle, which has the picture.
+        let image = Bundle.main.image(forResource: "menubar-template")
+            ?? NSImage(systemSymbolName: "arrow.left.arrow.right", accessibilityDescription: "AccountSwitch")
+        image?.accessibilityDescription = "AccountSwitch"
         image?.isTemplate = true
         statusItem.button?.image = image
         statusItem.button?.toolTip = "AccountSwitch"

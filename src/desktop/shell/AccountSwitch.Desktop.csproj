@@ -26,4 +26,10 @@
   <ItemGroup>
     <Reference Include="System.Web.Extensions" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Inside the exe, because the installed and portable layouts differ. Built from scripts/build-icons.mjs. -->
+    <EmbeddedResource Include="accountswitch.ico" LogicalName="accountswitch.ico" />
+    <EmbeddedResource Include="../../../assets/brand/tray-light-taskbar.ico" LogicalName="tray-light-taskbar.ico" />
+    <EmbeddedResource Include="../../../assets/brand/tray-dark-taskbar.ico" LogicalName="tray-dark-taskbar.ico" />
+  </ItemGroup>
 </Project>

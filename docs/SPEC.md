@@ -152,7 +152,11 @@ Every screen follows `DESIGN.md`. Functional constraints:
 
 ## 6. Logo and icons
 
-Deliverables in `assets/brand/`: master `logo.svg` (mark), `wordmark.svg`, `accountswitch.ico` (16, 20, 24, 32, 40, 48, 64, 256), tray icons for light and dark taskbars (16, 20, 24, 32), macOS `icon.png` 1024 and a menu bar template image. The shell picks the tray icon from `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\SystemUsesLightTheme`. Build scripts copy them to `src/desktop/shell/accountswitch.ico` and `src/desktop/mac/icon.png`. See `DESIGN.md` §8 for how the mark is made.
+Deliverables in `assets/brand/`: master `logo.svg` (mark, drawn by hand), and from `npm run build:icons` (`scripts/build-icons.mjs`, results committed): `accountswitch.ico` (16, 20, 24, 32, 40, 48, 64, 256), `tray-light-taskbar.ico` and `tray-dark-taskbar.ico` (16, 20, 24, 32), macOS `icon.png` 1024 and the menu bar template `menubar-template.png` with `menubar-template@2x.png` (18 and 36). There is no wordmark file: the header sets the name in Pretendard text (`DESIGN.md` §8).
+
+The shell picks the tray icon from `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\SystemUsesLightTheme`: nonzero is a light taskbar; zero, a missing value or a failed read is a dark taskbar. The size follows the display scale (Windows' small-icon size, next listed size up, 32 above that). It re-checks both when Windows reports a settings change, and a new icon replaces the old without a restart. If the icon cannot be loaded, the tray shows the app icon.
+
+`npm run build:icons` and the build scripts copy `accountswitch.ico` to `src/desktop/shell/accountswitch.ico` and `icon.png` to `src/desktop/mac/icon.png`. The macOS build copies the template images into the macOS app's `Contents/Resources`. The tray icons are embedded in the Windows exe by the project file, since the installed and portable layouts differ. See `DESIGN.md` §8 for how the mark is made.
 
 ## 7. Release 0.3.0
 

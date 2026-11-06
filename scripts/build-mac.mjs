@@ -55,7 +55,13 @@ run('ditto', [
   join(app, 'Contents', 'Frameworks', 'Sparkle.framework'),
 ]);
 
+// The menu bar image; Bundle.main finds the @2x file next to it on its own.
+const brand = join(root, 'assets', 'brand');
+for (const name of ['menubar-template.png', 'menubar-template@2x.png'])
+  cpSync(join(brand, name), join(app, 'Contents', 'Resources', name));
+
 // The app icon from the 1024-pixel picture.
+cpSync(join(brand, 'icon.png'), join(source, 'icon.png'));
 const iconset = join(out, 'AppIcon.iconset');
 mkdirSync(iconset);
 for (const size of [16, 32, 128, 256, 512])

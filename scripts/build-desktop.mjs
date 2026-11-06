@@ -21,6 +21,8 @@ const run = (command, args) =>
   execFileSync(command, args, { cwd: root, stdio: 'inherit', windowsHide: true });
 
 const shell = join(root, 'src', 'desktop', 'shell');
+// assets/brand holds the icon's source; the tray icons are embedded from there by the project file.
+cpSync(join(root, 'assets', 'brand', 'accountswitch.ico'), join(shell, 'accountswitch.ico'));
 run('dotnet', [
   'build',
   join(shell, 'AccountSwitch.Desktop.csproj'),

@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Microsoft.Win32;
 
 namespace AccountSwitch.Desktop
 {
@@ -21,6 +22,11 @@ namespace AccountSwitch.Desktop
         private readonly System.Windows.Forms.Timer updateTimer = new System.Windows.Forms.Timer();
         private ShellForm form;
         private int restarts;
+        // The tray icon this object owns; null while the shared AppIcon stands in for it.
+        private Icon trayIcon;
+        private bool trayShownForLightTaskbar;
+        private int trayShownSize;
+        private static readonly int[] TrayIconSizes = { 16, 20, 24, 32 };
         public DesktopSettings Settings { get; }
         public Updater Updater { get; }
         public bool Quitting { get; private set; }
@@ -50,8 +56,11 @@ namespace AccountSwitch.Desktop
             menu.Items.Add(updateItem);
             menu.Items.Add(new ToolStripSeparator());
             menu.Items.Add("종료", null, (s, e) => Quit());
-            tray = new NotifyIcon { Icon = AppIcon, Text = "AccountSwitch", ContextMenuStrip = menu, Visible = true };
+            tray = new NotifyIcon { Text = "AccountSwitch", ContextMenuStrip = menu };
+            ShowTrayIcon();
+            tray.Visible = true;
             tray.DoubleClick += (s, e) => ShowWindow();
+            SystemEvents.UserPreferenceChanged += OnUserPreferenceChanged;
             ShowOptions();
             OnUpdateChanged();
 
@@ -155,6 +164,7 @@ namespace AccountSwitch.Desktop
         {
             if (Quitting) return;
             Quitting = true;
+            SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
             updateTimer.Stop();
             tray.Visible = false;
             try { form?.Close(); } catch { /* Closing anyway. */ }
@@ -195,8 +205,73 @@ namespace AccountSwitch.Desktop
             try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); } catch { /* No browser. */ }
         }
 
+        // The event can arrive on another thread. Any category may matter (theme, display scale), and
+        // ShowTrayIcon does nothing when neither changed, so there is no filter here.
+        private void OnUserPreferenceChanged(object sender, UserPreferenceChangedEventArgs e)
+        {
+            ui.Post(_ => { if (!Quitting) ShowTrayIcon(); }, null);
+        }
+
+        /// <summary>Show the tray icon for the current taskbar theme and display scale.</summary>
+        private void ShowTrayIcon()
+        {
+            bool light = TaskbarIsLight();
+            int size = TrayIconSize();
+            if (tray.Icon != null && light == trayShownForLightTaskbar && size == trayShownSize) return;
+            Icon next = LoadTrayIcon(light, size);
+            tray.Icon = next ?? AppIcon;
+            // Only after the tray holds the new one. AppIcon is shared and is never disposed here.
+            trayIcon?.Dispose();
+            trayIcon = next;
+            trayShownForLightTaskbar = light;
+            trayShownSize = size;
+        }
+
+        private static bool TaskbarIsLight()
+        {
+            try
+            {
+                using (var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"))
+                    return key?.GetValue("SystemUsesLightTheme") is int value && value != 0;
+            }
+            catch
+            {
+                // Windows versions without this value have a dark taskbar. Either icon stays
+                // legible on the wrong taskbar, since its track contrasts with any background.
+                return false;
+            }
+        }
+
+        // The small-icon metric follows the display scale: 16 px at 100%, 20 at 125%, 24 at 150%,
+        // 32 at 200%. Above that the largest is used and Windows scales it up.
+        private static int TrayIconSize()
+        {
+            int wanted = SystemInformation.SmallIconSize.Width;
+            foreach (int size in TrayIconSizes)
+                if (size >= wanted) return size;
+            return TrayIconSizes[TrayIconSizes.Length - 1];
+        }
+
+        private static Icon LoadTrayIcon(bool lightTaskbar, int size)
+        {
+            try
+            {
+                using (var stream = typeof(ShellContext).Assembly.GetManifestResourceStream(lightTaskbar ? "tray-light-taskbar.ico" : "tray-dark-taskbar.ico"))
+                    return stream == null ? null : new Icon(stream, size, size);
+            }
+            catch { return null; }
+        }
+
         private static Icon LoadIcon()
         {
+            // From the resource, which keeps every size, so the title bar gets the drawing made for
+            // its size. The icon read from the exe file is one size, shrunk to fit.
+            try
+            {
+                using (var stream = typeof(ShellContext).Assembly.GetManifestResourceStream("accountswitch.ico"))
+                    if (stream != null) return new Icon(stream);
+            }
+            catch { /* Fall back to the exe's icon. */ }
             try { return Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? SystemIcons.Application; }
             catch { return SystemIcons.Application; }
         }
@@ -205,7 +280,9 @@ namespace AccountSwitch.Desktop
         {
             if (disposing)
             {
+                SystemEvents.UserPreferenceChanged -= OnUserPreferenceChanged;
                 tray.Dispose();
+                trayIcon?.Dispose();
                 showSignal.Dispose();
                 quitSignal.Dispose();
                 updateTimer.Dispose();

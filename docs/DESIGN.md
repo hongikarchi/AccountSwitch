@@ -144,13 +144,23 @@ Window minimum 480 × 560 (shell). Content max width 1040 px, side padding 24 px
 - Tray: the tile at 16–32 px. Light taskbar: black tile. Dark taskbar: inverted (white tile, black track, white knob).
 - Redraw on a 24 px grid; the generated image has jagged edges and is a reference only.
 
-Concept: the theme toggle is the brand. The mark is a pill switch — a black rounded track with a light knob on one side — reading as "switch" at any size and matching the toggle in the header. Two variants: knob left and knob right are the same mark mirrored, used for an optional hover animation.
+Concept: the theme toggle is the brand. The mark is a pill switch — a white rounded track with a black knob on the right, on the black tile — reading as "switch" at any size and matching the toggle in the header. Two variants: knob left and knob right are the same mark mirrored, used for an optional hover animation.
+
+Geometry on the 24 px grid (`assets/brand/logo.svg`): tile 0,0,24,24 rx 5; track x=3 y=8 w=18 h=8 rx=4; knob cx=17 cy=12 r=3, concentric with the track's right cap. The track stays centered and the knob concentric at every size. Small sizes are placed on whole pixels by hand, in pixels of that size (the rest scale from the grid and round):
+
+| Size | Tile rx | Track x, y, w, h | Knob cx, cy, r |
+|---|---|---|---|
+| 16 | 3 | 2, 5, 12, 6 | 11, 8, 2 |
+| 20 | 4 | 2, 6, 16, 8 | 14, 10, 3 |
+| 32 | 7 | 4, 10, 24, 12 | 22, 16, 4 |
+
+The macOS icon sits on Apple's icon grid: the tile takes 824 of 1024 px, on a clear background. The menu bar template is the same mark in alpha only, with the track as a hole.
 
 Process:
 
 1. Explore the concept with GPT image generation through Codex (`codex exec`, built-in `image_gen`). This uses the user's ChatGPT subscription; ask the user before each run. Use the result only to choose direction.
 2. Redraw the chosen mark by hand as SVG on a 24 px grid. A generated raster is not usable at 16 px.
-3. Export: app icon (black tile, white pill, knob in provider-neutral white), ICO sizes 16–256 with hand-checked 16 and 24 px, tray icons in black (light taskbar) and white (dark taskbar), macOS icon and menu bar template. File list in SPEC §6.
+3. Export with `npm run build:icons`: app icon (black tile, white track, black knob), ICO sizes 16–256 with hand-checked 16 and 24 px, tray icons with a black tile (light taskbar) and inverted, white tile, black track, white knob (dark taskbar), macOS icon and menu bar template. File list in SPEC §6.
 
 Prompt draft for step 1 (English, no brand names):
 
