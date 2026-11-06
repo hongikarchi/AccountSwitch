@@ -1,5 +1,5 @@
 import { expandPath, readWindowsSnapshot } from './environment.ts';
-import { StepStop } from './install-deps.ts';
+import { StepStop, type InstallFiles } from './install-deps.ts';
 import type { StepContext, StepResult } from './install-steps.ts';
 import { isProgramRunning } from './install-windows.ts';
 import type { CheckSpec } from './types.ts';
@@ -159,22 +159,81 @@ export function roleNote(starterFile: string) {
 
 export const BACKUP_SUFFIX = '.accountswitch-bak';
 
+/**
+ * A file this code may rewrite. `missing` is only a file that does not exist; `read-error` could be
+ * anything, and must not be taken for an empty file. `not-text`: decoding and encoding again would
+ * not give the same bytes (UTF-16, CP949), so a write would destroy the rest. A NUL byte counts too,
+ * because UTF-16 without a byte order mark can pass that test.
+ */
+function readForEdit(files: InstallFiles, path: string) {
+  let bytes: Buffer | undefined;
+  try {
+    bytes = files.read(path);
+  } catch {
+    return { state: 'read-error' as const };
+  }
+  if (!bytes) return { state: 'missing' as const };
+  const text = bytes.toString('utf8');
+  if (bytes.includes(0) || !Buffer.from(text, 'utf8').equals(bytes))
+    return { state: 'not-text' as const };
+  return { state: 'text' as const, text };
+}
+
+/** Only a change gets here. The backup is of the file before the first change, so it is kept after. */
+function writeWithBackup(files: InstallFiles, path: string, text: string) {
+  const backup = path + BACKUP_SUFFIX;
+  if (!files.read(backup)) files.copy(path, backup);
+  files.write(path, text);
+}
+
 /** Part 1 on the real file: backup before the first change, and only if something changes. */
 function applyWarning(context: StepContext, path: string) {
   const { files } = context.deps;
-  const bytes = files.read(path);
-  if (!bytes) return 'no-file' as const;
-  const text = bytes.toString('utf8');
-  // Decoding and encoding again must give the same bytes, or a write would damage the rest.
-  if (!Buffer.from(text, 'utf8').equals(bytes)) return 'unreadable' as const;
-  const result = setReadOnlyWarning(text);
+  const file = readForEdit(files, path);
+  if (file.state === 'missing') return 'no-file' as const;
+  if (file.state === 'read-error') return 'read-error' as const;
+  if (file.state === 'not-text') return 'unreadable' as const;
+  const result = setReadOnlyWarning(file.text);
   if (result.problem) return 'unreadable' as const;
   if (!result.changed) return 'done' as const;
-  const backup = path + BACKUP_SUFFIX;
-  if (!files.read(backup)) files.copy(path, backup);
-  files.write(path, result.xml);
+  try {
+    writeWithBackup(files, path, result.xml);
+  } catch {
+    return 'read-error' as const;
+  }
   context.log.line('Rhino 읽기 전용 경고를 켰어요.');
   return 'done' as const;
+}
+
+/** Part 4 on the real file. What came of it for the user to read; nothing when all went well. */
+function applyRoleNote(
+  context: StepContext,
+  path: string,
+  spec: Extract<CheckSpec, { kind: 'rhino-settings' }>,
+  starter: string,
+) {
+  const { files } = context.deps;
+  const file = readForEdit(files, path);
+  if (file.state === 'read-error')
+    return 'Claude Code 안내 파일(CLAUDE.md)을 읽지 못해서 그대로 뒀어요. 다시 시도해 보세요.';
+  if (file.state === 'not-text')
+    return 'Claude Code 안내 파일(CLAUDE.md)의 글자 형식이 UTF-8이 아니어서 그대로 뒀어요. 메모장에서 UTF-8로 저장한 뒤 다시 시도하세요.';
+  const note = applyMarkedBlock(
+    file.state === 'text' ? file.text : undefined,
+    spec.roleNoteStart,
+    spec.roleNoteEnd,
+    roleNote(starter),
+  );
+  if (note.problem) return 'Claude Code 안내 파일의 표시가 어긋나 있어서 그대로 뒀어요.';
+  if (!note.changed) return undefined;
+  try {
+    if (file.state === 'text') writeWithBackup(files, path, note.text);
+    else files.write(path, note.text);
+  } catch {
+    return 'Claude Code 안내 파일(CLAUDE.md)을 바꾸지 못해서 그대로 뒀어요. 다시 시도해 보세요.';
+  }
+  context.log.line('Claude Code 도구 안내를 적었어요.');
+  return undefined;
 }
 
 export async function applyRhinoSettings(context: StepContext): Promise<StepResult> {
@@ -196,6 +255,8 @@ export async function applyRhinoSettings(context: StepContext): Promise<StepResu
   if (warning === 'no-file')
     open.push('Rhino를 한 번 켰다가 끄면 설정 파일이 생겨요. 그다음 다시 시도하세요.');
   if (warning === 'unreadable') open.push('Rhino 설정 파일의 모양이 예상과 달라서 그대로 뒀어요.');
+  if (warning === 'read-error')
+    open.push('Rhino 설정 파일을 읽거나 쓰지 못해서 그대로 뒀어요. 다시 시도해 보세요.');
 
   // The real Documents folder, which may have moved (OneDrive), as the check reads it.
   const { check } = context.deps;
@@ -206,18 +267,8 @@ export async function applyRhinoSettings(context: StepContext): Promise<StepResu
     check.home,
     snapshot?.documents ?? undefined,
   );
-  const notePath = context.path(spec.roleNoteFile);
-  const note = applyMarkedBlock(
-    context.deps.files.read(notePath)?.toString('utf8'),
-    spec.roleNoteStart,
-    spec.roleNoteEnd,
-    roleNote(starter),
-  );
-  if (note.problem) open.push('Claude Code 안내 파일의 표시가 어긋나 있어서 그대로 뒀어요.');
-  else if (note.changed) {
-    context.deps.files.write(notePath, note.text);
-    context.log.line('Claude Code 도구 안내를 적었어요.');
-  }
+  const noteProblem = applyRoleNote(context, context.path(spec.roleNoteFile), spec, starter);
+  if (noteProblem) open.push(noteProblem);
 
   open.push(
     'Rhino를 켤 때 mcpstart를 자동으로 실행하는 설정과 Grasshopper 시작 파일은 아직 자동으로 맞출 수 없어요. 당분간 Rhino에서 mcpstart 명령을 직접 실행하고, Grasshopper에 Cordyceps 컴포넌트를 직접 올려 주세요.',

@@ -1,7 +1,9 @@
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   closeSync,
   copyFileSync,
+  createReadStream,
   createWriteStream,
   fstatSync,
   mkdirSync,
@@ -20,6 +22,7 @@ import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as WebReadableStream } from 'node:stream/web';
 import type { CheckDeps } from './checks.ts';
 import { runCommand } from './commands.ts';
+import type { SetupLog } from './install-log.ts';
 
 // What an install needs from the outside world. Everything that can change this PC comes through
 // here, so tests hand in fakes, and buildInstallDeps refuses to go on under `node --test` when one
@@ -29,13 +32,18 @@ import { runCommand } from './commands.ts';
 export type Fetcher = (url: string, init: RequestInit) => Promise<Response>;
 
 export interface InstallFiles {
-  /** Undefined when the file cannot be read. */
+  /**
+   * Undefined only when the file does not exist. Any other read error throws: a file that could not
+   * be read this moment is not an empty file, and writing on that belief would lose it.
+   */
   read: (path: string) => Buffer | undefined;
   /** Replaces the file in one step, creating folders. A symbolic link stays one. */
   write: (path: string, data: Buffer | string) => void;
   copy: (from: string, to: string) => void;
-  /** Missing is fine. */
+  /** Missing is fine. Can still throw, so a cleanup goes through `cleanUp`. */
   remove: (path: string) => void;
+  /** SHA-256 in lower-case hex of the file as it is on disk now. Throws when it cannot be read. */
+  hash: (path: string) => Promise<string>;
   save: (
     path: string,
     body: ReadableStream<Uint8Array>,
@@ -89,12 +97,27 @@ export class StepStop extends Error {
   }
 }
 
+/**
+ * A file left behind is logged and nothing more: after a timeout or a kill the installer can still
+ * hold it, and that must not turn the item's real result into something else.
+ */
+export function cleanUp(files: InstallFiles, log: SetupLog, path: string) {
+  try {
+    files.remove(path);
+  } catch (error) {
+    log.line(
+      `임시 파일을 지우지 못했어요: ${path} (${(error as NodeJS.ErrnoException).code ?? 'error'})`,
+    );
+  }
+}
+
 export const realInstallFiles: InstallFiles = {
   read: (path) => {
     try {
       return readFileSync(path);
-    } catch {
-      return undefined;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return undefined;
+      throw error;
     }
   },
   write: (path, data) => {
@@ -110,7 +133,14 @@ export const realInstallFiles: InstallFiles = {
     renameSync(temporary, target);
   },
   copy: (from, to) => copyFileSync(from, to),
-  remove: (path) => rmSync(path, { force: true }),
+  // `maxRetries` is ignored without `recursive`. An installer that was just killed can hold its
+  // file a moment longer. Only ever given a file this code wrote.
+  remove: (path) => rmSync(path, { force: true, recursive: true, maxRetries: 3, retryDelay: 100 }),
+  hash: async (path) => {
+    const hash = createHash('sha256');
+    await pipeline(createReadStream(path), hash);
+    return hash.digest('hex');
+  },
   save: async (path, body, signal, maxBytes) => {
     mkdirSync(dirname(path), { recursive: true });
     const temporary = `${path}.part`;
@@ -130,7 +160,11 @@ export const realInstallFiles: InstallFiles = {
       );
       renameSync(temporary, path);
     } catch (error) {
-      rmSync(temporary, { force: true });
+      try {
+        rmSync(temporary, { force: true, recursive: true, maxRetries: 3, retryDelay: 100 });
+      } catch {
+        // Why the download stopped is what counts; the next one replaces this file.
+      }
       throw error;
     }
   },

@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { StepStop } from './install-deps.ts';
+import { cleanUp, StepStop } from './install-deps.ts';
 import { downloadsFolder, fetchBytes, sha256Hex } from './install-download.ts';
 import type { StepContext, StepResult } from './install-steps.ts';
 import { isProgramRunning } from './install-windows.ts';
@@ -30,6 +30,53 @@ export function blenderExpression(module: string) {
 
 export function blenderArguments(module: string) {
   return ['-b', '--python-exit-code', '1', '--python-expr', blenderExpression(module)];
+}
+
+/** Blender's own "Load Previous Settings"; it only copies out of the old version's folder. */
+export const COPY_PREVIOUS_EXPRESSION = 'import bpy\nbpy.ops.preferences.copy_prev()';
+
+const COPY_PREVIOUS_MAX_MS = 5 * 60 * 1000;
+const PREVIOUS_NOT_COPIED =
+  '이전 버전 Blender의 설정을 가져오지 못했어요. 이전 설정은 그대로 남아 있고, 애드온 설치는 계속했어요.';
+
+/** Whether a version folder such as `5.1` is older than the series, comparing numbers. */
+export function isOlderSeries(folder: string, series: string) {
+  const parse = (value: string) => /^(\d+)\.(\d+)$/.exec(value)?.slice(1).map(Number);
+  const [old, current] = [parse(folder), parse(series)];
+  if (!old || !current) return false;
+  return old[0] < current[0] || (old[0] === current[0] && old[1] < current[1]);
+}
+
+/**
+ * Saving the prefs below creates userpref.blend, after which Blender no longer offers to import the
+ * previous version's settings, so they come along first (SPEC 3.3, **verify** T-048). A failure loses
+ * nothing and does not stop the add-on; it comes back as what to tell the user. A cancel stays one.
+ */
+async function copyPreviousSettings(
+  context: StepContext,
+  step: Extract<InstallStep, { kind: 'blender-addon' }>,
+  blender: string,
+) {
+  const { check } = context.deps;
+  if (check.exists(context.path(step.userPrefs))) return undefined;
+  const older = check
+    .listFolders(context.path(step.versionsFolder))
+    .some((folder) => isOlderSeries(folder, step.series));
+  if (!older) return undefined;
+  try {
+    const result = await context.exec(
+      {
+        program: blender,
+        args: ['-b', '--python-exit-code', '1', '--python-expr', COPY_PREVIOUS_EXPRESSION],
+      },
+      { label: 'blender: 이전 버전 설정 가져오기', maxMs: COPY_PREVIOUS_MAX_MS },
+    );
+    if (result.code === 0) return undefined;
+  } catch (error) {
+    if (!(error instanceof StepStop) || error.reason !== 'TIMEOUT') throw error;
+  }
+  context.log.line('이전 버전 Blender 설정을 가져오지 못했어요.');
+  return PREVIOUS_NOT_COPIED;
 }
 
 export async function installBlenderAddon(
@@ -70,6 +117,7 @@ export async function installBlenderAddon(
   const file = join(downloadsFolder(directory), step.saveAs);
   files.write(file, bytes);
   try {
+    const note = await copyPreviousSettings(context, step, blender);
     const result = await context.exec(
       {
         program: blender,
@@ -79,7 +127,7 @@ export async function installBlenderAddon(
       { label: `blender: 애드온 ${step.module} 설치` },
     );
     return result.code === 0
-      ? { ran: true }
+      ? { ran: true, ...(note ? { note } : {}) }
       : {
           ran: !result.spawnError,
           failure: {
@@ -88,6 +136,6 @@ export async function installBlenderAddon(
           },
         };
   } finally {
-    files.remove(file);
+    cleanUp(files, context.log, file);
   }
 }
