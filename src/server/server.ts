@@ -13,6 +13,7 @@ import { providers } from '../core/providers.ts';
 import { executable, status } from '../core/cli.ts';
 import { DefaultLogin } from '../core/default-login.ts';
 import { AutoSwitch } from '../core/auto-switch.ts';
+import { Launcher, type LauncherOptions } from '../core/launcher.ts';
 
 // A local web app on 127.0.0.1 only. The page gets a session cookie from the one-time token in
 // its launch link (#token); every API call needs that cookie and, for writes, this origin.
@@ -81,9 +82,15 @@ export interface Options {
   /** Where account folders and settings live. */
   directory: string;
   port?: number;
+  /** Tests: start the terminal with this instead of a real process. */
+  launcherSpawn?: LauncherOptions['spawnProcess'];
 }
 
-export async function startServer({ directory, port = 0 }: Options) {
+export async function startServer({ directory, port = 0, launcherSpawn }: Options) {
+  const launcher = new Launcher({
+    file: join(directory, 'launcher.json'),
+    spawnProcess: launcherSpawn,
+  });
   const accountLogin = new AccountLogin();
   const profiles = new AccountProfiles(join(directory, 'profiles'), (p) => accountLogin.busy(p));
   const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
@@ -196,6 +203,23 @@ export async function startServer({ directory, port = 0 }: Options) {
         ?.split('=')[1];
       if (!equal(cookie, session)) throw new DomainError('UNAUTHORIZED');
 
+      // "Claude Code 열기": whether it can open, the recent folders, and the browser fallback.
+      if (url.pathname === '/api/v1/launcher' && request.method === 'GET') {
+        send(200, launcher.status());
+        return;
+      }
+      if (
+        ['/api/v1/launcher/recent', '/api/v1/launcher/open'].includes(url.pathname) &&
+        request.method === 'POST'
+      ) {
+        const input = z
+          .object({ folder: z.string().max(4096) })
+          .strict()
+          .parse(await body(request));
+        if (url.pathname.endsWith('/open')) send(200, await launcher.open(input.folder));
+        else send(200, { recent: launcher.remember(input.folder) });
+        return;
+      }
       if (url.pathname === '/api/v1/accounts' && request.method === 'GET') {
         send(200, profiles.list());
         return;
