@@ -34,7 +34,8 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 - [x] T-035 Verify check results on this PC; record which items report 버전 다름 and why. 2026-11-06: no item reports 버전 다름; a run takes under a second and left `~/.claude.json` untouched. Node 24.15.0 passes against pin 24.22.1 because any 24.x is accepted; `python` is missing because only 3.14 is reachable through `py`. The Sandbox half of M2 still waits for T-048.
 
 ## M3 Installs
-nCode for T-040 to T-047 is done and tested with fakes only. Nothing has really been installed; T-048 is the first real run.
+
+Code for T-040 to T-047 is done and tested with fakes only. Nothing has really been installed; T-048 is the first real run.
 
 - [~] T-040 Runner: one run at a time, per-item timeout, logs, cancel, retry, skip (SPEC 3.4).
 - [~] T-041 winget by full path with fallback downloads (ADR-002); verify package ids and the Node 24 pin.
