@@ -23,9 +23,10 @@ Avoid (the "AI-made" look): gradients, glass blur, glow, colored shadows, emoji,
 
 1. Hierarchy by type size and weight first, then grey value, then space. Borders last.
 2. Black, white, and greys. Provider color only on the provider mark, its usage bar fill, and its 사용 중 marker. Red only for errors and limits.
-3. Numbers are the content: large, tabular, aligned right.
+3. Numbers are the content: clear, tabular, aligned right. They never outgrow the section title; the bar beside them already carries the weight.
 4. One primary action per area, in solid black (white in dark mode).
 5. Everything aligns to a 4 px grid and one left edge per column.
+6. Room first (user, 2026-11-06: the first build felt cramped and its big type too big). When a screen feels full, remove or fold something before shrinking anything. A one-off action stays folded until asked for; a hairline only separates two things, it never closes a list.
 
 ## 3. Tokens
 
@@ -68,36 +69,37 @@ Font: Pretendard (Korean and Latin, OFL), bundled as `woff2` in the build becaus
 
 | Role | Size / line | Weight | Tracking | Use |
 |---|---|---|---|---|
-| Display | 32 / 36 | 600 | -0.03em | Wizard step title on its first screen, empty states |
-| H1 | 24 / 30 | 600 | -0.02em | Provider name (Claude, ChatGPT), tab page title |
-| H2 | 17 / 24 | 600 | -0.01em | Step title, section title |
-| Number | 22 / 26 | 500 | -0.02em | Usage percent |
-| Body | 14 / 20 | 400 | 0 | Rows, descriptions |
-| Small | 12 / 16 | 400 | 0 | Meta: e-mail, plan, reset time, versions |
-| Label | 11 / 14 | 500 | 0.04em, uppercase for Latin | Column labels, step index |
+| Display | 24 / 32 | 600 | -0.02em | Wizard step title on its first screen, empty states |
+| H1 | 18 / 26 | 600 | -0.01em | Provider name (Claude, ChatGPT), tab page title |
+| H2 | 15 / 22 | 600 | 0 | Step title, section title |
+| Number | 15 / 20 | 500 | 0 | Usage percent |
+| Body | 14 / 22 | 400 | 0 | Rows, descriptions |
+| Small | 12 / 18 | 400 | 0 | Meta: e-mail, plan, reset time, versions |
+| Label | 12 / 16 | 500 | 0, uppercase for Latin | Column labels, step index |
 
-Superscript indices (`⁰¹`, `⁰²`) at 0.45 em, top-aligned, used in the theme toggle and the stepper counter.
+Superscript indices (`⁰¹`, `⁰²`) at 0.6 em, top-aligned, used in the theme toggle and the stepper counter.
 
 ## 5. Components
 
 ### 5.1 Header
 
-Left: logo mark (24 px black tile) + wordmark "AccountSwitch" (H2). Center-left: tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: **Claude Code 열기** (primary, Windows only), theme toggle. Header height 56 px, hairline below.
+Three things only. Left: logo mark (24 px black tile), then tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: **Claude Code 열기** (primary, Windows only). Header height 64 px, hairline below. The theme toggle lives at the foot of the page (5.2).
 
-Below 600 px the wordmark is hidden from view and stays in the page as the heading, so the logo tile keeps its accessible name "AccountSwitch". With the wordmark the row needs 598 px; without it the row of logo, tabs, button and toggle fits a 480 px window, the shell's minimum, in full and on one line. It never wraps, and nothing shrinks.
+The name "AccountSwitch" is on the window's title bar right above, so the wordmark is hidden from view at every width. It stays in the page as the heading and gives the logo tile its accessible name. The row fits a 480 px window, the shell's minimum, on one line.
 
-The row has no room for a sentence. The launcher's disabled help and its failures sit on a line of their own directly under the hairline, so the header stays 56 px: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead, which would otherwise cover that line.
+The row has no room for a sentence. The launcher's disabled help and its failures sit on a line of their own directly under the hairline, so the header stays 64 px: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead, which would otherwise cover that line.
 
 ### 5.2 Theme toggle
 
-A pill 120 × 36 px. The track is `--inverse-bg`; a knob `--bg` 58 × 30 px slides between halves. Labels "Light⁰¹" and "Dark⁰²" (14 px, 500): the active label sits in the knob in `--text`, the other on the track in `--inverse-text` at 70 %. Knob moves with `transform` 260 ms `cubic-bezier(.2,.8,.2,1)`; the page colors cross-fade 200 ms. `role="switch"`, `aria-checked`, Korean `aria-label="화면 테마"`. With `prefers-reduced-motion`, no slide.
+At the foot of the page, right-aligned, on both tabs, at the window's bottom edge when the page is short: settled once and rarely touched, so it does not compete with the header. A pill 112 × 28 px. The track is `--inverse-bg`; a knob `--bg` 54 × 24 px slides between halves. Labels "Light⁰¹" and "Dark⁰²" (12 px, 500): the active label sits in the knob in `--text`, the other on the track in `--inverse-text` at 70 %. Knob moves with `transform` 260 ms `cubic-bezier(.2,.8,.2,1)`; the page colors cross-fade 200 ms. `role="switch"`, `aria-checked`, Korean `aria-label="화면 테마"`. With `prefers-reduced-motion`, no slide.
 
 ### 5.3 Account section (계정 tab)
 
-- Two columns (Claude | ChatGPT) when the window is wider than 760 px, else stacked.
+- Two columns (Claude | ChatGPT), 64 px apart, when the window is wider than 880 px, else stacked 64 px apart. The shell opens at 760 px, so stacked is the usual view.
 - Section head: provider mark dot (8 px, provider color) + name (H1) + count of accounts (Small, muted).
-- Rows separated by hairlines, no row boxes. Row: name (Body 500) with 사용 중 as a small provider-colored text marker, meta line (Small, muted: e-mail · plan · login end), right side actions (사용 or 로그인 as secondary button, ⋯ menu).
-- Usage under the row: label column (5시간, 7일, model limits; Label) · thin 4 px bar (track `--line`, fill provider color, red at limit) · percent (Number) · reset time (Small, muted). Fixed column widths so bars align across rows.
+- 24 px above and below each account. A hairline only between two accounts: none above the first or below the last. No row boxes. Row: name (Body 500) with 사용 중 as a small provider-colored text marker, meta line (Small, muted: e-mail · plan · login end), right side actions (사용 or 로그인 as secondary button, ⋯ menu).
+- Usage under the row, 16 px below it, its lines 8 px apart: label column (5시간, 7일, model limits; Label) · thin 4 px bar (track `--line`, fill provider color, red at limit) · percent (Number) · reset time (Small, muted). Fixed column widths so bars align across rows.
+- Adding an account is folded into one text button "+ 계정 추가" under the list. Pressing it opens the name field with 추가 and 취소; it closes again once the account is added.
 - Drag to reorder keeps today's behavior; the dragged row lifts with the menu shadow.
 
 ### 5.4 Buttons
@@ -109,7 +111,7 @@ A pill 120 × 36 px. The track is `--inverse-bg`; a knob `--bg` 58 × 30 px slid
 
 ### 5.5 Menus and popovers
 
-`--bg`, 1 px `--line`, 10 px radius, the one allowed shadow. Items 32 px high, hover `--panel`. Destructive item text in `--danger`.
+`--bg`, 1 px `--line`, 10 px radius, the one allowed shadow. Items 36 px high, hover `--panel`. Destructive item text in `--danger`.
 
 ### 5.6 Setup stepper (설치 tab)
 
@@ -124,7 +126,7 @@ Vertical, after the reference stepper, in black and white:
 - 버전 다름: `--text` ring with `≠`. Unknown (no answer from a check): `--faint` ring with `?`. Skipped: `--faint` ring with `–`.
 - Each step: meta line (Small, muted: found version or time), title (H2), one-line description (Body, muted), group label above the first step of a group (Label).
 - Optional groups appear as one collapsed row with a checkbox and a count ("6개 중 3개 설치됨") until ticked, even when partly installed, because opening one would check its missing items.
-- Each group is its own list, so connectors break between groups.
+- Each group is its own list, so connectors break between groups. 32 px between steps, 40 px between groups.
 - Summary bar at the bottom, sticking to the window's bottom edge: "8개 중 5개 완료" and the primary 시작 / 계속 button. A confirmation (Blender warning, MCP 다시 등록) is one inline panel above the bar, not a modal.
 - 처음으로 is a text button at the right of the checklist title, back to the first screen.
 
@@ -140,18 +142,18 @@ After the chart-card reference: a small outlined illustration tile, one bold lin
 
 ## 7. Layout
 
-Window minimum 480 × 560 (shell). Content max width 1040 px, side padding 24 px (16 px under 560 px). Vertical rhythm 8 / 16 / 24 / 40.
+Window minimum 480 × 560 (shell). Content max width 1040 px, side padding 32 px (20 px under 560 px). Page top 40 px. Vertical rhythm 8 / 16 / 24 / 40 / 64.
 
 ## 8. Logo and icons
 
 **Chosen (user, 2026-11-06): concept 1** in `assets/brand/concepts/concept-1.png` (git-ignored): a black rounded-square tile holding a white horizontal pill track with a black circular knob on the right. Use it everywhere:
 
 - App icon and macOS icon: the tile as is.
-- Header: the tile at 24 px followed by the wordmark "AccountSwitch" set in Pretendard (H2), not a generated wordmark.
+- Header: the tile at 24 px. The name stays in the page as hidden Pretendard text, not a generated wordmark (5.1).
 - Tray: the tile at 16–32 px. Light taskbar: black tile. Dark taskbar: inverted (white tile, black track, white knob).
 - Redraw on a 24 px grid; the generated image has jagged edges and is a reference only.
 
-Concept: the theme toggle is the brand. The mark is a pill switch — a white rounded track with a black knob on the right, on the black tile — reading as "switch" at any size and matching the toggle in the header. Two variants: knob left and knob right are the same mark mirrored, used for an optional hover animation.
+Concept: the theme toggle is the brand. The mark is a pill switch — a white rounded track with a black knob on the right, on the black tile — reading as "switch" at any size and matching the theme toggle. Two variants: knob left and knob right are the same mark mirrored, used for an optional hover animation.
 
 Geometry on the 24 px grid (`assets/brand/logo.svg`): tile 0,0,24,24 rx 5; track x=3 y=8 w=18 h=8 rx=4; knob cx=17 cy=12 r=3, concentric with the track's right cap. The track stays centered and the knob concentric at every size. Small sizes are placed on whole pixels by hand, in pixels of that size (the rest scale from the grid and round):
 

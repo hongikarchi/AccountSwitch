@@ -32,7 +32,7 @@
   color-scheme: light dark;
   color: var(--text);
   font:
-    400 14px/20px 'Pretendard',
+    400 14px/22px 'Pretendard',
     'Malgun Gothic',
     system-ui,
     sans-serif;
@@ -71,6 +71,15 @@ body {
 [data-theme] body {
   background: var(--bg);
 }
+/* The foot stays at the window's bottom edge when a page is short. */
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+#root > * {
+  width: 100%;
+}
 [hidden] {
   display: none !important;
 }
@@ -79,7 +88,7 @@ p {
 }
 small {
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
 }
 a {
   color: inherit;
@@ -196,37 +205,39 @@ select {
 }
 .app-head-inner,
 .app-body {
-  max-width: 1088px;
+  max-width: 1104px;
   margin: 0 auto;
-  padding-inline: 24px;
+  padding-inline: 32px;
 }
 .app-head-inner {
   display: flex;
   align-items: center;
-  gap: 24px;
-  height: 56px;
+  gap: 32px;
+  height: 64px;
 }
 .brand {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 8px;
 }
 .logo-mark {
   display: block;
   flex: none;
 }
+/* Hidden from view at every width: the window's title bar shows the name (5.1). */
 .wordmark {
+  position: absolute;
+  width: 1px;
+  height: 1px;
   margin: 0;
-  font-size: 17px;
-  line-height: 24px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .tabs {
   display: flex;
   align-self: stretch;
-  gap: 16px;
+  gap: 24px;
 }
 .tab {
   min-height: 0;
@@ -247,50 +258,48 @@ select {
 .tab:focus-visible {
   outline-offset: -2px;
 }
-/* Right side of the header: the Claude Code launcher joins the theme toggle here. */
-.head-actions {
+/* Theme toggle (5.2): at the foot of the page, a pill, the knob sliding under the active label. */
+.app-foot {
   display: flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
+  justify-content: flex-end;
+  max-width: 1104px;
+  margin: auto auto 0;
+  padding: 0 32px 32px;
 }
-
-/* Theme toggle (5.2): a pill, the knob sliding under the active label. */
 .theme-toggle {
   position: relative;
   display: grid;
   grid-template-columns: 1fr 1fr;
   align-items: center;
   flex: none;
-  width: 120px;
-  height: 36px;
+  width: 112px;
+  height: 28px;
   min-height: 0;
-  padding: 0 3px;
+  padding: 0 2px;
   border: 0;
   border-radius: 999px;
   background: var(--inverse-bg);
 }
 .theme-knob {
   position: absolute;
-  top: 3px;
-  left: 3px;
-  width: 58px;
-  height: 30px;
+  top: 2px;
+  left: 2px;
+  width: 54px;
+  height: 24px;
   border-radius: 999px;
   background: var(--bg);
   transition: transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 .theme-toggle[aria-checked='true'] .theme-knob {
-  transform: translateX(56px);
+  transform: translateX(54px);
 }
 .theme-label {
   position: relative;
   text-align: center;
   color: var(--inverse-text);
   opacity: 0.7;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
   transition:
     color 200ms ease-out,
@@ -303,20 +312,20 @@ select {
 .theme-label sup {
   display: inline-block;
   margin-left: 1px;
-  font-size: 0.45em;
+  font-size: 0.6em;
   line-height: 1;
   vertical-align: top;
-  transform: translateY(4px);
+  transform: translateY(2px);
   font-variant-numeric: tabular-nums;
 }
 
 /* Page (7). */
 .app-body {
-  padding-block: 24px 40px;
+  padding-block: 40px;
 }
 .tab-panel {
   display: grid;
-  gap: 24px;
+  gap: 40px;
   animation: tab-in 150ms ease-out;
 }
 @keyframes tab-in {
@@ -326,10 +335,10 @@ select {
 }
 .services {
   display: grid;
-  gap: 40px;
+  gap: 64px;
   align-items: start;
 }
-@media (min-width: 761px) {
+@media (min-width: 881px) {
   .services {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -337,10 +346,13 @@ select {
 @media (max-width: 559.98px) {
   .app-head-inner,
   .app-body {
-    padding-inline: 16px;
+    padding-inline: 20px;
+  }
+  .app-foot {
+    padding-inline: 20px;
   }
   .app-head-inner {
-    gap: 16px;
+    gap: 24px;
   }
 }
 .service {
@@ -352,11 +364,11 @@ select {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  margin: 0 0 16px;
-  font-size: 24px;
-  line-height: 30px;
+  margin: 0 0 8px;
+  font-size: 18px;
+  line-height: 26px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .service-dot {
   flex: none;
@@ -371,14 +383,13 @@ select {
   font-weight: 400;
   letter-spacing: 0;
 }
-.account-list {
-  border-top: 1px solid var(--line);
-}
 .account-block {
   display: grid;
-  gap: 12px;
-  padding-block: 16px;
-  border-bottom: 1px solid var(--line);
+  gap: 16px;
+  padding-block: 24px;
+}
+.account-block + .account-block {
+  border-top: 1px solid var(--line);
 }
 .account-block[draggable='true'] .account-row {
   cursor: grab;
@@ -400,7 +411,7 @@ select {
 .account-row {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
+  gap: 16px;
 }
 .account-name {
   flex: 1;
@@ -443,15 +454,16 @@ select {
   display: flex;
   flex: none;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
 }
 .account-actions > button {
   min-height: 32px;
 }
 .account-add {
   display: flex;
-  gap: 8px;
-  margin-top: 16px;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
 }
 .account-add input {
   flex: 1;
@@ -461,7 +473,7 @@ select {
   margin-top: 12px;
   color: var(--muted);
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
 }
 .account-message[data-error='true'] {
   color: var(--danger);
@@ -470,22 +482,21 @@ select {
 /* Usage under a row: fixed columns, so bars align across rows and accounts. */
 .account-usage {
   display: grid;
-  gap: 4px;
+  gap: 8px;
 }
 .usage-line {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) 64px 96px;
+  grid-template-columns: 72px minmax(0, 1fr) 44px 96px;
   align-items: center;
-  column-gap: 8px;
+  column-gap: 12px;
   font-variant-numeric: tabular-nums;
 }
 .usage-label {
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
-  letter-spacing: 0.04em;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
@@ -502,17 +513,16 @@ select {
   background: var(--accent);
 }
 .usage-value {
-  font-size: 22px;
-  line-height: 26px;
+  font-size: 15px;
+  line-height: 20px;
   font-weight: 500;
-  letter-spacing: -0.02em;
   text-align: right;
   white-space: nowrap;
 }
 .usage-reset {
   color: var(--muted);
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
   text-align: right;
   white-space: nowrap;
 }
@@ -536,6 +546,8 @@ select {
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
+  padding-top: 24px;
+  border-top: 1px solid var(--line);
 }
 .usage-toolbar small {
   color: var(--muted);
@@ -588,7 +600,7 @@ select {
   box-shadow: var(--shadow-menu);
 }
 .account-menu button {
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 8px;
   border: 0;
   border-radius: var(--radius-control);
@@ -606,8 +618,8 @@ select {
 /* Signing in: one quiet panel under the row. */
 .login-panel {
   display: grid;
-  gap: 12px;
-  padding: 16px;
+  gap: 16px;
+  padding: 20px;
   border-radius: var(--radius-panel);
   background: var(--panel);
 }
@@ -697,7 +709,7 @@ select {
   min-height: 64px;
   font-family: ui-monospace, monospace;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
 }
 
 /* Empty and error states (5.7): tile, one bold line, one muted line, one button. No color. */
@@ -705,7 +717,7 @@ select {
   display: grid;
   justify-items: start;
   gap: 4px;
-  padding-block: 16px;
+  padding-block: 24px;
 }
 .empty-tile {
   display: grid;
@@ -718,10 +730,9 @@ select {
   color: var(--muted);
 }
 .empty-title {
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 .empty-detail,
 .empty-state small {
@@ -731,9 +742,9 @@ select {
   padding-block: 40px;
 }
 .empty-state[data-size='large'] .empty-title {
-  font-size: 32px;
-  line-height: 36px;
-  letter-spacing: -0.03em;
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
 }
 .empty-state[data-size='large'] .empty-detail {
   margin-top: 4px;
@@ -753,7 +764,7 @@ select {
   background: var(--panel);
   font-family: ui-monospace, monospace;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
   overflow-x: auto;
   user-select: all;
   white-space: nowrap;
@@ -790,6 +801,7 @@ select {
 .launcher {
   position: relative;
   flex: none;
+  margin-left: auto;
 }
 .launcher-button {
   display: inline-flex;
@@ -818,7 +830,7 @@ select {
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 32px;
+  min-height: 36px;
   padding: 0 8px;
   border: 0;
   border-radius: var(--radius-control);
@@ -842,10 +854,9 @@ select {
 }
 .launcher-label {
   color: var(--muted);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
-  letter-spacing: 0.04em;
 }
 .launcher-recent > .launcher-label {
   padding: 8px 8px 4px;
@@ -864,7 +875,7 @@ select {
   min-width: 0;
   color: var(--muted);
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
   direction: rtl;
 }
 /* A keyboard has no hover for the title: the path in full, on as many lines as it takes. */
@@ -884,7 +895,7 @@ select {
 .launcher-problem {
   color: var(--danger);
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
 }
 .launcher-path-actions {
   display: flex;
@@ -897,12 +908,12 @@ select {
   align-items: baseline;
   justify-content: flex-end;
   gap: 12px;
-  max-width: 1088px;
+  max-width: 1104px;
   margin: 0 auto;
-  padding: 8px 24px 0;
+  padding: 8px 32px 0;
   color: var(--muted);
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
   text-align: right;
 }
 .launcher-notice[data-kind='failure'] {
@@ -912,21 +923,10 @@ select {
   flex: none;
   padding: 0;
   font-size: 12px;
-  line-height: 16px;
-}
-/* With the wordmark the row needs 598 px; without it, on 16 px gutters, 440 (5.1). */
-@media (max-width: 599.98px) {
-  .wordmark {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
+  line-height: 18px;
 }
 @media (max-width: 559.98px) {
   .launcher-notice {
-    padding-inline: 16px;
+    padding-inline: 20px;
   }
 }

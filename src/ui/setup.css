@@ -2,8 +2,8 @@
 
 .setup-page {
   display: grid;
-  gap: 24px;
-  max-width: 760px;
+  gap: 32px;
+  max-width: 720px;
   min-width: 0;
 }
 .setup-loading {
@@ -26,33 +26,31 @@
 /* First screen. */
 .setup-first {
   display: grid;
-  gap: 24px;
-  padding-top: 16px;
+  gap: 32px;
 }
 .setup-display {
   margin: 0;
-  font-size: 32px;
-  line-height: 36px;
+  font-size: 24px;
+  line-height: 32px;
   font-weight: 600;
-  letter-spacing: -0.03em;
-}
-.choice-list {
-  border-top: 1px solid var(--line);
+  letter-spacing: -0.02em;
 }
 .choice-row {
   display: flex;
   align-items: center;
   gap: 16px;
   width: 100%;
-  min-height: 88px;
-  padding: 16px 8px;
+  min-height: 96px;
+  padding: 24px 8px;
   border: 0;
-  border-bottom: 1px solid var(--line);
   border-radius: 0;
   background: transparent;
   font-weight: 400;
   text-align: left;
   white-space: normal;
+}
+.choice-row + .choice-row {
+  border-top: 1px solid var(--line);
 }
 .choice-row:hover {
   background: var(--panel);
@@ -67,10 +65,9 @@
   min-width: 0;
 }
 .choice-title {
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 .choice-detail {
   color: var(--muted);
@@ -92,37 +89,36 @@
 }
 .setup-title {
   margin: 0;
-  font-size: 24px;
-  line-height: 30px;
+  font-size: 18px;
+  line-height: 26px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.01em;
 }
 .setup-detail {
-  margin-top: 4px;
+  margin-top: 8px;
   color: var(--muted);
 }
 .setup-head .text-button {
   flex: none;
-  margin-top: 5px;
+  margin-top: 2px;
 }
 
 /* Stepper (5.6). */
 .stepper {
   display: grid;
-  gap: 24px;
+  gap: 40px;
 }
 .step-section {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   min-width: 0;
 }
 .step-group {
   margin: 0;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
-  letter-spacing: 0.04em;
   text-transform: uppercase;
 }
 .step-group sup {
@@ -143,7 +139,7 @@
   display: grid;
   grid-template-columns: 24px minmax(0, 1fr);
   column-gap: 16px;
-  padding-bottom: 24px;
+  padding-bottom: 32px;
 }
 .step:last-child {
   padding-bottom: 0;
@@ -266,10 +262,9 @@
 }
 .step-title {
   margin: 0;
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 .step-description {
   color: var(--muted);
@@ -332,16 +327,15 @@
 
 /* Optional groups: one row with a checkbox until ticked. */
 .optional-label {
-  margin-bottom: -12px;
+  margin-bottom: -24px;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
-  letter-spacing: 0.04em;
 }
-.step-section[data-optional='true'] {
-  gap: 16px;
-  padding-top: 16px;
+.step-section[data-optional='true'] + .step-section[data-optional='true'] {
+  margin-top: -16px;
+  padding-top: 24px;
   border-top: 1px solid var(--line);
 }
 .group-row {
@@ -371,7 +365,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px 16px;
-  padding-block: 16px;
+  padding-block: 20px;
   border-top: 1px solid var(--line);
   background: var(--bg);
 }
@@ -381,10 +375,9 @@
   min-width: 160px;
 }
 .summary-line {
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
   font-variant-numeric: tabular-nums;
 }
 .summary-detail {
@@ -408,7 +401,7 @@
   display: grid;
   gap: 12px;
   scroll-margin-bottom: 96px;
-  padding: 16px;
+  padding: 20px;
   border-radius: var(--radius-panel);
   background: var(--panel);
 }
@@ -417,10 +410,9 @@
 }
 .confirm-title {
   margin: 0;
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 .confirm-list {
   display: grid;
@@ -458,10 +450,9 @@
 .log-title {
   flex: 1;
   margin: 0;
-  font-size: 17px;
-  line-height: 24px;
+  font-size: 15px;
+  line-height: 22px;
   font-weight: 600;
-  letter-spacing: -0.01em;
 }
 .log-body {
   max-height: 320px;
@@ -472,7 +463,7 @@
   background: var(--panel);
   font-family: ui-monospace, monospace;
   font-size: 12px;
-  line-height: 16px;
+  line-height: 18px;
   white-space: pre-wrap;
   word-break: normal;
 }

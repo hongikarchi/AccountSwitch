@@ -200,6 +200,7 @@ export function AccountSettings({
 }) {
   const [data, setData] = useState<z.infer<typeof schema>>();
   const [label, setLabel] = useState('');
+  const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState('');
   const [messageFailed, setMessageFailed] = useState(false);
   const fail = (text: string) => {
@@ -609,26 +610,48 @@ export function AccountSettings({
           );
         })}
       </div>
-      <div className="account-add">
-        <input
-          aria-label={`${provider} 계정 이름`}
-          value={label}
-          maxLength={80}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder={`새 계정 이름 (예: 회사 ${provider === 'codex-cli' ? 'ChatGPT' : 'Claude'})`}
-        />
-        <button
-          disabled={busy || !label.trim()}
-          onClick={() =>
+      {adding ? (
+        <form
+          className="account-add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (busy || !label.trim()) return;
             void action(async () => {
               await api('/accounts', 'POST', { provider, label });
               setLabel('');
-            })
-          }
+              setAdding(false);
+            });
+          }}
         >
-          계정 추가
-        </button>
-      </div>
+          <input
+            aria-label={`${provider} 계정 이름`}
+            value={label}
+            maxLength={80}
+            autoFocus
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={`새 계정 이름 (예: 회사 ${provider === 'codex-cli' ? 'ChatGPT' : 'Claude'})`}
+          />
+          <button type="submit" disabled={busy || !label.trim()}>
+            추가
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setAdding(false);
+              setLabel('');
+            }}
+          >
+            취소
+          </button>
+        </form>
+      ) : (
+        <div className="account-add">
+          <button type="button" className="text-button" onClick={() => setAdding(true)}>
+            + 계정 추가
+          </button>
+        </div>
+      )}
       {command && (
         <div className="login-command">
           <p>

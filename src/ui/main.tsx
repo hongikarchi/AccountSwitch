@@ -202,14 +202,11 @@ function AppHead({ tab, choose }: { tab: Tab; choose: (tab: Tab) => void }) {
         <div className="app-head-inner">
           <div className="brand" title="AccountSwitch">
             <LogoMark />
-            {/* Hidden from view under 600 px (DESIGN 5.1), where it still names the logo. */}
+            {/* Hidden from view (DESIGN 5.1); it still names the logo. */}
             <h1 className="wordmark">AccountSwitch</h1>
           </div>
           <Tabs current={tab} choose={choose} />
-          <div className="head-actions">
-            <LauncherButton launcher={launcher} />
-            <ThemeToggle />
-          </div>
+          <LauncherButton launcher={launcher} />
         </div>
       </header>
       <LauncherNotice launcher={launcher} />
@@ -304,6 +301,9 @@ function App() {
           </div>
         )}
       </main>
+      <footer className="app-foot">
+        <ThemeToggle />
+      </footer>
     </>
   );
 }

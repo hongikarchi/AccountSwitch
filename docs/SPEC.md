@@ -252,13 +252,13 @@ Launch details, the same in the shell (`ClaudeLauncher.cs`) and the engine (`src
 
 Every screen follows `DESIGN.md`. Functional constraints:
 
-- Same endpoints and behavior; only markup and CSS change for the 계정 tab, with these exceptions: usage turns red at 100 % instead of 90 % (`DESIGN.md` §5.3 "red at limit"); login-expiry and lookup-failure notes are red; a list that never loads shows an error state with 다시 시도 instead of a guessed default row; the connection error has a 다시 시도 button; the theme follows a live system change until the user chooses.
-- Theme toggle: the two-state pill of `DESIGN.md` §5.2, same storage key; system theme until the user chooses.
+- Same endpoints and behavior; only markup and CSS change for the 계정 tab, with these exceptions: usage turns red at 100 % instead of 90 % (`DESIGN.md` §5.3 "red at limit"); login-expiry and lookup-failure notes are red; a list that never loads shows an error state with 다시 시도 instead of a guessed default row; the connection error has a 다시 시도 button; the theme follows a live system change until the user chooses; adding an account is folded behind a "+ 계정 추가" button, and Enter in the field adds it.
+- Theme toggle: the two-state pill of `DESIGN.md` §5.2, at the foot of the page, same storage key; system theme until the user chooses.
 - Fonts are bundled in the build (CSP forbids remote fonts).
 
 ## 6. Logo and icons
 
-Deliverables in `assets/brand/`: master `logo.svg` (mark, drawn by hand), and from `npm run build:icons` (`scripts/build-icons.mjs`, results committed): `accountswitch.ico` (16, 20, 24, 32, 40, 48, 64, 256), `tray-light-taskbar.ico` and `tray-dark-taskbar.ico` (16, 20, 24, 32), macOS `icon.png` 1024 and the menu bar template `menubar-template.png` with `menubar-template@2x.png` (18 and 36). There is no wordmark file: the header sets the name in Pretendard text (`DESIGN.md` §8).
+Deliverables in `assets/brand/`: master `logo.svg` (mark, drawn by hand), and from `npm run build:icons` (`scripts/build-icons.mjs`, results committed): `accountswitch.ico` (16, 20, 24, 32, 40, 48, 64, 256), `tray-light-taskbar.ico` and `tray-dark-taskbar.ico` (16, 20, 24, 32), macOS `icon.png` 1024 and the menu bar template `menubar-template.png` with `menubar-template@2x.png` (18 and 36). There is no wordmark file: the name is hidden Pretendard text in the header (`DESIGN.md` §5.1, §8).
 
 The shell picks the tray icon from `HKCU\Software\Microsoft\Windows\CurrentVersion\Themes\Personalize\SystemUsesLightTheme`: nonzero is a light taskbar; zero, a missing value or a failed read is a dark taskbar. The size follows the display scale (Windows' small-icon size, next listed size up, 32 above that). It re-checks both when Windows reports a settings change, and a new icon replaces the old without a restart. If the icon cannot be loaded, the tray shows the app icon.
 

@@ -23,6 +23,7 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 - [x] T-023 Account sections per DESIGN §5.3: two columns over 760 px, hairline rows, aligned usage columns, provider color only on mark, bar, 사용 중.
 - [x] T-024 Buttons, menus, empty and error states per DESIGN §5.4–5.7.
 - [x] T-025 Screenshots light and dark at 480 and 1100 px; confirm `src/core` and `src/server` untouched.
+- [~] T-026 Room pass after the user's first look in the real window (cramped, big type too big, header too full): smaller type scale, more space, header down to logo, tabs and launcher, theme toggle to the page foot, add-account folded (DESIGN §2, §4, §5, §7).
 
 ## M2 Setup checks
 
