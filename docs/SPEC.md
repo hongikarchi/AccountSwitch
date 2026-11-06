@@ -51,12 +51,12 @@ The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-li
 
 | id | Check (installed when) | Install | Version | Elevates |
 |---|---|---|---|---|
-| `git` | `git --version` succeeds, or `C:\Program Files\Git\cmd\git.exe` exists | winget `Git.Git` | latest | yes |
-| `node` | `node -v` major is 24 | winget Node.js 24 package (**verify** id; pin 24.x), fallback official MSI from `nodejs.org/dist/` | 24.x | yes |
-| `uv` | `uv --version` and `uvx --version` | official script `irm https://astral.sh/uv/install.ps1 \| iex` (user scope) | latest | no |
-| `python` | `py -3.13 --version` succeeds | winget `Python.Python.3.13` with `--scope user` | 3.13.x | no (**verify**) |
-| `claude` | `executable('claude-cli')` resolves (`src/core/cli.ts`) | `irm https://claude.ai/install.ps1 \| iex` (native installer) | latest | no |
-| `codex` | `executable('codex-cli')` resolves | `npm i -g @openai/codex` (after `node`) | latest | no |
+| `git` | `git --version` succeeds, or `C:\Program Files\Git\cmd\git.exe` or `%LOCALAPPDATA%\Programs\Git\cmd\git.exe` exists | winget `Git.Git`, fallback `https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/Git-2.56.0.4-64-bit.exe` with `/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART` | latest | yes for an account in Administrators; a standard account installs per user with no prompt |
+| `node` | `node -v` major is 24 | winget `OpenJS.NodeJS.LTS --version 24.22.1`, fallback `https://nodejs.org/dist/v24.22.1/node-v24.22.1-x64.msi` (pattern `dist/vX.Y.Z/node-vX.Y.Z-x64.msi`) with `msiexec /i <file> /passive` | 24.22.1 | yes |
+| `uv` | `uv --version` and `uvx --version` | official script `irm https://astral.sh/uv/install.ps1 \| iex` (user scope, `%USERPROFILE%\.local\bin`) | latest | no |
+| `python` | `py -3.13 --version` succeeds | winget `Python.Python.3.13` with `--scope user`, fallback `https://www.python.org/ftp/python/3.13.17/python-3.13.17-amd64.exe /passive InstallAllUsers=0 PrependPath=1`. Folders: `%LOCALAPPDATA%\Programs\Python\Python313`, `%LOCALAPPDATA%\Programs\Python\Launcher` | 3.13.x | no (an older all-users `py` launcher already on the PC can prompt, because the installer upgrades it in place) |
+| `claude` | `executable('claude-cli')` resolves (`src/core/cli.ts`) | `irm https://claude.ai/install.ps1 \| iex` (native installer, `%USERPROFILE%\.local\bin\claude.exe`) inside `DefaultLogin.exclusive` (3.7) | latest | no |
+| `codex` | `executable('codex-cli')` resolves | `npm i -g @openai/codex` (after `node`; `%APPDATA%\npm`) | latest | no |
 | `env` | all three hold: CurrentUser execution policy allows local scripts; user PATH contains `%USERPROFILE%\.local\bin`; user variable `PYTHONUTF8=1` | set what is missing (3.5) | – | no |
 | `py-base` | `py -3.13 -m pip show` finds all of: openpyxl pypdf pdfplumber pymupdf pillow numpy requests beautifulsoup4 python-dotenv | `py -3.13 -m pip install <missing>` | latest | no |
 
@@ -68,20 +68,24 @@ The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-li
 | Python 3D | `py-3d` | pip show rhino3dm trimesh | pip install | latest |
 | Python 한글 문서 | `py-hwp` | pip show pyhwp | pip install | latest |
 | Rhino | `rhino` | `C:\Program Files\Rhino 8\System\Rhino.exe` exists | not installable: show "Rhino 8을 먼저 설치하세요" with a link; later Rhino items wait for it | 8 |
-| Rhino | `rhinomcp-plugin` | `%APPDATA%\McNeel\Rhinoceros\packages\8.0\rhinomcp\0.4.1.1\` exists | `C:\Program Files\Rhino 8\System\Yak.exe install rhinomcp 0.4.1.1` (**verify** syntax) | 0.4.1.1 |
+| Rhino | `rhinomcp-plugin` | `%APPDATA%\McNeel\Rhinoceros\packages\8.0\rhinomcp\0.4.1.1\` exists | `C:\Program Files\Rhino 8\System\Yak.exe install rhinomcp 0.4.1.1` | 0.4.1.1 |
 | Rhino | `rhinomcp-mcp` | user-scope MCP server `rhino` exists in `~/.claude.json` | `claude mcp add -s user rhino -e RHINO_MCP_HOST=127.0.0.1 -- uvx rhinomcp@0.4.1.1` | 0.4.1.1 |
-| Rhino | `cordyceps-plugin` | `%APPDATA%\McNeel\Rhinoceros\packages\8.0\cordyceps\1.5.0\Cordyceps.gha` exists | `Yak.exe install cordyceps 1.5.0` (**verify**) | 1.5.0 |
+| Rhino | `cordyceps-plugin` | `%APPDATA%\McNeel\Rhinoceros\packages\8.0\cordyceps\1.5.0\Cordyceps.gha` exists | `Yak.exe install cordyceps 1.5.0` | 1.5.0 |
 | Rhino | `cordyceps-mcp` | user-scope MCP server `cordyceps` exists | `claude mcp add -s user --transport http cordyceps http://127.0.0.1:26929/mcp` | – |
 | Rhino | `rhino-settings` | see 3.8 | see 3.8 | – |
-| Blender | `blender` | `blender.exe --version` reports 5.2.3 | winget `BlenderFoundation.Blender --version 5.2.3` (**verify**), fallback `https://download.blender.org/release/Blender5.2/blender-5.2.3-windows-x64.msi` | 5.2.3 |
-| Blender | `blender-mcp-addon` | addon file present under `%APPDATA%\Blender Foundation\Blender\5.2\scripts\addons\` and enabled in user prefs | fetch the add-on of the pinned blender-mcp release; `blender -b --factory-startup --python-expr` installs, enables, saves user prefs | 1.5.5 (**verify** add-on matches server) |
-| Blender | `blender-mcp` | user-scope MCP server `blender` exists | `claude mcp add -s user blender -- uvx blender-mcp@1.5.5` | 1.5.5 |
+| Blender | `blender` | `C:\Program Files\Blender Foundation\Blender 5.2\blender.exe --version` reports 5.2.3 | winget `BlenderFoundation.Blender --version 5.2.3`, fallback `https://download.blender.org/release/Blender5.2/blender-5.2.3-windows-x64.msi` with `msiexec /i <file> /passive` (elevates, machine scope only) | 5.2.3 |
+| Blender | `blender-mcp-addon` | `%APPDATA%\Blender Foundation\Blender\5.2\scripts\addons\blender_mcp_addon.py` present and enabled in user prefs | download `https://raw.githubusercontent.com/ahujasid/mcp-for-blender/15c775ff78264346a1d09089a799c52c2fd9f797/addon.py` (the commit whose server is byte-identical to PyPI 1.5.5; the project publishes no GitHub releases), check SHA-256 `82d709a542fd268ed8e0e1da4fa9632df65b912fea850380baf6c47ab45a88fb`, save it as `blender_mcp_addon.py`. Then `blender.exe -b --python-exit-code 1 --python-expr` runs `addon_install`, `addon_enable(module='blender_mcp_addon')`, sets its `telemetry_consent` preference to `False`, and runs `wm.save_userpref`. Never `--factory-startup`: Blender then skips reading the user's prefs and the save overwrites them with factory values. **verify** this command in one real run (T-045) | 1.5.5 |
+| Blender | `blender-mcp` | user-scope MCP server `blender` exists | `claude mcp add -s user blender -e DISABLE_TELEMETRY=true -- uvx blender-mcp@1.5.5` | 1.5.5 |
 
 Rules:
 
 - `dependsOn` gates order: `codex` after `node`; `py-*` after `python`; `*-mcp` after `claude` and, for uvx servers, `uv`; Rhino plugins after `rhino`; Blender add-on after `blender`.
 - An item already installed with a different version than pinned shows **버전 다름** with the found version. Auto mode does not downgrade or replace a user's existing install, except the MCP registrations, which are re-added only after the user confirms.
-- Downloads come only from the hosts named in this table, winget, npm, PyPI, and GitHub releases of the named projects.
+- Every winget install runs `<winget> install --id <id> -e --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity` plus the arguments in the table. `--version` takes an exact version only (`24` and `24.*` are refused), and `OpenJS.NodeJS.LTS` without it installs Node 26. There is no `OpenJS.NodeJS.24`.
+- winget missing or failing moves to the fallback in the table, except after `ELEVATION_DECLINED` (3.6).
+- `BlenderFoundation.Blender` declares `UpgradeBehavior: uninstallPrevious`, so winget may remove another installed Blender. When a different Blender version is found, its install button warns about this first.
+- blender-mcp telemetry stays off. Its server defaults to on and sends data to the project's own database; its add-on defaults to consent for prompts, code and screenshots; its terms allow indefinite retention and AI training. The `-e` flag and the preference in the table turn both off. A user can turn them on later.
+- Downloads come only from: winget and the installer URLs of its manifests (`nodejs.org`, `www.python.org`, `github.com` with `release-assets.githubusercontent.com`, `download.blender.org`), npm, PyPI, `yak.rhino3d.com`, `claude.ai` and its redirect `downloads.claude.ai`, `astral.sh` and its redirect `releases.astral.sh` (the script can also use `github.com/astral-sh/uv`), and `raw.githubusercontent.com` for the one pinned add-on commit.
 
 ### 3.4 Engine
 
@@ -114,18 +118,26 @@ After every install item, and before every check:
 
 ### 3.6 Elevation
 
-Items with `mayElevate` show "권한 확인 창이 뜨면 '예'를 누르세요. 창이 안 보이면 작업 표시줄을 확인하세요." while running. A declined prompt (installer exit code for cancelled elevation, **verify** per installer) ends the item as `failed` with reason `ELEVATION_DECLINED` and the message "권한 확인에서 '아니요'를 눌렀어요". Prefer user-scope installs where a package offers them.
+Items with `mayElevate` show "권한 확인 창이 뜨면 '예'를 누르세요. 창이 안 보이면 작업 표시줄을 확인하세요." while running. A declined prompt ends the item as `failed` with reason `ELEVATION_DECLINED` and the message "권한 확인에서 '아니요'를 눌렀어요", and does not start the fallback. Prefer user-scope installs where a package offers them.
+
+Exit codes that mean declined, as a Node child process reports them:
+
+| Command | Exit code |
+|---|---|
+| winget, any package | `2316632332` (`0x8A15010C`, `INSTALL_CANCELLED_BY_USER`); winget maps MSI and bundle `1602` and Inno `2` and `5` to it |
+| Git fallback (Inno Setup) | `2` |
+| Node and Blender MSI fallback through `msiexec`, Python fallback bundle | `1602` or `1223` (**verify** by pressing 아니요 once on a real prompt, T-047) |
 
 ### 3.7 Writes to the Claude config
 
-`claude mcp add` and `claude mcp get` run inside `DefaultLogin.exclusive('claude-cli', …)` so they never overlap an account switch or a token refresh, both of which rewrite `~/.claude.json` under Claude Code's locks. They run without `CLAUDE_CONFIG_DIR` (the user's own `~/.claude`), which is the folder every terminal uses whichever account is in use.
+`claude mcp add` and `claude mcp get` run inside `DefaultLogin.exclusive('claude-cli', …)` so they never overlap an account switch or a token refresh, both of which rewrite `~/.claude.json` under Claude Code's locks. They run without `CLAUDE_CONFIG_DIR` (the user's own `~/.claude`), which is the folder every terminal uses whichever account is in use. The `claude` install item runs inside the same lock, because `install.ps1` ends by running `claude.exe install` and **verify** whether that step writes `~/.claude.json` (T-042).
 
 ### 3.8 Rhino settings (accepted 2026-11-06)
 
 `rhino-settings` item, part of the Rhino group, four parts. It runs only while no `Rhino.exe` is running, because Rhino rewrites its settings file when it exits and would undo the change (otherwise `needs-user`: "Rhino를 닫고 다시 시도하세요"). Only the `Default` scheme file is edited; other schemes are left alone. A backup of the file is written next to it (`.accountswitch-bak`) before the first change.
 
 1. **Read-only warning on.** `%APPDATA%\McNeel\Rhinoceros\8.0\settings\settings-Scheme__Default.xml`, `<child key="FileSettings">` → `<entry key="EnableFileLockingOpenWarning">True</entry>` (measured: the entry exists and was `False` on the development PC). Without it Rhino opens a locked file read-only without telling the user (ADR-003).
-2. **`mcpstart` at Rhino start**, so rhinomcp listens without a manual command. This is Rhino's "run these commands every time Rhino starts" list in the same file. **verify** the exact element: set the list once in Rhino Options with Rhino closed afterwards, diff the file, then write the same element. Existing commands in the list are kept; `_mcpstart` is appended once.
+2. **`mcpstart` at Rhino start**, so rhinomcp listens without a manual command. This is Rhino's "run these commands every time Rhino starts" list in the same file. **verify** the exact element: set the list once in Rhino Options with Rhino closed afterwards, diff the file, then write the same element. The likely name is `StartupCommands` (strings in `RhinoCore.dll`); no such entry exists in the file while the list is empty. Existing commands in the list are kept; `_mcpstart` is appended once.
 3. **Grasshopper starter file** `Documents\AccountSwitch\cordyceps-start.gh` holding one Cordyceps component. Cordyceps has no auto start (measured: no assembly-priority or idle hook; its HTTP server starts when the component solves on a canvas). The file is made once from a real Grasshopper session and shipped as a template. With rhinomcp running, Claude can open it itself (`-_Grasshopper _Document _Open "<path>" _Enter` through rhinomcp `run_command`), which starts Cordyceps.
 4. **Tool-role note** appended to `~/.claude/CLAUDE.md` (created if missing): Rhino document scripts and measurements through `rhino`, Grasshopper and viewport looks through `cordyceps`, open the starter file to start Cordyceps, never kill Rhino by process name. Only the text between `<!-- accountswitch:start -->` and `<!-- accountswitch:end -->` is ever written or replaced.
 

@@ -18,3 +18,6 @@ The wizard targets a fresh Windows PC with no developer tools. winget ships with
 
 - Pins must be bumped deliberately in the manifest and SPEC together.
 - Fallback download URLs need upkeep when publishers move files.
+- Node is pinned to an exact 24.x because winget has no 24-only id, `OpenJS.NodeJS.LTS` moved to 26 on 2026-10-28, and `--version` accepts only exact versions.
+- The blender-mcp add-on is pinned by commit and SHA-256 because the project publishes no GitHub releases and its repository was renamed `mcp-for-blender`.
+- Git and Python gained fallback URLs because Windows Sandbox has no winget, so M3 could not otherwise pass there.
