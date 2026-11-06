@@ -13,6 +13,8 @@ import { providers } from '../core/providers.ts';
 import { executable, status } from '../core/cli.ts';
 import { DefaultLogin } from '../core/default-login.ts';
 import { AutoSwitch } from '../core/auto-switch.ts';
+import { SetupService } from '../core/setup/service.ts';
+import type { CheckDeps } from '../core/setup/checks.ts';
 
 // A local web app on 127.0.0.1 only. The page gets a session cookie from the one-time token in
 // its launch link (#token); every API call needs that cookie and, for writes, this origin.
@@ -81,9 +83,11 @@ export interface Options {
   /** Where account folders and settings live. */
   directory: string;
   port?: number;
+  /** Replaces parts of the setup checks, so tests start no real programs. */
+  setupChecks?: Partial<CheckDeps>;
 }
 
-export async function startServer({ directory, port = 0 }: Options) {
+export async function startServer({ directory, port = 0, setupChecks }: Options) {
   const accountLogin = new AccountLogin();
   const profiles = new AccountProfiles(join(directory, 'profiles'), (p) => accountLogin.busy(p));
   const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
@@ -103,6 +107,11 @@ export async function startServer({ directory, port = 0 }: Options) {
         return defaultLogin.refresh(p, folder, globalThis.fetch);
       }),
   });
+  const setup = new SetupService(
+    directory,
+    (task) => defaultLogin.exclusive('claude-cli', task),
+    setupChecks,
+  );
   const bootstrap = randomBytes(32).toString('base64url');
   const session = randomBytes(32).toString('base64url');
   let authority = '';
@@ -358,6 +367,19 @@ export async function startServer({ directory, port = 0 }: Options) {
             })),
           ),
         );
+        return;
+      }
+      if (url.pathname === '/api/v1/setup' && request.method === 'GET') {
+        send(200, await setup.overview());
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/check' && request.method === 'POST') {
+        // The body is optional: { record: true } when the user chose 점검만 (see SetupService.check).
+        const input = z
+          .object({ record: z.boolean().optional() })
+          .strict()
+          .parse(request.headers['content-type'] ? await body(request) : {});
+        send(200, await setup.check(input));
         return;
       }
       throw new DomainError('NOT_FOUND');
