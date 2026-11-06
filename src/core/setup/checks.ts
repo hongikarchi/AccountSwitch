@@ -39,34 +39,19 @@ export interface CheckDeps {
   executable: (provider: 'claude-cli' | 'codex-cli') => string | undefined;
   /** `DefaultLogin.exclusive('claude-cli', task)`: one at a time with account switches. */
   exclusive: <T>(task: () => Promise<T>) => Promise<T>;
-  /** Where `claude mcp get` runs: a folder with no project-level MCP servers of its own. */
-  cwd: string;
   /** How many commands may run at once. */
   concurrency: number;
-  timeouts: { commandMs: number; pipMs: number; mcpMs: number; mcpLockWaitMs: number };
+  timeouts: { commandMs: number; pipMs: number; mcpLockWaitMs: number };
 }
 
 export const DEFAULT_TIMEOUTS: CheckDeps['timeouts'] = {
   commandMs: 15000,
   pipMs: 30000,
-  mcpMs: 30000,
   mcpLockWaitMs: 60000,
 };
 
-/**
- * `claude mcp get` starts a registered stdio server to health-check it, and waits 30 s for one that
- * does not answer (measured). The lock is held meanwhile, so it is told to give up early; the scope
- * line is printed either way.
- */
-const MCP_HEALTH_TIMEOUT_MS = '5000';
-/**
- * That started server inherits this command's environment (measured). blender-mcp sends data unless
- * told not to (SPEC 3.3), and a look at a registration made elsewhere must not switch that on.
- */
-const MCP_CHECK_ENV = { MCP_TIMEOUT: MCP_HEALTH_TIMEOUT_MS, DISABLE_TELEMETRY: 'true' };
-
 export function realCheckDeps(
-  options: Pick<CheckDeps, 'exclusive' | 'cwd'> & Partial<CheckDeps>,
+  options: Pick<CheckDeps, 'exclusive'> & Partial<CheckDeps>,
 ): CheckDeps {
   return {
     platform: process.platform,
@@ -122,14 +107,30 @@ const packageKey = (name: string) =>
 /** Newest first, comparing the numbers in version names. */
 const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric: true });
 
-/** Only what the checks need from `claude mcp get`. The rest may hold secrets and is dropped. */
-export function parseMcpGet(stdout: string) {
-  const line = (name: string) => new RegExp(`^\\s*${name}:[ \\t]*(.*)$`, 'mi').exec(stdout)?.[1];
+/**
+ * A user-scope server in ~/.claude.json, where `claude mcp add -s user` puts it. Only what the checks
+ * need: `env` and `headers` may hold secrets and are dropped here. Undefined: not registered. Null:
+ * the file cannot be understood. `claude mcp get` would tell the same, but it starts the server.
+ */
+export function userMcpServer(config: Buffer, name: string) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(config.toString('utf8').replace(/^\uFEFF/, ''));
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== 'object') return null;
+  const servers = (parsed as { mcpServers?: unknown }).mcpServers;
+  if (!servers || typeof servers !== 'object' || !Object.hasOwn(servers, name)) return undefined;
+  const server = (servers as Record<string, unknown>)[name];
+  if (!server || typeof server !== 'object') return undefined;
+  const { command, args, url } = server as { command?: unknown; args?: unknown; url?: unknown };
   return {
-    userScope: /^user\b/i.test(line('Scope') ?? ''),
     /** The command line of a stdio server. */
-    command: [line('Command'), line('Args')].filter(Boolean).join(' '),
-    url: line('URL')?.trim(),
+    command: [command, ...(Array.isArray(args) ? args : [])]
+      .filter((part) => typeof part === 'string')
+      .join(' '),
+    url: typeof url === 'string' ? url.trim() : undefined,
   };
 }
 
@@ -335,29 +336,17 @@ async function checkMcp(
   context: Context,
   spec: Extract<CheckSpec, { kind: 'mcp' }>,
 ): Promise<Outcome> {
-  const program = context.deps.executable('claude-cli');
-  if (!program) return { status: 'missing' };
-  // Not `context.run`: these go one at a time through the lock, and need no slot on top of that.
-  const result: CommandResult | undefined = await insideLock(context.deps, () =>
-    context.deps.run({
-      program,
-      args: ['mcp', 'get', spec.name],
-      timeoutMs: context.deps.timeouts.mcpMs,
-      cwd: context.deps.cwd,
-      // No CLAUDE_CONFIG_DIR: the user's own ~/.claude, which every terminal uses (SPEC 3.7).
-      env: { ...context.childEnv, ...MCP_CHECK_ENV },
-    }),
-  );
-  if (!result) return { status: 'timeout', message: '계정 전환이 끝나지 않아 확인하지 못했어요.' };
-  if (result.timedOut) return { status: 'timeout', message: STUCK };
-  if (result.spawnError) return { status: 'error', message: 'Claude Code를 실행하지 못했어요.' };
-  if (result.code !== 0)
-    return /no mcp server/i.test(result.stderr + result.stdout)
-      ? { status: 'missing' }
-      : { status: 'error', message: 'Claude Code가 등록 정보를 알려주지 못했어요.' };
-  const server = parseMcpGet(result.stdout);
-  if (!server.userScope)
-    return { status: 'missing', message: '이 PC 전체가 아닌 다른 범위에 등록되어 있어요.' };
+  if (!context.deps.executable('claude-cli')) return { status: 'missing' };
+  // Inside the lock so the read never meets an account switch rewriting the file (SPEC 3.7).
+  const read = await insideLock(context.deps, async () => ({
+    config: context.deps.readFile(win32.join(context.deps.home, '.claude.json')),
+  }));
+  if (!read) return { status: 'timeout', message: '계정 전환이 끝나지 않아 확인하지 못했어요.' };
+  if (!read.config) return { status: 'missing' };
+  const server = userMcpServer(read.config, spec.name);
+  if (server === null)
+    return { status: 'error', message: 'Claude Code 설정 파일을 읽지 못했어요.' };
+  if (!server) return { status: 'missing' };
   if (spec.url && server.url !== spec.url)
     return { status: 'version-mismatch', message: '다른 주소로 등록되어 있어요.' };
   if (spec.package) {

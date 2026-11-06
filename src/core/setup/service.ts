@@ -18,7 +18,7 @@ export class SetupService {
     overrides: Partial<CheckDeps> = {},
   ) {
     this.directory = directory;
-    this.deps = realCheckDeps({ exclusive, cwd: directory, ...overrides });
+    this.deps = realCheckDeps({ exclusive, ...overrides });
   }
 
   async overview(): Promise<SetupOverview> {

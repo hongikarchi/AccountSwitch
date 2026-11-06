@@ -5,7 +5,7 @@ import {
   blendListsModule,
   DEFAULT_TIMEOUTS,
   findPackage,
-  parseMcpGet,
+  userMcpServer,
   refreshEnginePath,
   runChecks,
   versionMatches,
@@ -23,13 +23,11 @@ const ok = (stdout = '') => ({ code: 0, stdout, stderr: '', timedOut: false });
 const fail = (stderr = '', code = 1) => ({ code, stdout: '', stderr, timedOut: false });
 const timedOut = () => ({ code: null, stdout: '', stderr: '', timedOut: true });
 
-const mcpOutput = (args, extra = '') =>
-  `name:\n  Scope: User config (available in all your projects)\n  Status: ✓ Connected\n` +
-  `  Type: stdio\n  Command: uvx\n  Args: ${args}\n  Environment:\n    TOKEN=${SECRET}\n${extra}\n` +
-  `To remove this server, run: claude mcp remove name -s user\n`;
-const mcpHttp = (url) =>
-  `name:\n  Scope: User config (available in all your projects)\n  Status: ✘ Failed to connect\n` +
-  `  Type: http\n  URL: ${url}\n  Headers:\n    Authorization: Bearer ${SECRET}\n`;
+const CLAUDE_CONFIG = `${HOME}\\.claude.json`;
+const mcpConfig = (servers, over = {}) =>
+  JSON.stringify({ oauthAccount: { emailAddress: SECRET }, mcpServers: servers, ...over });
+const uvx = (pkg) => ({ type: 'stdio', command: 'uvx', args: [pkg], env: { TOKEN: SECRET } });
+const http = (url) => ({ type: 'http', url, headers: { Authorization: `Bearer ${SECRET}` } });
 
 const snapshot = (over = {}) => ({
   machinePath: 'C:\\Windows\\System32;C:\\Tools',
@@ -65,7 +63,6 @@ function fakePc({ files = [], folders = {}, contents = {}, answers = {}, snap = 
       OPENAI_API_KEY: 'k',
     },
     home: HOME,
-    cwd: 'C:\\data',
     concurrency: 6,
     timeouts: DEFAULT_TIMEOUTS,
     exists: (path) => fileSet.has(path),
@@ -314,111 +311,82 @@ test('the Rhino check only looks at a file and never starts Rhino', async () => 
   assert.ok(!calls.some((call) => /rhino|yak/i.test(call.program)));
 });
 
-function mcpPc(answer) {
+function mcpPc(config) {
   const pc = fakePc({
-    answers: { claude: (args) => (args[0] === 'mcp' ? answer(args[2]) : ok('2.1.5')) },
+    contents: config === undefined ? {} : { [CLAUDE_CONFIG]: config },
+    answers: { claude: () => ok('2.1.5') },
   });
   pc.deps.executable = (provider) => (provider === 'claude-cli' ? 'C:\\c\\claude.exe' : undefined);
   return pc;
 }
 
-test('MCP checks: inside the lock, one at a time, the own login, no secret comes back', async () => {
-  const pc = mcpPc((name) =>
-    name === 'rhino'
-      ? ok(mcpOutput('rhinomcp@0.4.1.1'))
-      : name === 'cordyceps'
-        ? ok(mcpHttp('http://127.0.0.1:26929/mcp'))
-        : ok(mcpOutput('blender-mcp@1.5.5')),
+test('MCP checks: the file is read inside the lock, no server starts, no secret comes back', async () => {
+  const pc = mcpPc(
+    mcpConfig({
+      rhino: uvx('rhinomcp@0.4.1.1'),
+      cordyceps: http('http://127.0.0.1:26929/mcp'),
+      blender: uvx('blender-mcp@1.5.5'),
+    }),
   );
   let inLock = 0;
-  let most = 0;
   const seenInLock = [];
-  const { run } = pc.deps;
+  const { readFile } = pc.deps;
+  pc.deps.readFile = (path) => {
+    if (path === CLAUDE_CONFIG) seenInLock.push(inLock);
+    return readFile(path);
+  };
   pc.deps.exclusive = async (task) => {
     inLock++;
-    most = Math.max(most, inLock);
     try {
       return await task();
     } finally {
       inLock--;
     }
   };
-  pc.deps.run = async (request) => {
-    if (request.args[0] === 'mcp') seenInLock.push(inLock);
-    await new Promise((resolve) => setTimeout(resolve, 1));
-    return run(request);
-  };
-  // A real exclusive is a queue; here it is one at a time because the checks await it in turn only
-  // if they share a queue, so give the fake one.
-  let queue = Promise.resolve();
-  const inner = pc.deps.exclusive;
-  pc.deps.exclusive = (task) => {
-    const next = queue.then(() => inner(task));
-    queue = next.catch(() => {});
-    return next;
-  };
   const report = await runChecks(pc.deps);
   assert.equal(statusOf(report, 'rhinomcp-mcp').status, 'installed');
   assert.equal(statusOf(report, 'rhinomcp-mcp').foundVersion, '0.4.1.1');
   assert.equal(statusOf(report, 'cordyceps-mcp').status, 'installed');
   assert.equal(statusOf(report, 'blender-mcp').status, 'installed');
-  assert.deepEqual(seenInLock, [1, 1, 1]);
-  assert.equal(most, 1);
-  const calls = pc.calls.filter((call) => call.args[0] === 'mcp');
-  assert.deepEqual(calls.map((call) => call.args.join(' ')).sort(), [
-    'mcp get blender',
-    'mcp get cordyceps',
-    'mcp get rhino',
-  ]);
-  for (const call of calls) {
-    assert.equal(call.env.CLAUDE_CONFIG_DIR, undefined);
-    assert.equal(call.env.ANTHROPIC_API_KEY, undefined);
-    assert.equal(call.env.OPENAI_API_KEY, undefined);
-    assert.equal(call.cwd, 'C:\\data');
-    assert.equal(call.env.MCP_TIMEOUT, '5000');
-    // The server `claude mcp get` starts to health-check it inherits this.
-    assert.equal(call.env.DISABLE_TELEMETRY, 'true');
-  }
+  assert.equal(seenInLock.length, 3);
+  assert.ok(seenInLock.every((depth) => depth >= 1));
+  // `claude mcp get` would start the server, and uvx could download it.
+  assert.equal(pc.calls.filter((call) => call.args[0] === 'mcp').length, 0);
+  assert.equal(pc.calls.filter((call) => /uvx/i.test(call.program)).length, 0);
   assert.doesNotMatch(JSON.stringify(report), new RegExp(SECRET));
 });
 
 test('MCP registrations that differ are 버전 다름 and say how', async () => {
-  const check = async (id, name, output) => {
-    const pc = mcpPc((asked) => (asked === name ? ok(output) : fail('No MCP server named "x".')));
-    return statusOf(await runChecks(pc.deps), id);
-  };
-  const old = await check('rhinomcp-mcp', 'rhino', mcpOutput('rhinomcp@0.4.0'));
+  const check = async (id, servers) =>
+    statusOf(await runChecks(mcpPc(mcpConfig(servers)).deps), id);
+  const old = await check('rhinomcp-mcp', { rhino: uvx('rhinomcp@0.4.0') });
   assert.equal(old.status, 'version-mismatch');
   assert.equal(old.foundVersion, '0.4.0');
-  const unpinned = await check('blender-mcp', 'blender', mcpOutput('blender-mcp'));
+  const unpinned = await check('blender-mcp', { blender: uvx('blender-mcp') });
   assert.equal(unpinned.status, 'version-mismatch');
   assert.match(unpinned.message, /고정/);
-  const other = await check('rhinomcp-mcp', 'rhino', mcpOutput('something-else'));
+  const other = await check('rhinomcp-mcp', { rhino: uvx('something-else') });
   assert.equal(other.status, 'version-mismatch');
   assert.match(other.message, /다른 방식/);
-  const address = await check('cordyceps-mcp', 'cordyceps', mcpHttp('http://127.0.0.1:1/mcp'));
+  const address = await check('cordyceps-mcp', { cordyceps: http('http://127.0.0.1:1/mcp') });
   assert.equal(address.status, 'version-mismatch');
   assert.doesNotMatch(JSON.stringify(address), /127\.0\.0\.1:1/);
 });
 
-test('an MCP server that is absent, in another scope, or broken gets its own status', async () => {
-  const check = async (answer) => {
-    const pc = mcpPc(answer);
-    return statusOf(await runChecks(pc.deps), 'rhinomcp-mcp');
-  };
-  const absent = await check(() => fail('No MCP server named "rhino". Configured servers: x'));
-  assert.equal(absent.status, 'missing');
-  const local = await check(() =>
-    ok('rhino:\n  Scope: Local config (private)\n  Args: rhinomcp@0.4.1.1\n'),
-  );
-  assert.equal(local.status, 'missing');
-  assert.match(local.message, /범위/);
-  assert.equal((await check(() => timedOut())).status, 'timeout');
-  assert.equal((await check(() => fail('something else broke'))).status, 'error');
+test('an MCP server that is absent, in another scope, or unreadable gets its own status', async () => {
+  const check = async (config) => statusOf(await runChecks(mcpPc(config).deps), 'rhinomcp-mcp');
+  assert.equal((await check(undefined)).status, 'missing');
+  assert.equal((await check(mcpConfig({ other: uvx('x') }))).status, 'missing');
+  assert.equal((await check(JSON.stringify({ numStartups: 1 }))).status, 'missing');
+  const local = JSON.stringify({
+    projects: { 'C:/work': { mcpServers: { rhino: uvx('rhinomcp@0.4.1.1') } } },
+  });
+  assert.equal((await check(local)).status, 'missing');
+  assert.equal((await check('{ not json')).status, 'error');
 });
 
-test('without Claude Code the MCP checks start nothing and take no lock', async () => {
-  const { deps, calls } = fakePc();
+test('without Claude Code the MCP checks read nothing and take no lock', async () => {
+  const { deps, calls } = fakePc({ contents: { [CLAUDE_CONFIG]: mcpConfig({}) } });
   let locked = 0;
   deps.exclusive = (task) => {
     locked++;
@@ -430,19 +398,25 @@ test('without Claude Code the MCP checks start nothing and take no lock', async 
   assert.equal(calls.filter((call) => call.args[0] === 'mcp').length, 0);
 });
 
-test('a lock that never frees gives a timeout; a task that starts later runs nothing', async () => {
-  const pc = mcpPc(() => ok(mcpOutput('rhinomcp@0.4.1.1')));
+test('a lock that never frees gives a timeout; a task that starts later reads nothing', async () => {
+  const pc = mcpPc(mcpConfig({ rhino: uvx('rhinomcp@0.4.1.1') }));
   const late = [];
   pc.deps.exclusive = (task) =>
     new Promise((resolve) => {
       late.push(() => task().then(resolve));
     });
   pc.deps.timeouts = { ...DEFAULT_TIMEOUTS, mcpLockWaitMs: 5 };
+  let reads = 0;
+  const { readFile } = pc.deps;
+  pc.deps.readFile = (path) => {
+    if (path === CLAUDE_CONFIG) reads++;
+    return readFile(path);
+  };
   const report = await runChecks(pc.deps);
   assert.equal(statusOf(report, 'rhinomcp-mcp').status, 'timeout');
   assert.match(statusOf(report, 'rhinomcp-mcp').message, /계정 전환/);
   await Promise.all(late.map((start) => start()));
-  assert.equal(pc.calls.filter((call) => call.args[0] === 'mcp').length, 0);
+  assert.equal(reads, 0);
 });
 
 test('Blender runs only from its known folder, only --version', async () => {
@@ -629,12 +603,18 @@ test('versionMatches knows latest, a series, and an exact version', () => {
   assert.equal(versionMatches('5.2.3', '5.2.30'), false);
 });
 
-test('parseMcpGet keeps only what the checks need', () => {
-  const parsed = parseMcpGet(mcpOutput('rhinomcp@0.4.1.1'));
-  assert.equal(parsed.userScope, true);
-  assert.equal(parsed.command, 'uvx rhinomcp@0.4.1.1');
-  assert.doesNotMatch(JSON.stringify(parsed), new RegExp(SECRET));
-  assert.equal(parseMcpGet('x:\n  Scope: Project config\n').userScope, false);
+test('userMcpServer keeps only what the checks need', () => {
+  const config = Buffer.from(
+    mcpConfig({ rhino: uvx('rhinomcp@0.4.1.1'), web: http(' http://a/ ') }),
+  );
+  const stdio = userMcpServer(config, 'rhino');
+  assert.deepEqual(stdio, { command: 'uvx rhinomcp@0.4.1.1', url: undefined });
+  assert.doesNotMatch(JSON.stringify(stdio), new RegExp(SECRET));
+  assert.deepEqual(userMcpServer(config, 'web'), { command: '', url: 'http://a/' });
+  assert.equal(userMcpServer(config, 'nothing'), undefined);
+  assert.equal(userMcpServer(config, 'constructor'), undefined);
+  assert.equal(userMcpServer(Buffer.from('nope'), 'rhino'), null);
+  assert.equal(userMcpServer(Buffer.from('\uFEFF{"mcpServers":{}}'), 'rhino'), undefined);
 });
 
 test('findPackage finds a name as a whole word, with or without a version', () => {

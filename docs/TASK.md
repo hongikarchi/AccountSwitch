@@ -26,12 +26,12 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 
 ## M2 Setup checks
 
-- [ ] T-030 `src/core/setup/manifest.ts` with every item of SPEC 3.3 (ids, labels, groups, dependsOn, pins, mayElevate).
-- [ ] T-031 Checks for each item; registry PATH re-read (SPEC 3.5); unit tests with fake command runners.
-- [ ] T-032 Endpoints `GET /api/v1/setup`, `POST /api/v1/setup/check`; server tests.
+- [x] T-030 `src/core/setup/manifest.ts` with every item of SPEC 3.3 (ids, labels, groups, dependsOn, pins, mayElevate).
+- [x] T-031 Checks for each item; registry PATH re-read (SPEC 3.5); unit tests with fake command runners. MCP checks read `~/.claude.json` instead of running `claude mcp get`, which starts the server (SPEC 3.7).
+- [x] T-032 Endpoints `GET /api/v1/setup`, `POST /api/v1/setup/check`; server tests.
 - [ ] T-033 설치 tab: first screen (two modes), stepper per DESIGN §5.6 rendering check results.
-- [ ] T-034 Auto-open rule (SPEC 3.1) and `setup-state.json`.
-- [ ] T-035 Verify check results on this PC; record which items report 버전 다름 and why.
+- [~] T-034 Auto-open rule (SPEC 3.1) and `setup-state.json`. Engine half done; the page half remains.
+- [x] T-035 Verify check results on this PC; record which items report 버전 다름 and why. 2026-11-06: no item reports 버전 다름; a run takes under a second and left `~/.claude.json` untouched. Node 24.15.0 passes against pin 24.22.1 because any 24.x is accepted; `python` is missing because only 3.14 is reachable through `py`. The Sandbox half of M2 still waits for T-048.
 
 ## M3 Installs
 

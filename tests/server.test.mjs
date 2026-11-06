@@ -146,6 +146,8 @@ test('the launcher routes need the session and origin; open never starts a real 
     else process.env.ACCOUNTSWITCH_CLAUDE_PATH = saved;
     await app.close();
     await rm(directory, { recursive: true, force: true });
+  }
+});
 
 /** A server whose setup checks see a pretend PC: nothing real starts and PATH stays as it is. */
 async function setupServer(setupChecks) {

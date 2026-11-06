@@ -56,7 +56,7 @@ export type CheckSpec =
   | { kind: 'file'; path: string }
   /** `<root>\<version>[\<marker>]` must exist; another version folder means 버전 다름. */
   | { kind: 'versioned-folder'; root: string; version: string; marker?: string }
-  /** `claude mcp get <name>` inside DefaultLogin.exclusive (SPEC 3.7). */
+  /** A user-scope server in `~/.claude.json`, read inside DefaultLogin.exclusive (SPEC 3.7). */
   | {
       kind: 'mcp';
       name: string;
@@ -255,4 +255,45 @@ export interface SetupOverview {
   /** Whether an install run is active. Always false until the runner exists (T-040). */
   runActive: boolean;
   autoOpen: AutoOpen;
+}
+
+export type RunItemStatus = 'pending' | 'running' | 'done' | 'failed' | 'skipped' | 'needs-user';
+
+export interface RunItemProgress {
+  id: string;
+  status: RunItemStatus;
+  /** A plain Korean sentence for the user. */
+  message?: string;
+  /** Why it failed, for code: `ELEVATION_DECLINED` (SPEC 3.6), `TIMEOUT`, `HASH_MISMATCH`, ... */
+  reason?: string;
+  foundVersion?: string;
+  startedAt?: string;
+  finishedAt?: string;
+}
+
+/**
+ * - `running`: an item is being installed.
+ * - `waiting`: stopped on a failed item until skip, retry or cancel.
+ * - `finished`, `cancelled`: over; a new run may start.
+ */
+export type RunPhase = 'running' | 'waiting' | 'finished' | 'cancelled';
+
+/** GET /api/v1/setup/run returns `{ run: RunProgress | null }`. */
+export interface RunProgress {
+  phase: RunPhase;
+  mode: SetupMode;
+  /** The current command is being stopped (SPEC 3.4). */
+  cancelling: boolean;
+  /** In catalog order. */
+  items: RunItemProgress[];
+  startedAt: string;
+  finishedAt?: string;
+}
+
+/** POST /api/v1/setup/run */
+export interface RunRequest {
+  items: string[];
+  mode: SetupMode;
+  /** MCP items the user confirmed to register again (SPEC 3.3). */
+  replace?: string[];
 }

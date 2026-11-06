@@ -79,6 +79,8 @@ The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-li
 
 Rules:
 
+- `python` reports missing, not 버전 다름, when only another Python exists, because 3.13 installs alongside it.
+- `blender-mcp-addon` "enabled" is a read-only search of `userpref.blend` for the module name followed by NUL, so a check never starts Blender (**verify** that disabling the add-on removes the name, T-045).
 - `dependsOn` gates order: `codex` after `node`; `py-*` after `python`; `*-mcp` after `claude` and, for uvx servers, `uv`; Rhino plugins after `rhino`; Blender add-on after `blender`.
 - An item already installed with a different version than pinned shows **버전 다름** with the found version. Auto mode does not downgrade or replace a user's existing install, except the MCP registrations, which are re-added only after the user confirms.
 - Every winget install runs `<winget> install --id <id> -e --source winget --accept-source-agreements --accept-package-agreements --disable-interactivity` plus the arguments in the table. `--version` takes an exact version only (`24` and `24.*` are refused), and `OpenJS.NodeJS.LTS` without it installs Node 26. There is no `OpenJS.NodeJS.24`.
@@ -94,15 +96,17 @@ New module `src/core/setup/` (manifest, checks, runner) and endpoints:
 | Method, path | Does |
 |---|---|
 | `GET /api/v1/setup` | catalog, last check results, `setup-state.json`, whether a run is active |
-| `POST /api/v1/setup/check` | run all checks (read only), return results |
-| `POST /api/v1/setup/run` `{ items: string[] }` | start one run of the given items in catalog order; 409 if a run is active |
-| `GET /api/v1/setup/run` | progress: per item `pending`, `running`, `done`, `failed`, `skipped`, `needs-user`, with message, found version, start and end time |
+| `POST /api/v1/setup/check` | run all checks (read only), return results. Body `{ "record": true }` also writes `setup-state.json`; the page sends it when the user picks 점검만 |
+| `POST /api/v1/setup/run` `{ items: string[], mode: 'check' \| 'auto', replace?: string[] }` | start one run of the given items in catalog order; 409 if a run is active. `replace` names MCP items the user confirmed to re-add (3.3) |
+| `GET /api/v1/setup/run` | `{ run: RunProgress \| null }` (`src/core/setup/types.ts`): phase, and per item `pending`, `running`, `done`, `failed`, `skipped`, `needs-user`, with message, reason, found version, start and end time |
 | `POST /api/v1/setup/run/skip` `{ item }` | mark a failed item skipped and continue |
 | `POST /api/v1/setup/run/retry` `{ item }` | run a failed item again and continue |
 | `POST /api/v1/setup/cancel` | stop after the current command ends; kill it if it outlasts 30 s |
+| `GET /api/v1/setup/log` | `{ text }`: the end of today's log (64 KB at most), for 로그 보기 |
 
 - One run at a time. Commands run with `shell: false` where possible, `windowsHide: true`, a timeout per item (default 15 min), output captured to `logs\setup-YYYY-MM-DD.log` in the data folder. Logs never contain tokens or environment dumps.
-- A failed item stops the run (`failed`), and the page offers 다시 시도, 건너뛰기, 로그 보기.
+- A failed item stops the run (`failed`, phase `waiting`), and the page offers 다시 시도, 건너뛰기, 로그 보기. A run is active while its phase is `running` or `waiting`; `finished` and `cancelled` are not active.
+- A `needs-user` item (Rhino missing, Rhino running) does not stop the run. An item that depends on an item left `needs-user`, `failed` or `skipped` ends `skipped` with a message naming what it waits for, and the rest continue.
 - The page polls `GET /api/v1/setup/run` every second while a run is active, like sign-in polling today.
 
 ### 3.5 PATH and environment
@@ -130,7 +134,9 @@ Exit codes that mean declined, as a Node child process reports them:
 
 ### 3.7 Writes to the Claude config
 
-`claude mcp add` and `claude mcp get` run inside `DefaultLogin.exclusive('claude-cli', …)` so they never overlap an account switch or a token refresh, both of which rewrite `~/.claude.json` under Claude Code's locks. They run without `CLAUDE_CONFIG_DIR` (the user's own `~/.claude`), which is the folder every terminal uses whichever account is in use. The `claude` install item runs inside the same lock, because `install.ps1` ends by running `claude.exe install` and **verify** whether that step writes `~/.claude.json` (T-042).
+`claude mcp add` runs inside `DefaultLogin.exclusive('claude-cli', …)` so it never overlaps an account switch or a token refresh, both of which rewrite `~/.claude.json` under Claude Code's locks. It runs without `CLAUDE_CONFIG_DIR` (the user's own `~/.claude`), which is the folder every terminal uses whichever account is in use.
+
+Checks do not run `claude mcp get`: measured, it starts the registered server as a health check, so `uvx` may download and run a package during what the user was told is a read-only check. Checks read the top-level `mcpServers` of `~/.claude.json` inside the same lock instead, and keep only `command`, `args` and `url` of the named server. `env` and `headers` may hold secrets and are dropped at once; nothing else in the file is used. The `claude` install item runs inside the same lock, because `install.ps1` ends by running `claude.exe install` and **verify** whether that step writes `~/.claude.json` (T-042).
 
 ### 3.8 Rhino settings (accepted 2026-11-06)
 
