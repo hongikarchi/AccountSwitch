@@ -84,6 +84,10 @@ Superscript indices (`⁰¹`, `⁰²`) at 0.45 em, top-aligned, used in the them
 
 Left: logo mark (24 px black tile) + wordmark "AccountSwitch" (H2). Center-left: tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: **Claude Code 열기** (primary, Windows only), theme toggle. Header height 56 px, hairline below.
 
+Below 600 px the wordmark is hidden from view and stays in the page as the heading, so the logo tile keeps its accessible name "AccountSwitch". With the wordmark the row needs 598 px; without it the row of logo, tabs, button and toggle fits a 480 px window, the shell's minimum, in full and on one line. It never wraps, and nothing shrinks.
+
+The row has no room for a sentence. The launcher's disabled help and its failures sit on a line of their own directly under the hairline, so the header stays 56 px: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead, which would otherwise cover that line.
+
 ### 5.2 Theme toggle
 
 A pill 120 × 36 px. The track is `--inverse-bg`; a knob `--bg` 58 × 30 px slides between halves. Labels "Light⁰¹" and "Dark⁰²" (14 px, 500): the active label sits in the knob in `--text`, the other on the track in `--inverse-text` at 70 %. Knob moves with `transform` 260 ms `cubic-bezier(.2,.8,.2,1)`; the page colors cross-fade 200 ms. `role="switch"`, `aria-checked`, Korean `aria-label="화면 테마"`. With `prefers-reduced-motion`, no slide.
