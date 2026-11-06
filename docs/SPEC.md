@@ -153,12 +153,12 @@ In the data folder: `{ "version": 1, "mode": "check" | "auto", "finishedAt": ISO
 
 ## 4. Claude Code launcher
 
-- A **Claude Code 열기** button in the header (Windows desktop window only). Disabled with "설치 탭에서 Claude Code를 먼저 설치하세요" when `claude` is missing.
+- A **Claude Code 열기** button in the header (Windows only, in the desktop window and in a browser). Disabled with "설치 탭에서 Claude Code를 먼저 설치하세요" when `claude` is missing.
 - Pressing it opens a split menu: **폴더 선택…** and up to 8 recent folders (most recent first, missing folders dropped).
 - 폴더 선택 opens the system folder dialog from the shell (`IFileOpenDialog` with `FOS_PICKFOLDERS`, the same dialog VS Code uses), not the old tree dialog.
 - Launch: `cmd.exe /K` with `WorkingDirectory` set to the folder and the resolved `claude.exe` path as the command, so no `cd` is needed and the window stays open after `claude` exits. Window title `Claude Code - <folder name>`. The terminal uses the login currently in use (the 사용 account).
 - Page to shell: WebView2 `window.chrome.webview.postMessage({ type: 'claude.open', folder?: string })`; the shell shows the dialog when `folder` is absent, launches, and posts back `{ type: 'claude.opened', folder }`, `{ type: 'claude.cancelled' }` (the user closed the dialog; show nothing) or `{ type: 'claude.failed', reason }`. The shell accepts messages only from the app's own page origin. The page stores recent folders through `POST /api/v1/launcher/recent` (data folder `launcher.json`).
-- In the browser (`npm start`), where there is no shell, the button opens a text field for a path plus the recent list, and the engine launches `cmd.exe` itself.
+- In the browser (`npm start`), where there is no shell, the button opens the same menu; 폴더 선택… replaces it with a text field for a path, and the engine launches `cmd.exe` itself.
 
 Engine routes (session cookie and origin rules as every other route):
 

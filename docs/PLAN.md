@@ -21,6 +21,8 @@ M1 goes first because the wizard screens are built from the same components. M2 
 
 - Run dev builds with `ACCOUNTSWITCH_DATA` pointing to a scratch folder. Do not press 사용 in a dev build unless the test is about switching: it changes the real `~/.claude` and `~/.codex` logins.
 - Do not run `npm run build:installer` output on this PC: it would replace the installed 0.2.1. Use the portable build in `release\app`.
+- The shell's single-instance mutex is per Windows session, not per data folder. While the installed copy runs, `release\app\AccountSwitch.exe` only brings the installed window forward, so the old version is on screen. Quit the installed copy from its tray menu first, and start it again afterwards.
+- At start the shell writes or deletes the Windows Run entry `AccountSwitch` from `desktop.json` in its data folder. A scratch data folder defaults to autostart off, so a dev window deletes a real entry; a copy of real data with autostart on points the entry at the dev build. Before a dev window on a PC with autostart on, note the entry and restore it afterwards.
 - Installs are tested in **Windows Sandbox** (Windows 11 Pro feature "Windows Sandbox"; enabling it needs an administrator and a restart, ask the user first). A `.wsb` file maps the portable build read-only. The sandbox resets on close.
 - Rhino cannot be licensed in the sandbox: there, test the "Rhino 8을 먼저 설치하세요" path; test plugin detection on this PC, where both plugins are installed.
 - Never kill Rhino or Blender by name (CLAUDE.md).

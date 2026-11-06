@@ -50,7 +50,7 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 
 - [~] T-050 Shell: `WebMessageReceived` handler, `IFileOpenDialog` folder picker, `cmd.exe /K` launch with title.
 - [x] T-051 Engine: `POST /api/v1/launcher/recent`, `launcher.json`; browser fallback launch.
-- [ ] T-052 Page: header button with recent-folder menu; disabled state when Claude Code is missing.
+- [~] T-052 Page: header button with recent-folder menu; disabled state when Claude Code is missing. Code done and checked with a faked shell; the real window, dialog and terminal still need a look by hand.
 
 ## M5 Logo and icons
 
