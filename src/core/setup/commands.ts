@@ -10,6 +10,8 @@ export interface CommandRequest {
   timeoutMs: number;
   env?: NodeJS.ProcessEnv;
   cwd?: string;
+  /** Aborting kills this command's own process tree, by its process id, and nothing else. */
+  signal?: AbortSignal;
 }
 export interface CommandResult {
   /** Exit code; null when it timed out or never started. */
@@ -19,6 +21,8 @@ export interface CommandResult {
   timedOut: boolean;
   /** Why it never started (`ENOENT`, `UNSAFE_SHIM`, ...). */
   spawnError?: string;
+  /** `signal` stopped it. */
+  cancelled?: boolean;
 }
 export type CommandRunner = (request: CommandRequest) => Promise<CommandResult>;
 
@@ -39,10 +43,12 @@ export function shimCommandLine(program: string, args: string[]) {
 }
 
 /** The real runner: no shell, no window, a timeout, and it never waits past that timeout. */
-export const runCommand: CommandRunner = ({ program, args, timeoutMs, env, cwd }) =>
+export const runCommand: CommandRunner = ({ program, args, timeoutMs, env, cwd, signal }) =>
   new Promise((resolve) => {
     const failed = (spawnError: string) =>
       resolve({ code: null, stdout: '', stderr: '', timedOut: false, spawnError });
+    if (signal?.aborted)
+      return resolve({ code: null, stdout: '', stderr: '', timedOut: false, cancelled: true });
     let file = program;
     let argv = args;
     let verbatim = false;
@@ -70,18 +76,29 @@ export const runCommand: CommandRunner = ({ program, args, timeoutMs, env, cwd }
     let stderr = '';
     let settled = false;
     let afterExit: NodeJS.Timeout | undefined;
-    const finish = (result: Pick<CommandResult, 'code' | 'timedOut' | 'spawnError'>) => {
+    const finish = (
+      result: Pick<CommandResult, 'code' | 'timedOut' | 'spawnError' | 'cancelled'>,
+    ) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       clearTimeout(afterExit);
+      signal?.removeEventListener('abort', cancel);
       resolve({ stdout, stderr, ...result });
     };
-    const timer = setTimeout(() => {
+    const stop = () => {
       void killOwnedProcess(child);
       child.stdout?.destroy();
       child.stderr?.destroy();
       child.unref();
+    };
+    const cancel = () => {
+      stop();
+      finish({ code: null, timedOut: false, cancelled: true });
+    };
+    signal?.addEventListener('abort', cancel, { once: true });
+    const timer = setTimeout(() => {
+      stop();
       finish({ code: null, timedOut: true });
     }, timeoutMs);
     child.stdout?.on('data', (chunk: Buffer) => {

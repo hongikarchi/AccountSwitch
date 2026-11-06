@@ -16,6 +16,7 @@ import { AutoSwitch } from '../core/auto-switch.ts';
 import { Launcher, type LauncherOptions } from '../core/launcher.ts';
 import { SetupService } from '../core/setup/service.ts';
 import type { CheckDeps } from '../core/setup/checks.ts';
+import type { InstallOverrides } from '../core/setup/install-deps.ts';
 
 // A local web app on 127.0.0.1 only. The page gets a session cookie from the one-time token in
 // its launch link (#token); every API call needs that cookie and, for writes, this origin.
@@ -88,9 +89,17 @@ export interface Options {
   launcherSpawn?: LauncherOptions['spawnProcess'];
   /** Replaces parts of the setup checks, so tests start no real programs. */
   setupChecks?: Partial<CheckDeps>;
+  /** Replaces the downloads and files of the installs; `setupChecks.run` starts their commands. */
+  setupInstall?: InstallOverrides;
 }
 
-export async function startServer({ directory, port = 0, launcherSpawn, setupChecks }: Options) {
+export async function startServer({
+  directory,
+  port = 0,
+  launcherSpawn,
+  setupChecks,
+  setupInstall,
+}: Options) {
   const launcher = new Launcher({
     file: join(directory, 'launcher.json'),
     spawnProcess: launcherSpawn,
@@ -118,6 +127,7 @@ export async function startServer({ directory, port = 0, launcherSpawn, setupChe
     directory,
     (task) => defaultLogin.exclusive('claude-cli', task),
     setupChecks,
+    setupInstall,
   );
   const bootstrap = randomBytes(32).toString('base64url');
   const session = randomBytes(32).toString('base64url');
@@ -406,6 +416,43 @@ export async function startServer({ directory, port = 0, launcherSpawn, setupChe
         send(200, await setup.check(input));
         return;
       }
+      if (url.pathname === '/api/v1/setup/run' && request.method === 'GET') {
+        send(200, { run: setup.runProgress() });
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/run' && request.method === 'POST') {
+        // Item ids are checked against the catalog by the runner.
+        const input = z
+          .object({
+            items: z.array(z.string().min(1).max(100)).min(1).max(100),
+            mode: z.enum(['check', 'auto']),
+            replace: z.array(z.string().min(1).max(100)).max(100).optional(),
+          })
+          .strict()
+          .parse(await body(request));
+        send(200, { run: setup.startRun(input) });
+        return;
+      }
+      if (
+        ['/api/v1/setup/run/skip', '/api/v1/setup/run/retry'].includes(url.pathname) &&
+        request.method === 'POST'
+      ) {
+        const { item } = z
+          .object({ item: z.string().min(1).max(100) })
+          .strict()
+          .parse(await body(request));
+        const run = url.pathname.endsWith('/skip') ? setup.skipItem(item) : setup.retryItem(item);
+        send(200, { run });
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/cancel' && request.method === 'POST') {
+        send(200, { run: setup.cancelRun() });
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/log' && request.method === 'GET') {
+        send(200, { text: setup.log() });
+        return;
+      }
       throw new DomainError('NOT_FOUND');
     } catch (error) {
       if (error instanceof DomainError) send(STATUS[error.code] ?? 409, { code: error.code });
@@ -431,6 +478,7 @@ export async function startServer({ directory, port = 0, launcherSpawn, setupChe
     launchUrl: `http://${authority}/#${bootstrap}`,
     close: async () => {
       autoSwitch.stop();
+      await setup.close().catch(() => {});
       await accountLogin.close().catch(() => {});
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
