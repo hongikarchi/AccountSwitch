@@ -43,6 +43,14 @@ The first screen of the wizard offers two choices:
 - **이미 세팅했어요 (점검만)**: run every check (read only), show the result, offer an install button per missing item. Nothing installs unless pressed.
 - **자동으로 설정해 주세요**: show the checklist with missing items checked (optional groups unchecked until the user ticks the group), then install the checked items in catalog order after one 시작 press.
 
+Rules for both modes:
+
+- 버전 다름 offers an install only for MCP items (다시 등록, sent in `replace` after a confirmation) and items with `warnIfOtherVersion` (Blender, after its warning). Any other different version has no install offer, because the app does not replace a user's install.
+- `timeout` and `error` mean the state is unknown, so they offer only 다시 확인, never an install.
+- An item the user has to install (`install.automatic: false`, Rhino) has no checkbox, only its link. It is part of the run when its group is ticked, and the runner reports it `needs-user`.
+- When `setup-state.json` exists, the tab skips the first screen and opens the checklist of its `mode`; 처음으로 goes back to the first screen.
+- Unticking a dependency leaves its dependents ticked, and each row says what it needs first. The runner decides what happens to them (3.4).
+
 ### 3.3 Item catalog (setup manifest)
 
 The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-line description, group, `dependsOn`, check, install, pinned version, `mayElevate`. The page renders from the catalog; adding an item does not need UI code.

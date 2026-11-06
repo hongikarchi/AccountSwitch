@@ -117,13 +117,16 @@ Vertical, after the reference stepper, in black and white:
 
 - Node 24 px circle on the left, connector 1 px between nodes.
 - Done: filled `--text` circle with a check in `--bg`; connector below it `--text`.
-- Running: 2 px `--text` ring with a slowly rotating arc; text column fully opaque.
+- Running: 2 px `--faint` ring with a slowly rotating `--text` arc, because an arc does not show on a `--text` ring; a static full `--text` ring with `prefers-reduced-motion`; text column fully opaque.
 - Pending: 1.5 px `--faint` ring; connector `--line`; text in `--muted`.
 - Failed: 2 px `--danger` ring with `!`; message in `--danger`; actions 다시 시도 (secondary), 건너뛰기 (text), 로그 보기 (text).
 - Needs user (e.g. Rhino missing): `--text` ring with an arrow; one link-style action.
+- 버전 다름: `--text` ring with `≠`. Unknown (no answer from a check): `--faint` ring with `?`. Skipped: `--faint` ring with `–`.
 - Each step: meta line (Small, muted: found version or time), title (H2), one-line description (Body, muted), group label above the first step of a group (Label).
-- Optional groups appear as one collapsed row with a checkbox until ticked.
-- Summary bar at the bottom: "8개 중 5개 완료" and the primary 시작 / 계속 button.
+- Optional groups appear as one collapsed row with a checkbox and a count ("6개 중 3개 설치됨") until ticked, even when partly installed, because opening one would check its missing items.
+- Each group is its own list, so connectors break between groups.
+- Summary bar at the bottom, sticking to the window's bottom edge: "8개 중 5개 완료" and the primary 시작 / 계속 button. A confirmation (Blender warning, MCP 다시 등록) is one inline panel above the bar, not a modal.
+- 처음으로 is a text button at the right of the checklist title, back to the first screen.
 
 The first screen of the wizard: Display title "이 PC를 준비할게요", two large choice rows (이미 세팅했어요 — 점검만 / 자동으로 설정해 주세요), each with one line of explanation.
 
