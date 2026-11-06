@@ -139,8 +139,37 @@ In the data folder: `{ "version": 1, "mode": "check" | "auto", "finishedAt": ISO
 - Pressing it opens a split menu: **폴더 선택…** and up to 8 recent folders (most recent first, missing folders dropped).
 - 폴더 선택 opens the system folder dialog from the shell (`IFileOpenDialog` with `FOS_PICKFOLDERS`, the same dialog VS Code uses), not the old tree dialog.
 - Launch: `cmd.exe /K` with `WorkingDirectory` set to the folder and the resolved `claude.exe` path as the command, so no `cd` is needed and the window stays open after `claude` exits. Window title `Claude Code - <folder name>`. The terminal uses the login currently in use (the 사용 account).
-- Page to shell: WebView2 `window.chrome.webview.postMessage({ type: 'claude.open', folder?: string })`; the shell shows the dialog when `folder` is absent, launches, and posts back `{ type: 'claude.opened', folder }` or `{ type: 'claude.failed', reason }`. The page stores recent folders through `POST /api/v1/launcher/recent` (data folder `launcher.json`).
+- Page to shell: WebView2 `window.chrome.webview.postMessage({ type: 'claude.open', folder?: string })`; the shell shows the dialog when `folder` is absent, launches, and posts back `{ type: 'claude.opened', folder }`, `{ type: 'claude.cancelled' }` (the user closed the dialog; show nothing) or `{ type: 'claude.failed', reason }`. The shell accepts messages only from the app's own page origin. The page stores recent folders through `POST /api/v1/launcher/recent` (data folder `launcher.json`).
 - In the browser (`npm start`), where there is no shell, the button opens a text field for a path plus the recent list, and the engine launches `cmd.exe` itself.
+
+Engine routes (session cookie and origin rules as every other route):
+
+| Method, path | Body | Answer |
+|---|---|---|
+| `GET /api/v1/launcher` | | `{ platform, installed, recent: string[] }`; `installed` is whether Claude Code resolves |
+| `POST /api/v1/launcher/recent` | `{ folder }` | `{ recent: string[] }`. Up to 8, most recent first, deduplicated (case-insensitive on Windows), missing folders dropped |
+| `POST /api/v1/launcher/open` | `{ folder }` | `{ folder }` with the normalized path. Windows only. Does not add to the recent list; the page does that, as after `claude.opened` |
+
+Reasons, the same in `claude.failed` and in the engine's `{ code }` (HTTP 409):
+
+| Reason | Meaning |
+|---|---|
+| `CLI_UNAVAILABLE` | Claude Code does not resolve |
+| `FOLDER_NOT_FOUND` | not an existing folder |
+| `FOLDER_INVALID` | not a full local path (`C:\…`), or characters no folder name can have |
+| `FOLDER_NETWORK` | a `\\server\share` path; `cmd` cannot start in one and would silently fall back to the Windows folder, so it is refused. A mapped drive letter works |
+| `LAUNCH_FAILED` | Windows could not start `cmd.exe` there |
+| `UNSUPPORTED_PLATFORM` | engine only: not Windows |
+| `DIALOG_FAILED` | shell only: the folder dialog could not open |
+| `BUSY` | shell only: a dialog or launch is already under way |
+
+Launch details, the same in the shell (`ClaudeLauncher.cs`) and the engine (`src/core/launcher.ts`):
+
+- The command line is a fixed string; the folder and the program path are never part of it, so a folder name with `&`, `^`, `%` or `!` cannot run anything. The folder travels as the working directory. The title and the program path travel in `ACCOUNTSWITCH_LAUNCH_TITLE` and `ACCOUNTSWITCH_LAUNCH_CLAUDE`, expanded only inside quotes, which `cmd` does not parse again.
+- A hidden `cmd.exe` runs `start "<title>" "%ComSpec%" /D /S /V:OFF /K ""<claude.exe>""`. `start` is what gives the terminal its own console and sets the title without a `title` command, whose text `cmd` would parse. It also works from an engine that has a hidden console or shares the user's terminal.
+- `cmd.exe` and `claude.exe` are always absolute paths: `cmd` looks in the current folder first, and the chosen folder is untrusted, so a `claude.exe` inside it must not run. `/D` skips `AutoRun` commands, which could change the folder; `/V:OFF` keeps `!` literal.
+- Environment: the same removal as `subscriptionEnvironment` in `src/core/cli.ts` (`ANTHROPIC_*`, `CLAUDE_CODE_*`, `CLAUDE_CONFIG_DIR`, `CLAUDE_AGENT_SDK_*`, `CLAUDE_ENV_FILE`) plus `CLAUDECODE`, so a value inherited from another session cannot pin the terminal to one account or refuse to start. `CLAUDE_CODE_DISABLE_TERMINAL_TITLE=1` is then set, because Claude Code otherwise replaces the window title.
+- The shell finds Claude Code as `executable('claude-cli')` does: `ACCOUNTSWITCH_CLAUDE_PATH`, `%USERPROFILE%\.local\bin\claude.exe`, the npm package's `claude.exe`, then `PATH`. It rebuilds `PATH` from the registry (machine, then user, then what the process already had) for the search and for the terminal, because an installer run after the shell started is otherwise invisible to it (see 3.5). The engine uses its own `PATH`, which setup keeps current.
 
 ## 5. Redesign
 
