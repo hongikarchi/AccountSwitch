@@ -785,3 +785,148 @@ select {
     animation: none;
   }
 }
+
+/* Claude Code launcher (SPEC 4): the button, its menu (5.5), and the line under the header (5.1). */
+.launcher {
+  position: relative;
+  flex: none;
+}
+.launcher-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* 320 px is what a 480 px window has left of the button's right edge, up to the page gutter. */
+.launcher-popover {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 320px;
+  max-height: calc(100vh - 72px);
+  padding: 4px;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--bg);
+  box-shadow: var(--shadow-menu);
+}
+.launcher-popover [role='menuitem'] {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-weight: 400;
+  text-align: left;
+}
+.launcher-popover [role='menuitem']:hover,
+.launcher-popover [role='menuitem']:focus {
+  background: var(--panel);
+}
+.launcher-popover [role='menuitem']:focus-visible {
+  outline-offset: -2px;
+}
+.launcher-recent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--line);
+}
+.launcher-label {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+.launcher-recent > .launcher-label {
+  padding: 8px 8px 4px;
+}
+.launcher-name,
+.launcher-parent {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.launcher-name {
+  flex: 0 1 auto;
+  max-width: 60%;
+}
+.launcher-parent {
+  flex: 1 1 0;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  direction: rtl;
+}
+/* A keyboard has no hover for the title: the path in full, on as many lines as it takes. */
+.launcher-popover [role='menuitem']:focus-visible .launcher-parent {
+  padding-block: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.launcher-path {
+  gap: 8px;
+  padding: 12px;
+}
+.launcher-path input {
+  width: 100%;
+  min-width: 0;
+}
+.launcher-problem {
+  color: var(--danger);
+  font-size: 12px;
+  line-height: 16px;
+}
+.launcher-path-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+.launcher-notice {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 12px;
+  max-width: 1088px;
+  margin: 0 auto;
+  padding: 8px 24px 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  text-align: right;
+}
+.launcher-notice[data-kind='failure'] {
+  color: var(--danger);
+}
+.launcher-notice .text-button {
+  flex: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 16px;
+}
+/* With the wordmark the row needs 598 px; without it, on 16 px gutters, 440 (5.1). */
+@media (max-width: 599.98px) {
+  .wordmark {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@media (max-width: 559.98px) {
+  .launcher-notice {
+    padding-inline: 16px;
+  }
+}

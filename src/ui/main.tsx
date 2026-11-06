@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { z } from 'zod';
 import { AccountSettings, ServiceHead } from './account-settings.tsx';
 import { EmptyState, UsageToolbar, useUsage } from './usage.tsx';
+import { LauncherButton, LauncherNotice, useLauncher } from './launcher.tsx';
 import { LogoMark } from './logo.tsx';
 import { SetupTab } from './setup.tsx';
 import { api, connect } from './gateway.ts';
@@ -31,7 +32,8 @@ function applyTheme(value: Theme) {
 }
 applyTheme(currentTheme());
 
-// One account menu open at a time, closed by a click anywhere else.
+// One menu open at a time, closed by a click anywhere else. The launcher's menu closes itself the
+// same way (launcher.tsx), and a click on its button closes the account menus here.
 document.addEventListener('click', (event) => {
   for (const open of document.querySelectorAll('details.account-more[open]'))
     if (!open.contains(event.target as Node)) open.removeAttribute('open');
@@ -191,6 +193,30 @@ function CliMissing({ provider }: { provider: Provider }) {
   );
 }
 
+/** Its own component so that the launcher's state changes do not render the accounts again. */
+function AppHead({ tab, choose }: { tab: Tab; choose: (tab: Tab) => void }) {
+  const launcher = useLauncher();
+  return (
+    <>
+      <header className="app-head">
+        <div className="app-head-inner">
+          <div className="brand" title="AccountSwitch">
+            <LogoMark />
+            {/* Hidden from view under 600 px (DESIGN 5.1), where it still names the logo. */}
+            <h1 className="wordmark">AccountSwitch</h1>
+          </div>
+          <Tabs current={tab} choose={choose} />
+          <div className="head-actions">
+            <LauncherButton launcher={launcher} />
+            <ThemeToggle />
+          </div>
+        </div>
+      </header>
+      <LauncherNotice launcher={launcher} />
+    </>
+  );
+}
+
 function App() {
   const { usage, failure, load } = useUsage();
   const [installed, setInstalled] = useState<Record<string, boolean>>();
@@ -228,18 +254,7 @@ function App() {
   };
   return (
     <>
-      <header className="app-head">
-        <div className="app-head-inner">
-          <div className="brand">
-            <LogoMark />
-            <h1 className="wordmark">AccountSwitch</h1>
-          </div>
-          <Tabs current={tab} choose={chooseTab} />
-          <div className="head-actions">
-            <ThemeToggle />
-          </div>
-        </div>
-      </header>
+      <AppHead tab={tab} choose={chooseTab} />
       <main className="app-body">
         {/* Both panels stay mounted: leaving a tab must not interrupt a sign-in being followed. */}
         <div
