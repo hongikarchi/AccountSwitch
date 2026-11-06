@@ -6,7 +6,7 @@ import { AccountSettings, ServiceHead } from './account-settings.tsx';
 import { EmptyState, UsageToolbar, useUsage } from './usage.tsx';
 import { LauncherButton, LauncherNotice, useLauncher } from './launcher.tsx';
 import { LogoMark } from './logo.tsx';
-import { SetupTab } from './setup.tsx';
+import { SetupTab, useSetupAutoOpen } from './setup.tsx';
 import { api, connect } from './gateway.ts';
 import { providers, type Provider } from '../core/providers.ts';
 
@@ -244,6 +244,10 @@ function App() {
     return () => clearTimeout(timer);
   }, []);
   const [tab, setTab] = useState(savedTab);
+  // SPEC 3.1: only a new PC opens on 설치, and that does not become the saved tab.
+  useSetupAutoOpen(() => {
+    if (!mac) setTab('setup');
+  });
   const chooseTab = (next: Tab) => {
     setTab(next);
     try {
@@ -296,7 +300,7 @@ function App() {
             aria-labelledby="tab-setup"
             hidden={tab !== 'setup'}
           >
-            <SetupTab />
+            <SetupTab active={tab === 'setup'} />
           </div>
         )}
       </main>
