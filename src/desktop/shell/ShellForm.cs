@@ -193,16 +193,17 @@ namespace AccountSwitch.Desktop
             var bounds = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
             context.Settings.Window = new[] { bounds.X, bounds.Y, bounds.Width, bounds.Height };
             try { context.Settings.Save(); } catch { /* Window placement is a convenience. */ }
-            if (e.CloseReason == CloseReason.UserClosing && !context.Quitting)
+            switch (QuitGuard.OnClose(e.CloseReason, context.Quitting, context.Settings.Background))
             {
-                e.Cancel = true;
-                if (context.Settings.Background)
-                {
+                case CloseAction.HideToTray:
+                    e.Cancel = true;
                     Hide();
                     context.Hidden();
-                }
-                else context.Quit();
-                return;
+                    return;
+                case CloseAction.RequestQuit:
+                    e.Cancel = true;
+                    context.RequestQuit();
+                    return;
             }
             base.OnFormClosing(e);
         }

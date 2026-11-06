@@ -79,6 +79,8 @@ export function fakePc({
   now,
   itemTimeoutMs,
   cancelGraceMs,
+  // Short, so a test that ends with a command still going does not wait out the real 10 s.
+  stopGraceMs = 5,
 } = {}) {
   const files = memoryFiles(initialFiles);
   const paths = new Set(present.map(lower));
@@ -218,6 +220,7 @@ export function fakePc({
     ...(now ? { now } : {}),
     ...(itemTimeoutMs ? { itemTimeoutMs } : {}),
     ...(cancelGraceMs ? { cancelGraceMs } : {}),
+    stopGraceMs,
   };
   return pc;
 }

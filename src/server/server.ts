@@ -478,8 +478,8 @@ export async function startServer({
     launchUrl: `http://${authority}/#${bootstrap}`,
     close: async () => {
       autoSwitch.stop();
-      await setup.close().catch(() => {});
-      await accountLogin.close().catch(() => {});
+      // Together, not in turn: their waits added up would outlast what the PC program allows (SPEC 3.4).
+      await Promise.allSettled([setup.close(), accountLogin.close()]);
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };

@@ -19,6 +19,18 @@ namespace AccountSwitch.Desktop
         public bool Attached { get; private set; }
         public event Action<int> Exited;
 
+        /// <summary>True while the server this program started runs, so quitting would stop it.</summary>
+        public bool RunningOwn
+        {
+            get
+            {
+                var current = process;
+                if (current == null || Attached) return false;
+                try { return !current.HasExited; }
+                catch (Exception) { return false; }
+            }
+        }
+
         public Task<string> Start()
         {
             stopping = false;
@@ -101,6 +113,7 @@ namespace AccountSwitch.Desktop
             {
                 if (!current.HasExited)
                 {
+                    // The engine's own wait for an install run must stay below this (SPEC 3.4).
                     current.StandardInput.Close();
                     if (!current.WaitForExit(15000)) current.Kill();
                 }
