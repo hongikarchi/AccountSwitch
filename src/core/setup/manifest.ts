@@ -50,6 +50,10 @@ const BLENDER_USER = `%APPDATA%\\Blender Foundation\\Blender\\${PINS.blenderSeri
 const BLENDER_FOLDER = `Blender ${PINS.blenderSeries}`;
 const BLENDER_ROOT = `${PROGRAM_FILES}\\Blender Foundation`;
 
+/** What goes on the user PATH if an install left it off (SPEC 3.5 step 4). */
+const onPath = (program: string, folders: string[]) =>
+  folders.map((folder) => ({ folder, program }));
+
 /** winget can be missing from PATH even when installed. */
 const WINGET = '%LOCALAPPDATA%\\Microsoft\\WindowsApps\\winget.exe';
 /** `0x8A15010C`, INSTALL_CANCELLED_BY_USER, as a Node child process reports it (SPEC 3.6). */
@@ -184,6 +188,7 @@ const items: SetupItem[] = [
     install: {
       summary: 'winget으로 설치하고, 안 되면 공식 설치 파일을 받아요.',
       automatic: true,
+      pathFolders: onPath('git', GIT_FOLDERS),
       steps: [
         winget('Git.Git'),
         {
@@ -214,6 +219,7 @@ const items: SetupItem[] = [
     install: {
       summary: 'winget으로 설치하고, 안 되면 공식 설치 파일을 받아요.',
       automatic: true,
+      pathFolders: onPath('node', [`${PROGRAM_FILES}\\nodejs`]),
       steps: [
         winget('OpenJS.NodeJS.LTS', '--version', PINS.node),
         msiFallback(`https://nodejs.org/dist/v${PINS.node}/node-v${PINS.node}-x64.msi`),
@@ -239,6 +245,7 @@ const items: SetupItem[] = [
     install: {
       summary: '공식 설치 스크립트로 내 계정에만 설치해요.',
       automatic: true,
+      pathFolders: [...onPath('uv', [LOCAL_BIN]), ...onPath('uvx', [LOCAL_BIN])],
       steps: [{ kind: 'powershell-script', url: 'https://astral.sh/uv/install.ps1' }],
     },
     pinnedVersion: 'latest',
@@ -264,6 +271,10 @@ const items: SetupItem[] = [
     install: {
       summary: 'winget으로 내 계정에만 설치하고, 안 되면 공식 설치 파일을 받아요.',
       automatic: true,
+      pathFolders: [
+        ...onPath('py', ['%LOCALAPPDATA%\\Programs\\Python\\Launcher']),
+        ...onPath('python', ['%LOCALAPPDATA%\\Programs\\Python\\Python313']),
+      ],
       steps: [
         winget(`Python.Python.${PINS.python}`, '--scope', 'user'),
         {
@@ -289,6 +300,7 @@ const items: SetupItem[] = [
     install: {
       summary: '공식 설치 스크립트로 설치해요.',
       automatic: true,
+      pathFolders: onPath('claude', [LOCAL_BIN]),
       // It ends by running `claude.exe install`, which may write ~/.claude.json (SPEC 3.7).
       steps: [
         { kind: 'powershell-script', url: 'https://claude.ai/install.ps1', insideClaudeLock: true },
@@ -307,6 +319,7 @@ const items: SetupItem[] = [
     install: {
       summary: 'npm으로 설치해요. Node.js가 먼저 필요해요.',
       automatic: true,
+      pathFolders: onPath('codex', ['%APPDATA%\\npm']),
       steps: [{ kind: 'npm-global', package: '@openai/codex' }],
     },
     pinnedVersion: 'latest',

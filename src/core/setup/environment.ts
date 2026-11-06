@@ -97,6 +97,43 @@ export function rebuildPath({ machinePath, userPath }: WindowsSnapshot, env: Env
   return folders.length ? folders.join(';') : undefined;
 }
 
+/** PowerShell by its full path, so nothing else called that can answer. */
+export function powershellPath(env: Env, home: string) {
+  return expandPath('%SystemRoot%\\System32\\WindowsPowerShell\\v1.0\\powershell.exe', env, home);
+}
+
+const PROGRAM_EXTENSIONS = ['.exe', '.cmd', '.bat', '.com'];
+
+/** The program's file inside one folder. */
+export function programInFolder(
+  folder: string,
+  program: string,
+  exists: (path: string) => boolean,
+) {
+  return PROGRAM_EXTENSIONS.map((extension) => win32.join(folder, program + extension)).find(
+    exists,
+  );
+}
+
+/** PATH first, then the given folders. A relative PATH entry means nothing to an engine. */
+export function findProgram(
+  program: string,
+  folders: string[],
+  env: Env,
+  exists: (path: string) => boolean,
+) {
+  for (const folder of (getEnv(env, 'PATH') ?? '').split(';')) {
+    if (!win32.isAbsolute(folder)) continue;
+    const file = programInFolder(folder, program, exists);
+    if (file) return file;
+  }
+  for (const folder of folders) {
+    const file = programInFolder(folder, program, exists);
+    if (file) return file;
+  }
+  return undefined;
+}
+
 /** Whether a folder is on a `;` list, ignoring letter case and a trailing backslash. */
 export function pathHasFolder(list: string | null | undefined, folder: string) {
   const normal = (value: string) =>

@@ -146,6 +146,11 @@ export interface InstallSpec {
   warnIfOtherVersion?: string;
   /** Tried in order: a later step is the fallback of the one before. */
   steps: InstallStep[];
+  /**
+   * After a run reaches this item: a folder holding its program and on no PATH gets appended to the
+   * user PATH (SPEC 3.5 step 4). `folder` may hold %NAME% variables and stays that way in the registry.
+   */
+  pathFolders?: { folder: string; program: string }[];
 }
 
 export interface SetupItem {
@@ -252,7 +257,7 @@ export interface SetupOverview {
   /** null when the file is missing or unreadable; `stateFile` says which. */
   state: SetupState | null;
   stateFile: 'missing' | 'ok' | 'corrupt';
-  /** Whether an install run is active. Always false until the runner exists (T-040). */
+  /** Whether an install run is active: its phase is `running` or `waiting` (SPEC 3.4). */
   runActive: boolean;
   autoOpen: AutoOpen;
 }
