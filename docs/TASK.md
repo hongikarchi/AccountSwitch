@@ -17,12 +17,12 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 
 ## M1 Design and 계정 tab
 
-- [ ] T-020 Bundle Pretendard `woff2` into the Vite build; confirm the CSP still holds.
-- [ ] T-021 Replace `src/ui/style.css` tokens with DESIGN §3, light and dark.
-- [ ] T-022 Header: logo tile, wordmark, 계정 · 설치 tabs (설치 hidden on macOS), theme toggle per DESIGN §5.2 with motion and reduced-motion fallback.
-- [ ] T-023 Account sections per DESIGN §5.3: two columns over 760 px, hairline rows, aligned usage columns, provider color only on mark, bar, 사용 중.
-- [ ] T-024 Buttons, menus, empty and error states per DESIGN §5.4–5.7.
-- [ ] T-025 Screenshots light and dark at 480 and 1100 px; confirm `src/core` and `src/server` untouched.
+- [x] T-020 Bundle Pretendard `woff2` into the Vite build; confirm the CSP still holds.
+- [x] T-021 Replace `src/ui/style.css` tokens with DESIGN §3, light and dark.
+- [x] T-022 Header: logo tile, wordmark, 계정 · 설치 tabs (설치 hidden on macOS), theme toggle per DESIGN §5.2 with motion and reduced-motion fallback.
+- [x] T-023 Account sections per DESIGN §5.3: two columns over 760 px, hairline rows, aligned usage columns, provider color only on mark, bar, 사용 중.
+- [x] T-024 Buttons, menus, empty and error states per DESIGN §5.4–5.7.
+- [x] T-025 Screenshots light and dark at 480 and 1100 px; confirm `src/core` and `src/server` untouched.
 
 ## M2 Setup checks
 
@@ -48,15 +48,15 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 
 ## M4 Launcher
 
-- [ ] T-050 Shell: `WebMessageReceived` handler, `IFileOpenDialog` folder picker, `cmd.exe /K` launch with title.
-- [ ] T-051 Engine: `POST /api/v1/launcher/recent`, `launcher.json`; browser fallback launch.
+- [~] T-050 Shell: `WebMessageReceived` handler, `IFileOpenDialog` folder picker, `cmd.exe /K` launch with title.
+- [x] T-051 Engine: `POST /api/v1/launcher/recent`, `launcher.json`; browser fallback launch.
 - [ ] T-052 Page: header button with recent-folder menu; disabled state when Claude Code is missing.
 
 ## M5 Logo and icons
 
 - [x] T-060 Concept images via Codex `image_gen`: four generated 2026-11-06 in `assets/brand/concepts/`; the user chose concept 1 (DESIGN §8).
-- [ ] T-061 Hand-drawn SVG mark and wordmark; ICO, tray (light and dark), macOS icon and template (SPEC §6).
-- [ ] T-062 Shell picks tray icon by taskbar theme; build scripts copy icons.
+- [x] T-061 Hand-drawn SVG mark; ICO, tray (light and dark), macOS icon and template (SPEC §6). The wordmark is live Pretendard text in the header, so there is no `wordmark.svg`.
+- [~] T-062 Shell picks tray icon by taskbar theme; build scripts copy icons. Code done; the live theme change on a real taskbar still needs a look by hand.
 
 ## M6 Release
 

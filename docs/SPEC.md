@@ -187,7 +187,7 @@ Launch details, the same in the shell (`ClaudeLauncher.cs`) and the engine (`src
 
 Every screen follows `DESIGN.md`. Functional constraints:
 
-- Same endpoints and behavior; only markup and CSS change for the 계정 tab.
+- Same endpoints and behavior; only markup and CSS change for the 계정 tab, with these exceptions: usage turns red at 100 % instead of 90 % (`DESIGN.md` §5.3 "red at limit"); login-expiry and lookup-failure notes are red; a list that never loads shows an error state with 다시 시도 instead of a guessed default row; the connection error has a 다시 시도 button; the theme follows a live system change until the user chooses.
 - Theme toggle: the two-state pill of `DESIGN.md` §5.2, same storage key; system theme until the user chooses.
 - Fonts are bundled in the build (CSP forbids remote fonts).
 
