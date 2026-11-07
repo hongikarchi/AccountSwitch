@@ -99,7 +99,14 @@ export type CheckSpec =
       /** Regular expression: `mcpstart` is in the start-up commands. */
       startupCommandPattern: string;
       starterFile: string;
-      roleNoteFile: string;
+      /** Part 4, one file for each terminal program; only for a program that is there. */
+      roleNotes: {
+        id: string;
+        provider: 'claude-cli' | 'codex-cli';
+        /** The program's name, in what the user reads. */
+        name: string;
+        file: string;
+      }[];
       roleNoteStart: string;
       roleNoteEnd: string;
     };

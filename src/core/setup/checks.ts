@@ -533,7 +533,6 @@ function checkRhinoSettings(
   spec: Extract<CheckSpec, { kind: 'rhino-settings' }>,
 ): Outcome {
   const settings = context.deps.readFile(context.path(spec.settingsFile))?.toString('utf8') ?? '';
-  const note = context.deps.readFile(context.path(spec.roleNoteFile))?.toString('utf8') ?? '';
   const parts: CheckPart[] = [
     {
       id: 'read-only-warning',
@@ -550,11 +549,16 @@ function checkRhinoSettings(
       label: 'Grasshopper 시작 파일',
       ok: context.deps.exists(context.path(spec.starterFile)),
     },
-    {
-      id: 'role-note',
-      label: 'Claude Code 도구 안내',
-      ok: note.includes(spec.roleNoteStart) && note.includes(spec.roleNoteEnd),
-    },
+    ...spec.roleNotes
+      .filter((note) => context.deps.executable(note.provider))
+      .map((note) => {
+        const text = context.deps.readFile(context.path(note.file))?.toString('utf8') ?? '';
+        return {
+          id: note.id,
+          label: `${note.name} 도구 안내`,
+          ok: text.includes(spec.roleNoteStart) && text.includes(spec.roleNoteEnd),
+        };
+      }),
   ];
   return { status: parts.every((part) => part.ok) ? 'installed' : 'missing', parts };
 }

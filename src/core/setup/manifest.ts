@@ -543,7 +543,20 @@ const items: SetupItem[] = [
       readOnlyWarningPattern: '<entry key="EnableFileLockingOpenWarning">\\s*True\\s*</entry>',
       startupCommandPattern: RHINO_STARTUP_COMMAND_PATTERN,
       starterFile: '%DOCUMENTS%\\AccountSwitch\\cordyceps-start.gh',
-      roleNoteFile: '%USERPROFILE%\\.claude\\CLAUDE.md',
+      roleNotes: [
+        {
+          id: 'role-note',
+          provider: 'claude-cli',
+          name: 'Claude Code',
+          file: '%USERPROFILE%\\.claude\\CLAUDE.md',
+        },
+        {
+          id: 'codex-role-note',
+          provider: 'codex-cli',
+          name: 'Codex CLI',
+          file: '%USERPROFILE%\\.codex\\AGENTS.md',
+        },
+      ],
       roleNoteStart: '<!-- accountswitch:start -->',
       roleNoteEnd: '<!-- accountswitch:end -->',
     },

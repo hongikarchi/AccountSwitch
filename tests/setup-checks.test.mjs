@@ -506,6 +506,7 @@ test('rhino-settings reports each of its four parts, from files only', async () 
         '<child key="Command Use Counts"><entry key="f0b5b632.mcpstart">2</entry></child>',
     },
   });
+  off.deps.executable = () => 'C:\\c\\cli.exe';
   const none = statusOf(await runChecks(off.deps), 'rhino-settings');
   assert.equal(none.status, 'missing');
   assert.deepEqual(parts(none), {
@@ -513,6 +514,7 @@ test('rhino-settings reports each of its four parts, from files only', async () 
     mcpstart: false,
     'starter-file': false,
     'role-note': false,
+    'codex-role-note': false,
   });
   const on = fakePc({
     files: [starter],
@@ -525,6 +527,14 @@ test('rhino-settings reports each of its four parts, from files only', async () 
   });
   assert.equal(statusOf(await runChecks(on.deps), 'rhino-settings').status, 'installed');
   assert.equal(on.calls.length, 1, 'only the registry read');
+  on.deps.executable = (provider) => (provider === 'claude-cli' ? 'C:/c/claude.exe' : undefined);
+  assert.equal(statusOf(await runChecks(on.deps), 'rhino-settings').status, 'installed');
+  // With Codex CLI there too, its own file counts.
+  on.deps.executable = () => 'C:\\c\\cli.exe';
+  const both = statusOf(await runChecks(on.deps), 'rhino-settings');
+  assert.equal(both.status, 'missing');
+  assert.equal(parts(both)['role-note'], true);
+  assert.equal(parts(both)['codex-role-note'], false);
 });
 
 test('the starter file follows a moved Documents folder', async () => {

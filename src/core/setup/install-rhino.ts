@@ -1,3 +1,4 @@
+import { win32 } from 'node:path';
 import { expandPath, readWindowsSnapshot } from './environment.ts';
 import { StepStop, type InstallFiles } from './install-deps.ts';
 import type { StepContext, StepResult } from './install-steps.ts';
@@ -145,7 +146,7 @@ export function applyMarkedBlock(
   return { text, changed: text !== source };
 }
 
-/** Part 4's text. It is read by Claude, so English, like every agent-facing note. */
+/** Part 4's text. It is read by Claude Code and Codex, so English, like every agent-facing note. */
 export function roleNote(starterFile: string) {
   return [
     '## Rhino tools (written by AccountSwitch)',
@@ -208,31 +209,33 @@ function applyWarning(context: StepContext, path: string) {
 /** Part 4 on the real file. What came of it for the user to read; nothing when all went well. */
 function applyRoleNote(
   context: StepContext,
+  name: string,
   path: string,
   spec: Extract<CheckSpec, { kind: 'rhino-settings' }>,
   starter: string,
 ) {
   const { files } = context.deps;
+  const place = `${name} 안내 파일(${win32.basename(path)})`;
   const file = readForEdit(files, path);
   if (file.state === 'read-error')
-    return 'Claude Code 안내 파일(CLAUDE.md)을 읽지 못해서 그대로 뒀어요. 다시 시도해 보세요.';
+    return `${place}을 읽지 못해서 그대로 뒀어요. 다시 시도해 보세요.`;
   if (file.state === 'not-text')
-    return 'Claude Code 안내 파일(CLAUDE.md)의 글자 형식이 UTF-8이 아니어서 그대로 뒀어요. 메모장에서 UTF-8로 저장한 뒤 다시 시도하세요.';
+    return `${place}의 글자 형식이 UTF-8이 아니어서 그대로 뒀어요. 메모장에서 UTF-8로 저장한 뒤 다시 시도하세요.`;
   const note = applyMarkedBlock(
     file.state === 'text' ? file.text : undefined,
     spec.roleNoteStart,
     spec.roleNoteEnd,
     roleNote(starter),
   );
-  if (note.problem) return 'Claude Code 안내 파일의 표시가 어긋나 있어서 그대로 뒀어요.';
+  if (note.problem) return `${place}의 표시가 어긋나 있어서 그대로 뒀어요.`;
   if (!note.changed) return undefined;
   try {
     if (file.state === 'text') writeWithBackup(files, path, note.text);
     else files.write(path, note.text);
   } catch {
-    return 'Claude Code 안내 파일(CLAUDE.md)을 바꾸지 못해서 그대로 뒀어요. 다시 시도해 보세요.';
+    return `${place}을 바꾸지 못해서 그대로 뒀어요. 다시 시도해 보세요.`;
   }
-  context.log.line('Claude Code 도구 안내를 적었어요.');
+  context.log.line(`${name} 도구 안내를 적었어요.`);
   return undefined;
 }
 
@@ -267,8 +270,11 @@ export async function applyRhinoSettings(context: StepContext): Promise<StepResu
     check.home,
     snapshot?.documents ?? undefined,
   );
-  const noteProblem = applyRoleNote(context, context.path(spec.roleNoteFile), spec, starter);
-  if (noteProblem) open.push(noteProblem);
+  for (const note of spec.roleNotes) {
+    if (!check.executable(note.provider)) continue;
+    const problem = applyRoleNote(context, note.name, context.path(note.file), spec, starter);
+    if (problem) open.push(problem);
+  }
 
   open.push(
     'Rhino를 켤 때 mcpstart를 자동으로 실행하는 설정과 Grasshopper 시작 파일은 아직 자동으로 맞출 수 없어요. 당분간 Rhino에서 mcpstart 명령을 직접 실행하고, Grasshopper에 Cordyceps 컴포넌트를 직접 올려 주세요.',

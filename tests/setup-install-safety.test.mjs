@@ -63,7 +63,7 @@ const noteCases = {
 for (const [name, bytes] of Object.entries(noteCases))
   test(`a note file in ${name} keeps every byte and says so`, () =>
     withRunner(
-      { present: [RHINO], files: { [SETTINGS]: XML('False'), [NOTE]: bytes } },
+      { present: [RHINO, CLAUDE], files: { [SETTINGS]: XML('False'), [NOTE]: bytes } },
       async ({ runner, pc }) => {
         runner.start(auto('rhino', 'rhino-settings'));
         await runner.settled();
@@ -87,7 +87,7 @@ const failingRead = (pc, path, code) => {
 
 test('a read error is not an empty file: the note is not replaced by the block', () =>
   withRunner(
-    { present: [RHINO], files: { [SETTINGS]: XML('False'), [NOTE]: '# Mine\n' } },
+    { present: [RHINO, CLAUDE], files: { [SETTINGS]: XML('False'), [NOTE]: '# Mine\n' } },
     async ({ runner, pc }) => {
       failingRead(pc, NOTE, 'EBUSY');
       const writes = [];
@@ -108,16 +108,19 @@ test('a read error is not an empty file: the note is not replaced by the block',
   ));
 
 test('only a file that does not exist counts as missing, and then it is created with no backup', () =>
-  withRunner({ present: [RHINO], files: { [SETTINGS]: XML('True') } }, async ({ runner, pc }) => {
-    runner.start(auto('rhino', 'rhino-settings'));
-    await runner.settled();
-    assert.ok(pc.files.read(NOTE).toString().startsWith('<!-- accountswitch:start -->'));
-    assert.equal(pc.files.read(NOTE_BACKUP), undefined);
-  }));
+  withRunner(
+    { present: [RHINO, CLAUDE], files: { [SETTINGS]: XML('True') } },
+    async ({ runner, pc }) => {
+      runner.start(auto('rhino', 'rhino-settings'));
+      await runner.settled();
+      assert.ok(pc.files.read(NOTE).toString().startsWith('<!-- accountswitch:start -->'));
+      assert.equal(pc.files.read(NOTE_BACKUP), undefined);
+    },
+  ));
 
 test('the note gets a backup before its first change, and later changes keep that first one', () =>
   withRunner(
-    { present: [RHINO], files: { [SETTINGS]: XML('True'), [NOTE]: '# Mine\n' } },
+    { present: [RHINO, CLAUDE], files: { [SETTINGS]: XML('True'), [NOTE]: '# Mine\n' } },
     async ({ runner, pc }) => {
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
@@ -148,7 +151,7 @@ test('a backup that cannot be looked at or written stops the write', async () =>
     },
   ])
     await withRunner(
-      { present: [RHINO], files: { [SETTINGS]: XML('True'), [NOTE]: '# Mine\n' } },
+      { present: [RHINO, CLAUDE], files: { [SETTINGS]: XML('True'), [NOTE]: '# Mine\n' } },
       async ({ runner, pc }) => {
         breakIt(pc);
         runner.start(auto('rhino', 'rhino-settings'));
@@ -163,7 +166,7 @@ test('a backup that cannot be looked at or written stops the write', async () =>
 
 test('a Rhino settings file that cannot be read is not called missing, and nothing changes', () =>
   withRunner(
-    { present: [RHINO], files: { [SETTINGS]: XML('False'), [NOTE]: '# Mine\n' } },
+    { present: [RHINO, CLAUDE], files: { [SETTINGS]: XML('False'), [NOTE]: '# Mine\n' } },
     async ({ runner, pc }) => {
       failingRead(pc, SETTINGS, 'EBUSY');
       runner.start(auto('rhino', 'rhino-settings'));
@@ -180,7 +183,7 @@ test('a Rhino settings file that cannot be read is not called missing, and nothi
 test('a Rhino backup that cannot be read is not overwritten with a later state', () =>
   withRunner(
     {
-      present: [RHINO],
+      present: [RHINO, CLAUDE],
       files: {
         [SETTINGS]: XML('False'),
         [SETTINGS_BACKUP]: 'the first backup',
@@ -199,7 +202,7 @@ test('a Rhino backup that cannot be read is not overwritten with a later state',
 test('a Rhino settings file in UTF-16 is left alone', () => {
   const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(XML('False'), 'utf16le')]);
   return withRunner(
-    { present: [RHINO], files: { [SETTINGS]: bytes, [NOTE]: '# Mine\n' } },
+    { present: [RHINO, CLAUDE], files: { [SETTINGS]: bytes, [NOTE]: '# Mine\n' } },
     async ({ runner, pc }) => {
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
@@ -1281,3 +1284,52 @@ test('a failed GPT connection says so, in the words of Codex CLI', () =>
       noLeak(runner, pc);
     },
   ));
+
+// --- The tool-role note, one file for each terminal program (SPEC 3.8)
+
+const AGENTS = `${HOME}\\.codex\\AGENTS.md`;
+const CLOSED_RHINO = { [SETTINGS]: XML('True') };
+
+test('the note goes to both files when both programs are there, keeping what is in them', () =>
+  withRunner(
+    {
+      present: [RHINO, CLAUDE, CODEX],
+      files: { ...CLOSED_RHINO, [NOTE]: '# Mine\n', [AGENTS]: '# My agents\n' },
+    },
+    async ({ runner, pc }) => {
+      runner.start(auto('rhino', 'rhino-settings'));
+      await runner.settled();
+      for (const [file, mine] of [
+        [NOTE, '# Mine'],
+        [AGENTS, '# My agents'],
+      ]) {
+        const text = pc.files.read(file).toString();
+        assert.ok(text.startsWith(mine));
+        assert.ok(text.includes('<!-- accountswitch:start -->'));
+        assert.ok(text.includes('Never kill Rhino by process name'));
+        assert.equal(pc.files.read(`${file}.accountswitch-bak`).toString(), `${mine}\n`);
+      }
+    },
+  ));
+
+test('a program that is not there gets no file', () =>
+  withRunner({ present: [RHINO, CODEX], files: CLOSED_RHINO }, async ({ runner, pc }) => {
+    runner.start(auto('rhino', 'rhino-settings'));
+    await runner.settled();
+    assert.ok(pc.files.read(AGENTS).toString().includes('<!-- accountswitch:start -->'));
+    assert.equal(pc.files.read(NOTE), undefined);
+  }));
+
+test('an AGENTS.md that is not UTF-8 keeps every byte and names itself', () => {
+  const bytes = Buffer.from([0xc7, 0xd1, 0xb1, 0xdb, 0x0d, 0x0a]);
+  return withRunner(
+    { present: [RHINO, CODEX], files: { ...CLOSED_RHINO, [AGENTS]: bytes } },
+    async ({ runner, pc }) => {
+      runner.start(auto('rhino', 'rhino-settings'));
+      await runner.settled();
+      const item = itemOf(runner.progress(), 'rhino-settings');
+      assert.match(item.message, /AGENTS\.md/);
+      assert.deepEqual(pc.files.read(AGENTS), bytes);
+    },
+  );
+});

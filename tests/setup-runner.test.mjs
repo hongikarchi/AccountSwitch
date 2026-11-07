@@ -1557,7 +1557,7 @@ const settingsXml = (value) =>
 test('Rhino open: nothing changes, and Rhino is only looked at', () =>
   withRunner(
     {
-      present: [RHINO],
+      present: [RHINO, CLAUDE],
       running: ['Rhino.exe'],
       files: { [SETTINGS]: settingsXml('False'), [NOTE]: 'mine\n' },
     },
@@ -1583,7 +1583,7 @@ test('Rhino open: nothing changes, and Rhino is only looked at', () =>
 test('when Windows does not say whether Rhino runs, nothing changes either', () =>
   withRunner(
     {
-      present: [RHINO],
+      present: [RHINO, CLAUDE],
       files: { [SETTINGS]: settingsXml('False') },
       on: (request, name) => (name === 'tasklist' ? exit(1) : undefined),
     },
@@ -1598,7 +1598,7 @@ test('when Windows does not say whether Rhino runs, nothing changes either', () 
 test('Rhino closed: backup, warning on, note between markers; the open parts are said plainly', () =>
   withRunner(
     {
-      present: [RHINO],
+      present: [RHINO, CLAUDE],
       files: { [SETTINGS]: settingsXml('False'), [NOTE]: '# Mine\nkeep this\n' },
     },
     async ({ runner, pc }) => {
@@ -1625,7 +1625,7 @@ test('Rhino closed: backup, warning on, note between markers; the open parts are
 test('a second run keeps the first backup and does not touch what is already right', () =>
   withRunner(
     {
-      present: [RHINO],
+      present: [RHINO, CLAUDE],
       files: { [SETTINGS]: settingsXml('False') },
     },
     async ({ runner, pc }) => {
@@ -1641,7 +1641,7 @@ test('a second run keeps the first backup and does not touch what is already rig
   ));
 
 test('no settings file yet: the note still goes in, and the message says what to do', () =>
-  withRunner({ present: [RHINO] }, async ({ runner, pc }) => {
+  withRunner({ present: [RHINO, CLAUDE] }, async ({ runner, pc }) => {
     runner.start(auto('rhino', 'rhino-settings'));
     await runner.settled();
     const item = itemOf(runner.progress(), 'rhino-settings');
@@ -1653,7 +1653,7 @@ test('no settings file yet: the note still goes in, and the message says what to
 
 test('a settings file that is not clean UTF-8 is left alone, byte for byte', () => {
   const bytes = Buffer.concat([Buffer.from(settingsXml('False')), Buffer.from([0xff, 0xfe])]);
-  return withRunner({ present: [RHINO] }, async ({ runner, pc }) => {
+  return withRunner({ present: [RHINO, CLAUDE] }, async ({ runner, pc }) => {
     pc.files.write(SETTINGS, bytes);
     runner.start(auto('rhino', 'rhino-settings'));
     await runner.settled();
@@ -1666,7 +1666,7 @@ test('a settings file that is not clean UTF-8 is left alone, byte for byte', () 
 test('broken markers in the note: the note file is left alone', () => {
   const broken = '<!-- accountswitch:start -->\nmine\n';
   return withRunner(
-    { present: [RHINO], files: { [SETTINGS]: settingsXml('False'), [NOTE]: broken } },
+    { present: [RHINO, CLAUDE], files: { [SETTINGS]: settingsXml('False'), [NOTE]: broken } },
     async ({ runner, pc }) => {
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
