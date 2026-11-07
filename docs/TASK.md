@@ -57,7 +57,7 @@ Code for T-040 to T-047 is done and tested with fakes only. Nothing has really b
 - [~] T-050 Shell: `WebMessageReceived` handler, `IFileOpenDialog` folder picker, `cmd.exe /K` launch with title.
 - [x] T-051 Engine: browser fallback launch. The recent list (`launcher.json`) was removed by T-053.
 - [~] T-052 Page: launch button; disabled state when its CLI is missing. Code done and checked with a faked shell; the real window, dialog and terminal still need a look by hand.
-- [~] T-053 No menu and no recent list: the button goes straight to the folder dialog. **GPT 열기** does the same for Codex CLI, in the shell and the engine (SPEC 4). The real terminal still needs a look by hand.
+- [~] T-053 No menu and no recent list: the button goes straight to the folder dialog. **GPT 열기** does the same for Codex CLI, in the shell and the engine (SPEC 4). The button says **Claude 열기**; the dialog title, the window title and the messages keep the program's name, Claude Code. The real terminal still needs a look by hand.
 
 ## M5 Logo and icons
 

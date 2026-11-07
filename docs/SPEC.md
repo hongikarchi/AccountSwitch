@@ -9,7 +9,7 @@ Status: draft for 0.3.0 (Windows). Values marked **verify** are believed correct
 | | Feature | Section |
 |---|---|---|
 | A | Setup wizard: check this PC, install what is missing, step by step | 3 |
-| B | "Claude Code 열기" and "GPT 열기": pick a folder, open `cmd` there running the CLI | 4 |
+| B | "Claude 열기" and "GPT 열기": pick a folder, open `cmd` there running the CLI | 4 |
 | C | Black-and-white redesign of every screen, animated theme toggle | 5, `DESIGN.md` |
 | D | Logo, app and tray icons | 6, `DESIGN.md` §8 |
 | E | Ship the unreleased 0.2.2 fixes | 7 |
@@ -212,7 +212,7 @@ In the data folder: `{ "version": 1, "mode": "check" | "auto", "finishedAt": ISO
 
 ## 4. Launcher
 
-- Two buttons at the bottom of the 계정 tab, left of 새로고침 (Windows only, in the desktop window and in a browser): **Claude Code 열기** runs Claude Code, **GPT 열기** runs Codex CLI. Each is disabled while its CLI is missing, with "설치 탭에서 <name>를 먼저 설치하세요".
+- Two buttons at the bottom of the 계정 tab, left of 새로고침 (Windows only, in the desktop window and in a browser): **Claude 열기** runs Claude Code, **GPT 열기** runs Codex CLI. Each is disabled while its CLI is missing, with "설치 탭에서 <name>를 먼저 설치하세요".
 - Pressing one opens the system folder dialog at once (`IFileOpenDialog` with `FOS_PICKFOLDERS`, the same dialog VS Code uses); choosing a folder opens the terminal. There is no menu and no list of recent folders (user, 2026-11-07: with one option a menu is only an extra click). The dialog itself starts where it was last used. Closing the dialog does nothing.
 - Launch: `cmd.exe /K` with `WorkingDirectory` set to the folder and the resolved program path as the command, so no `cd` is needed and the window stays open after the program exits. Window title `Claude Code - <folder name>` or `Codex - <folder name>`. The terminal uses the login currently in use (the 사용 account of that service).
 - Page to shell: WebView2 `window.chrome.webview.postMessage({ type: 'launcher.open', provider })` with `provider` `claude-cli` or `codex-cli`. The shell shows the dialog and launches. It answers only a failure: `{ type: 'launcher.failed', provider, reason }`. The shell accepts messages only from the app's own page origin.

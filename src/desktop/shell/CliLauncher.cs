@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 namespace AccountSwitch.Desktop
 {
     /// <summary>
-    /// "Claude Code 열기" and "GPT 열기" (SPEC 4): a cmd.exe /K terminal in a folder, running the CLI.
+    /// "Claude 열기" and "GPT 열기" (SPEC 4): a cmd.exe /K terminal in a folder, running the CLI.
     /// The same launch as src/core/launcher.ts, which has the tests and the browser fallback; change both.
     /// </summary>
     internal static class CliLauncher

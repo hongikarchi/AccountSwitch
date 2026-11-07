@@ -219,7 +219,7 @@ export async function startServer({
         ?.split('=')[1];
       if (!equal(cookie, session)) throw new DomainError('UNAUTHORIZED');
 
-      // "Claude Code 열기" and "GPT 열기": whether each can open, and the browser fallback.
+      // "Claude 열기" and "GPT 열기": whether each can open, and the browser fallback.
       if (url.pathname === '/api/v1/launcher' && request.method === 'GET') {
         send(200, launcher.status());
         return;

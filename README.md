@@ -2,7 +2,7 @@
 
 Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows·macOS 프로그램입니다. Windows에서는 새 PC를 Claude Code로 모델링할 수 있게 준비해 주고, 고른 폴더에서 Claude Code를 바로 열어 줍니다.
 
-> 상태: 초기 개발 중(0.3). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다. Windows에는 설치 마법사와 Claude Code 열기 버튼이 더해졌습니다.
+> 상태: 초기 개발 중(0.3). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다. Windows에는 설치 마법사와 Claude 열기 버튼이 더해졌습니다.
 
 ## 화면
 
@@ -32,9 +32,9 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - **Blender 연결**은 자료를 개발사로 보내는 기능(텔레메트리)을 꺼 둔 채로 설치합니다. 켜 두면 프롬프트·코드·스크린샷이 전송될 수 있기 때문입니다.
 - 권한 확인 창이 뜨면 "예"를 누르세요. 실패한 항목은 다시 시도·건너뛰기·로그 보기를 할 수 있고, 로그는 데이터 폴더의 `logs\setup-날짜.log`에 있습니다. 설치 중에 프로그램을 끝내려 하면 먼저 물어봅니다.
 
-## Claude Code 열기, GPT 열기 (Windows)
+## Claude 열기, GPT 열기 (Windows)
 
-계정 탭 아래쪽, 새로고침 왼쪽의 **Claude Code 열기**나 **GPT 열기**를 누르면 폴더 선택 창이 바로 뜹니다. 폴더를 고르면 그 폴더에서 `cmd` 창이 열리고 Claude Code나 Codex CLI가 시작됩니다. `cd`를 칠 필요가 없고, "사용" 중인 계정으로 실행되며, 프로그램을 끝내도 창은 남습니다.
+계정 탭 아래쪽, 새로고침 왼쪽의 **Claude 열기**나 **GPT 열기**를 누르면 폴더 선택 창이 바로 뜹니다. 폴더를 고르면 그 폴더에서 `cmd` 창이 열리고 Claude Code나 Codex CLI가 시작됩니다. `cd`를 칠 필요가 없고, "사용" 중인 계정으로 실행되며, 프로그램을 끝내도 창은 남습니다.
 
 - `\\서버\폴더` 같은 네트워크 경로에서는 열 수 없습니다. 드라이브 문자로 연결한 폴더를 고르세요.
 - 이 창에는 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 같은 환경 변수가 전달되지 않습니다. 구독 계정으로만 실행합니다.
@@ -144,7 +144,7 @@ npm run build:icons      # assets/brand/: 로고에서 아이콘 파일을 다�
 | `src/core/account-usage.ts` | 로그인한 사람·요금제, 사용량 조회(모델별 한도 포함), 전환할 계정 고르기 |
 | `src/core/cli.ts` | CLI 찾기, 계정별 환경 변수, 로그인 상태 확인 |
 | `src/core/setup/` | 설치 탭: 항목 목록과 고정 버전(`manifest.ts`), 점검, 설치 실행 |
-| `src/core/launcher.ts` | Claude Code 열기·GPT 열기: 브라우저에서 열기 |
+| `src/core/launcher.ts` | Claude 열기·GPT 열기: 브라우저에서 열기 |
 | `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`, `/api/v1/setup/*`, `/api/v1/launcher/*`) |
 | `src/ui/` | React 화면 |
 | `src/core/keychain.ts` | macOS 로그인 키체인 (Claude Code의 로그인 항목) |

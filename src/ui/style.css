@@ -525,11 +525,30 @@ select {
   gap: 8px;
   margin-left: auto;
 }
+/* The theme toggle's size and shape (5.2, 5.3). Not the buttons inside the path field's popover. */
+.toolbar-actions > button,
+.launcher > button {
+  width: 96px;
+  height: 28px;
+  min-height: 0;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
 .auto-switch {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 36px;
+  min-height: 28px;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.auto-switch select {
+  padding: 0 8px;
+  border-radius: 999px;
 }
 .toolbar-notes {
   display: flex;

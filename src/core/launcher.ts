@@ -5,7 +5,7 @@ import { codexEnvironment, executable, subscriptionEnvironment } from './cli.ts'
 import { DomainError } from './errors.ts';
 import { providers, type Provider } from './providers.ts';
 
-// "Claude Code 열기" and "GPT 열기" (SPEC 4): the browser fallback that opens the terminal when
+// "Claude 열기" and "GPT 열기" (SPEC 4): the browser fallback that opens the terminal when
 // there is no desktop window. src/desktop/shell/CliLauncher.cs is the same launch for the window;
 // change both together.
 

@@ -10,7 +10,7 @@ import {
   typedFolder,
 } from './launcher-logic.ts';
 
-// "Claude Code 열기" and "GPT 열기" (SPEC 4, DESIGN 5.3). The desktop window opens the folder dialog
+// "Claude 열기" and "GPT 열기" (SPEC 4, DESIGN 5.3). The desktop window opens the folder dialog
 // and the terminal itself and answers only a failure; in a browser there is no window to ask, so
 // the page asks for a path and the engine opens the terminal.
 
@@ -30,7 +30,7 @@ const shell = window.chrome?.webview;
 const RECHECK_MS = 5000;
 
 const labels: Record<Provider, string> = {
-  'claude-cli': 'Claude Code 열기',
+  'claude-cli': 'Claude 열기',
   'codex-cli': 'GPT 열기',
 };
 
