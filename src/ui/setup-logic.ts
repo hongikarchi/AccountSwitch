@@ -117,7 +117,8 @@ export function visibleItems(catalog: SetupCatalog, openGroups: ReadonlySet<stri
 /**
  * Auto mode's first checklist: what is missing, in the groups on screen. 버전 다름 and unknown stay
  * unchecked. A missing item only the user can install counts as checked too and has no box: the run
- * reports it as `needs-user`, and what depends on it then says what it waits for (SPEC 3.4).
+ * reports it as `needs-user`, and what depends on it then says what it waits for (SPEC 3.4). An item
+ * that needs a group the user did not pick stays unchecked too (SPEC 3.2).
  */
 export function defaultChecked(
   catalog: SetupCatalog,
@@ -127,9 +128,26 @@ export function defaultChecked(
   const results = resultsById(report);
   return new Set(
     visibleItems(catalog, openGroups)
-      .filter((item) => results.get(item.id)?.status === 'missing')
+      .filter(
+        (item) =>
+          results.get(item.id)?.status === 'missing' &&
+          !needsClosedGroup(catalog, item, openGroups),
+      )
       .map((item) => item.id),
   );
+}
+
+/** Whether something this item depends on sits in an optional group that is not picked. */
+function needsClosedGroup(catalog: SetupCatalog, item: SetupItem, openGroups: ReadonlySet<string>) {
+  return item.dependsOn.some((id) => {
+    const group = catalog.items.find((entry) => entry.id === id)?.group;
+    return !!group && isOptional(catalog.groups, group) && !openGroups.has(group);
+  });
+}
+
+/** Auto mode needs one of the terminal programs: without one there is nothing to use (SPEC 3.2). */
+export function picksCli(catalog: SetupCatalog, picked: ReadonlySet<string>) {
+  return catalog.groups.some((group) => group.cli && picked.has(group.id));
 }
 
 /** Ticking a group shows it and checks what is missing in it; unticking drops all of it. */
@@ -146,9 +164,20 @@ export function toggleGroup(
   if (on) openGroups.add(group);
   else openGroups.delete(group);
   for (const item of catalog.items) {
-    if (item.group !== group) continue;
-    if (on && results.get(item.id)?.status === 'missing') checked.add(item.id);
-    if (!on) checked.delete(item.id);
+    if (!on) {
+      if (item.group === group) checked.delete(item.id);
+      continue;
+    }
+    // What this group holds, and what in another group on screen was only waiting for it.
+    const waiting =
+      openGroups.has(item.group) &&
+      item.dependsOn.some((id) => catalog.items.find((entry) => entry.id === id)?.group === group);
+    if (
+      (item.group === group || waiting) &&
+      results.get(item.id)?.status === 'missing' &&
+      !needsClosedGroup(catalog, item, openGroups)
+    )
+      checked.add(item.id);
   }
   return { checked, openGroups };
 }

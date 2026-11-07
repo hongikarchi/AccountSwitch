@@ -225,7 +225,7 @@ test('GET /api/v1/setup gives the catalog, the state, and whether the wizard ope
       claudeInstalled: false,
     });
     assert.equal(setup.catalog.items.length, 19);
-    assert.equal(setup.catalog.groups.length, 3);
+    assert.equal(setup.catalog.groups.length, 5);
     assert.equal(setup.catalog.items[0].id, 'git');
     // Asking must not create the file that decides the rule.
     assert.equal(existsSync(join(server.directory, 'setup-state.json')), false);

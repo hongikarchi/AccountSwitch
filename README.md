@@ -17,11 +17,13 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 이 PC에 무엇이 있는지 확인하고, 없는 것을 차례대로 설치합니다. **버튼을 누르기 전에는 아무것도 설치하지 않습니다.** 처음 켰을 때 Claude Code가 없으면 이 탭이 먼저 열리고, 이미 쓰던 분에게는 저절로 열리지 않습니다.
 
 - **이미 세팅했어요 (점검만)**: 확인만 하고 아무것도 바꾸지 않습니다. 없는 항목마다 설치 버튼이 나옵니다.
-- **자동으로 설정해 주세요**: 쓰는 프로그램(Rhino, Blender)을 고르고 "다음"을 누르면, 기본 프로그램과 고른 프로그램에 필요한 것 중 없는 것만 차례대로 설치합니다. 아무것도 고르지 않고 "다음"을 누르면 아무것도 설치하지 않습니다.
+- **자동으로 설정해 주세요**: 쓰는 프로그램(Claude Code, GPT, Rhino, Blender)을 고르고 "다음"을 누르면, 기본 프로그램과 고른 프로그램에 필요한 것 중 없는 것만 차례대로 설치합니다. Claude Code나 GPT 중 하나는 꼭 골라야 합니다.
 
 | 묶음 | 항목 |
 |---|---|
-| 기본 | Git, Node.js 24, uv, Python 3.13, Claude Code, Codex CLI, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
+| 기본 | Git, Node.js 24, uv, Python 3.13, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
+| Claude Code | Claude Code |
+| GPT | Codex CLI |
 | Rhino | Rhino 8은 직접 설치하고, 플러그인과 Claude Code 연결(rhinomcp, Cordyceps)을 설치합니다 |
 | Blender | Blender 5.2.3, 애드온, Claude Code 연결(blender-mcp) |
 

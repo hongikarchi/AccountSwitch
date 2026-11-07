@@ -9,7 +9,7 @@ Order is chosen so the riskiest unknowns are measured early and every milestone 
 | M0 | Docs: SPEC, DESIGN, PLAN, TASK, ADR, CLAUDE.md | Committed on a branch when the user asks |
 | M1 | Design system and redesign of the 계정 tab, theme toggle, header with tabs | Light and dark screenshots at 480 px and 1100 px match DESIGN; `src/core` and `src/server` unchanged |
 | M2 | Setup engine, read only: manifest, checks, PATH re-read, `GET /setup`, `POST /setup/check`; 설치 tab shows the stepper with real status | Correct status on the development PC (most items present) and in Windows Sandbox (nothing present) |
-| M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `claude`, `codex`, `env`, `py-base`, `py-gis`, `py-3d`), Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |
+| M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `env`, `py-base`, `py-gis`, `py-3d`), then `claude`, `codex`, Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |
 | M4 | Launcher: shell bridge, folder dialog, `cmd /K` running Claude Code or Codex CLI | Opens both in a folder with a Korean name and spaces |
 | M5 | Logo and icons | Approved concept, hand-drawn SVG, ICO and tray icons legible at 16 px on light and dark taskbars |
 | M6 | Release 0.3.0 | §4 checklist passed, user confirms, tag pushed |

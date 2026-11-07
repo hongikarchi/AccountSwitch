@@ -195,6 +195,36 @@ export function ProgramCard({
   );
 }
 
+/** The app's one modal (DESIGN 5.6). The browser keeps the keyboard in it and gives it back. */
+export function WarningDialog({
+  title,
+  detail,
+  close,
+}: {
+  title: string;
+  detail: string;
+  close: () => void;
+}) {
+  const box = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  useEffect(() => {
+    if (box.current && !box.current.open) box.current.showModal();
+  }, []);
+  return (
+    <dialog ref={box} className="setup-warning" aria-labelledby={titleId} onClose={close}>
+      <h2 id={titleId} className="confirm-title">
+        {title}
+      </h2>
+      <p className="setup-warning-detail">{detail}</p>
+      <form method="dialog" className="setup-warning-actions">
+        <button type="submit" className="primary-button">
+          확인
+        </button>
+      </form>
+    </dialog>
+  );
+}
+
 /** "8개 중 5개 완료" and the area's one primary button, kept in view at the bottom. */
 export function SummaryBar({
   line,

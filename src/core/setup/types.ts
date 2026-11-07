@@ -1,7 +1,7 @@
 // The shapes of the setup catalog and of /api/v1/setup. Types only and no Node imports, so the page
 // can `import type` from here. Everything in the catalog is plain data that survives JSON.
 
-export type SetupGroupId = 'base' | 'rhino' | 'blender';
+export type SetupGroupId = 'base' | 'claude' | 'codex' | 'rhino' | 'blender';
 
 export interface SetupGroup {
   id: SetupGroupId;
@@ -9,6 +9,8 @@ export interface SetupGroup {
   description: string;
   /** Optional groups stay unchecked until the user ticks the group (SPEC 3.3). */
   optional: boolean;
+  /** A terminal program: auto mode needs one of these ticked (SPEC 3.2). */
+  cli?: boolean;
 }
 
 /** One version command. `versionPattern` is a regular expression whose first group is the version. */

@@ -359,8 +359,13 @@
 /* The program screen (5.6). */
 .program-cards {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+}
+@media (max-width: 639.98px) {
+  .program-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 .program-card {
   position: relative;
@@ -369,7 +374,7 @@
   align-items: center;
   justify-content: center;
   min-height: 96px;
-  padding: 12px;
+  padding: 12px 8px;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
   text-align: center;
@@ -396,6 +401,29 @@
   font-size: 15px;
   line-height: 22px;
   font-weight: 600;
+}
+
+.setup-warning {
+  width: min(360px, calc(100vw - 32px));
+  margin: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-menu);
+}
+.setup-warning::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+.setup-warning-detail {
+  margin-top: 4px;
+  color: var(--muted);
+}
+.setup-warning-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
 }
 
 /* Summary bar: stays in view at the bottom of the window while the list scrolls. */

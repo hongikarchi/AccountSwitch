@@ -26,7 +26,7 @@ Avoid (the "AI-made" look): gradients, glass blur, glow, colored shadows, emoji,
 3. Numbers are the content: clear, tabular, aligned right. They never outgrow the section title; the bar beside them already carries the weight.
 4. One primary action per area, in solid black (white in dark mode).
 5. Everything aligns to a 4 px grid and one left edge per column.
-6. Room first (user, 2026-11-06: the first build felt cramped and its big type too big). When a screen feels full, remove or fold something before shrinking anything. A one-off action stays folded until asked for. Each account is one outlined box (5.3), and so is each program on the program screen (5.6); elsewhere a hairline only separates two things and never closes a list.
+6. Room first (user, 2026-11-06: the first build felt cramped and its big type too big). When a screen feels full, remove or fold something before shrinking anything. A one-off action stays folded until asked for. Each account is one outlined box (5.3), and so is each card on the program screen (5.6); elsewhere a hairline only separates two things and never closes a list.
 
 ## 3. Tokens
 
@@ -134,7 +134,9 @@ Vertical, after the reference stepper, in black and white:
 
 The first screen of the wizard: Display title "이 PC를 준비할게요", two large choice rows (이미 세팅했어요 — 점검만 / 자동으로 설정해 주세요), each with one line of explanation.
 
-The program screen, after 자동으로 설정해 주세요: title "어떤 프로그램을 쓰세요?" with 처음으로 at its right, and three cards in one row, equal width, 12 px apart: Rhino, Blender, CAD. A card is 96 px high with a 10 px radius and 1 px `--line`, its name centered (H2) and a checkbox in the top right corner; the whole card is the press target, hover `--panel`. A ticked card has a 2 px `--line-strong` border. CAD is disabled: name in `--muted`, "준비 중" under it (Small). Names only: the user chose no logos (2026-11-07), and no descriptions. Under the cards only the summary bar with the primary 다음, which says "확인하는 중이에요" while the check runs.
+The program screen, after 자동으로 설정해 주세요: title "어떤 프로그램을 쓰세요?" with 처음으로 at its right, and five cards of equal width, 12 px apart, in this order: Claude Code, GPT, Rhino, Blender, ZWCAD. One row from 640 px up, three columns below that. A card is 96 px high with a 10 px radius and 1 px `--line`, its name centered (H2) and a checkbox in the top right corner; the whole card is the press target, hover `--panel`. A ticked card has a 2 px `--line-strong` border. ZWCAD is disabled: name in `--muted`, "준비 중" under it (Small). Names only: the user chose no logos (2026-11-07), and no descriptions. Under the cards only the summary bar with the primary 다음, which says "확인하는 중이에요" while the check runs.
+
+Pressing 다음 without Claude Code or GPT opens a warning window, the one modal of the app, because the user asked for a window here (2026-11-08): `--bg`, 10 px radius, the one allowed shadow, a dimmed backdrop, title (H2), one line (Body, muted), primary 확인. Esc closes it too.
 
 ### 5.7 Empty and error states
 

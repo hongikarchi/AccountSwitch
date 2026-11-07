@@ -24,6 +24,7 @@ import {
   parseOverview,
   parseReport,
   parseRun,
+  picksCli,
   resultsById,
   runAnnouncement,
   runOutcome,
@@ -42,6 +43,7 @@ import {
   ProgramCard,
   StepRow,
   SummaryBar,
+  WarningDialog,
 } from './setup-stepper.tsx';
 import { EmptyState } from './usage.tsx';
 import './setup.css';
@@ -170,7 +172,7 @@ function ProgramScreen({
               }}
             />
           ))}
-        <ProgramCard name="CAD" note="준비 중" />
+        <ProgramCard name="ZWCAD" note="준비 중" />
       </div>
       <SummaryBar {...(checking ? { line: '확인하는 중이에요' } : {})} error={error}>
         <button
@@ -302,6 +304,7 @@ export function SetupTab({ active }: { active: boolean }) {
   // Auto mode's program screen, until 다음 is pressed.
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [warning, setWarning] = useState(false);
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState<{
     items: string[];
@@ -498,13 +501,12 @@ export function SetupTab({ active }: { active: boolean }) {
   };
 
   /**
-   * 다음: the press that installs what the ticked programs and the base group miss. With nothing
-   * ticked nothing installs, and it is 점검만 from here on (SPEC 3.2). With nothing to install, the
-   * checklist says where things are.
+   * 다음: the press that installs what the ticked cards and the base group miss. Without Claude Code
+   * or GPT it only warns (SPEC 3.2). With nothing to install, the checklist says where things are.
    */
   const startPicked = () => {
-    if (!picked.size) return choose('check');
     const { catalog } = overview!;
+    if (!picksCli(catalog, picked)) return setWarning(true);
     const nextChecked = defaultChecked(catalog, report, picked);
     chooseGroups(picked);
     setChecked(nextChecked);
@@ -613,17 +615,26 @@ export function SetupTab({ active }: { active: boolean }) {
       );
     if (mode === 'auto' && picking)
       return (
-        <ProgramScreen
-          overview={overview}
-          picked={picked}
-          setPicked={setPicked}
-          ready={!!report}
-          checking={checking}
-          busy={busy}
-          error={actionError || checkError}
-          next={startPicked}
-          back={backToFirst}
-        />
+        <>
+          <ProgramScreen
+            overview={overview}
+            picked={picked}
+            setPicked={setPicked}
+            ready={!!report}
+            checking={checking}
+            busy={busy}
+            error={actionError || checkError}
+            next={startPicked}
+            back={backToFirst}
+          />
+          {warning ? (
+            <WarningDialog
+              title="Claude Code나 GPT 중 하나는 골라 주세요"
+              detail="둘 중 하나가 있어야 AccountSwitch를 쓸 수 있어요."
+              close={() => setWarning(false)}
+            />
+          ) : null}
+        </>
       );
     return checklist();
   };

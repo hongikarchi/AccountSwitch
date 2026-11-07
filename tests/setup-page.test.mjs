@@ -18,6 +18,7 @@ import {
   parseOverview,
   parseReport,
   parseRun,
+  picksCli,
   runAnnouncement,
   runOutcome,
   runRequest,
@@ -328,7 +329,7 @@ test('a run item the catalog does not know still gets a row', () => {
 
 test('counts', () => {
   const state = report({ git: missing, node: missing });
-  assert.equal(checkSummary(catalog, state, none), '10개 중 8개 완료');
+  assert.equal(checkSummary(catalog, state, none), '8개 중 6개 완료');
   assert.equal(groupCount(catalog, report({ rhino: missing }), 'rhino'), '6개 중 5개 설치됨');
   assert.equal(groupCount(catalog, null, 'rhino'), '6개');
   const run = {
@@ -431,17 +432,56 @@ test('a failure is told in Korean, never as a bare code', () => {
   assert.match(failureMessage('what', known), /다시 시도/);
 });
 
-test('the programs are the only choice, and the Python map and 3D packages are base items', () => {
+test('the cards are the optional groups in order, and the base group comes along', () => {
   assert.deepEqual(
-    catalog.groups.filter((group) => group.optional).map((group) => group.id),
-    ['rhino', 'blender'],
+    catalog.groups.filter((group) => group.optional).map((group) => group.label),
+    ['Claude Code', 'GPT', 'Rhino', 'Blender'],
   );
   for (const id of ['py-gis', 'py-3d'])
     assert.equal(catalog.items.find((item) => item.id === id).group, 'base');
-  const state = report({ git: missing, 'blender-mcp': missing, 'rhinomcp-mcp': missing });
+  const state = report({
+    git: missing,
+    claude: missing,
+    codex: missing,
+    'blender-mcp': missing,
+    'rhinomcp-mcp': missing,
+  });
   const items = (picked) =>
     checkedInOrder(catalog, defaultChecked(catalog, state, new Set(picked)));
-  assert.deepEqual(items([]), ['git']);
-  assert.deepEqual(items(['blender']), ['git', 'blender-mcp']);
-  assert.deepEqual(items(['rhino', 'blender']), ['git', 'rhinomcp-mcp', 'blender-mcp']);
+  assert.deepEqual(items(['claude']), ['git', 'claude']);
+  assert.deepEqual(items(['codex']), ['git', 'codex']);
+  assert.deepEqual(items(['claude', 'blender']), ['git', 'claude', 'blender-mcp']);
+  assert.deepEqual(items(['claude', 'codex', 'rhino', 'blender']), [
+    'git',
+    'claude',
+    'codex',
+    'rhinomcp-mcp',
+    'blender-mcp',
+  ]);
+});
+
+test('다음 needs Claude Code or GPT', () => {
+  assert.equal(picksCli(catalog, new Set()), false);
+  assert.equal(picksCli(catalog, new Set(['rhino', 'blender'])), false);
+  assert.equal(picksCli(catalog, new Set(['claude'])), true);
+  assert.equal(picksCli(catalog, new Set(['codex', 'rhino'])), true);
+});
+
+test('without Claude Code picked, its connections stay unticked until it is', () => {
+  const state = report({
+    codex: missing,
+    claude: missing,
+    'blender-mcp': missing,
+    blender: missing,
+  });
+  const picked = new Set(['codex', 'blender']);
+  const checked = defaultChecked(catalog, state, picked);
+  assert.deepEqual(checkedInOrder(catalog, checked), ['codex', 'blender']);
+  const on = toggleGroup(catalog, state, { checked, openGroups: picked }, 'claude', true);
+  assert.deepEqual(checkedInOrder(catalog, on.checked), [
+    'claude',
+    'codex',
+    'blender',
+    'blender-mcp',
+  ]);
 });

@@ -150,8 +150,22 @@ const groups: SetupGroup[] = [
   {
     id: 'base',
     label: '기본',
-    description: 'Claude Code로 작업하는 데 필요한 기본 프로그램이에요.',
+    description: 'Claude Code와 GPT로 작업하는 데 필요한 기본 프로그램이에요.',
     optional: false,
+  },
+  {
+    id: 'claude',
+    label: 'Claude Code',
+    description: '터미널에서 Claude와 함께 작업하는 프로그램이에요.',
+    optional: true,
+    cli: true,
+  },
+  {
+    id: 'codex',
+    label: 'GPT',
+    description: '터미널에서 ChatGPT 계정으로 작업하는 프로그램이에요.',
+    optional: true,
+    cli: true,
   },
   {
     id: 'rhino',
@@ -291,41 +305,6 @@ const items: SetupItem[] = [
     mayElevate: false,
   },
   {
-    id: 'claude',
-    label: 'Claude Code',
-    description: '터미널에서 Claude와 함께 작업하는 프로그램이에요.',
-    group: 'base',
-    dependsOn: [],
-    check: { kind: 'cli', provider: 'claude-cli', versionPattern: '(\\d+\\.\\d+\\.\\S+)' },
-    install: {
-      summary: '공식 설치 스크립트로 설치해요.',
-      automatic: true,
-      pathFolders: onPath('claude', [LOCAL_BIN]),
-      // It ends by running `claude.exe install`, which may write ~/.claude.json (SPEC 3.7).
-      steps: [
-        { kind: 'powershell-script', url: 'https://claude.ai/install.ps1', insideClaudeLock: true },
-      ],
-    },
-    pinnedVersion: 'latest',
-    mayElevate: false,
-  },
-  {
-    id: 'codex',
-    label: 'Codex CLI',
-    description: '터미널에서 ChatGPT 계정으로 작업하는 프로그램이에요.',
-    group: 'base',
-    dependsOn: ['node'],
-    check: { kind: 'cli', provider: 'codex-cli', versionPattern: '(\\d+\\.\\d+\\.\\S+)' },
-    install: {
-      summary: 'npm으로 설치해요. Node.js가 먼저 필요해요.',
-      automatic: true,
-      pathFolders: onPath('codex', ['%APPDATA%\\npm']),
-      steps: [{ kind: 'npm-global', package: '@openai/codex' }],
-    },
-    pinnedVersion: 'latest',
-    mayElevate: false,
-  },
-  {
     id: 'env',
     label: '터미널 기본 설정',
     description: '스크립트 실행 허용, 프로그램 경로, 한글 깨짐 방지 설정을 맞춰요.',
@@ -379,6 +358,41 @@ const items: SetupItem[] = [
     'rhino3dm',
     'trimesh',
   ]),
+  {
+    id: 'claude',
+    label: 'Claude Code',
+    description: '터미널에서 Claude와 함께 작업하는 프로그램이에요.',
+    group: 'claude',
+    dependsOn: [],
+    check: { kind: 'cli', provider: 'claude-cli', versionPattern: '(\\d+\\.\\d+\\.\\S+)' },
+    install: {
+      summary: '공식 설치 스크립트로 설치해요.',
+      automatic: true,
+      pathFolders: onPath('claude', [LOCAL_BIN]),
+      // It ends by running `claude.exe install`, which may write ~/.claude.json (SPEC 3.7).
+      steps: [
+        { kind: 'powershell-script', url: 'https://claude.ai/install.ps1', insideClaudeLock: true },
+      ],
+    },
+    pinnedVersion: 'latest',
+    mayElevate: false,
+  },
+  {
+    id: 'codex',
+    label: 'Codex CLI',
+    description: '터미널에서 ChatGPT 계정으로 작업하는 프로그램이에요.',
+    group: 'codex',
+    dependsOn: ['node'],
+    check: { kind: 'cli', provider: 'codex-cli', versionPattern: '(\\d+\\.\\d+\\.\\S+)' },
+    install: {
+      summary: 'npm으로 설치해요. Node.js가 먼저 필요해요.',
+      automatic: true,
+      pathFolders: onPath('codex', ['%APPDATA%\\npm']),
+      steps: [{ kind: 'npm-global', package: '@openai/codex' }],
+    },
+    pinnedVersion: 'latest',
+    mayElevate: false,
+  },
   {
     id: 'rhino',
     label: `Rhino ${PINS.rhino}`,
