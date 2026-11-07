@@ -158,6 +158,42 @@ export function userMcpServer(config: Buffer, name: string) {
   };
 }
 
+/**
+ * One `[mcp_servers.<name>]` of Codex's config.toml, where `codex mcp add` puts it (SPEC 3.7). Only
+ * what the checks need: its `env` table is another section and is never looked at. Undefined: not
+ * registered. Not a whole TOML reader; a server written some other way counts as not registered, and
+ * adding it then replaces it.
+ */
+export function codexMcpServer(config: Buffer, name: string) {
+  const lines = config
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .split(/\r?\n/);
+  const table = (line: string) =>
+    /^\s*\[(.+)\]\s*(?:#.*)?$/.exec(line)?.[1]?.replace(/["'\s]/g, '');
+  const start = lines.findIndex((line) => table(line) === `mcp_servers.${name}`);
+  if (start < 0) return undefined;
+  const after = lines.slice(start + 1);
+  const end = after.findIndex((line) => table(line) !== undefined);
+  const body = (end < 0 ? after : after.slice(0, end)).join('\n');
+  const text = (key: string) =>
+    new RegExp(`^\\s*${key}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'm')
+      .exec(body)
+      ?.slice(1)
+      .find(Boolean);
+  const args = /^\s*args\s*=\s*\[([^\]]*)\]/m.exec(body)?.[1] ?? '';
+  return {
+    /** The command line of a stdio server. */
+    command: [
+      text('command'),
+      ...[...args.matchAll(/"([^"]*)"|'([^']*)'/g)].map((m) => m[1] ?? m[2]),
+    ]
+      .filter(Boolean)
+      .join(' '),
+    url: text('url')?.trim(),
+  };
+}
+
 /** Whether the registered command runs this package, and its `name@version`. */
 export function findPackage(command: string, name: string) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -364,6 +400,12 @@ async function checkMcp(
   context: Context,
   spec: Extract<CheckSpec, { kind: 'mcp' }>,
 ): Promise<Outcome> {
+  if (spec.client === 'codex') {
+    if (!context.deps.executable('codex-cli')) return { status: 'missing' };
+    const config = context.deps.readFile(win32.join(context.deps.home, '.codex', 'config.toml'));
+    const server = config && codexMcpServer(config, spec.name);
+    return server ? mcpOutcome(spec, server) : { status: 'missing' };
+  }
   if (!context.deps.executable('claude-cli')) return { status: 'missing' };
   // Inside the lock so the read never meets an account switch rewriting the file (SPEC 3.7).
   const read = await insideLock(context.deps, async () => ({
@@ -375,6 +417,14 @@ async function checkMcp(
   if (server === null)
     return { status: 'error', message: 'Claude Code 설정 파일을 읽지 못했어요.' };
   if (!server) return { status: 'missing' };
+  return mcpOutcome(spec, server);
+}
+
+/** What a registered server is, against what the catalog expects of it. */
+function mcpOutcome(
+  spec: Extract<CheckSpec, { kind: 'mcp' }>,
+  server: { command: string; url?: string | undefined },
+): Outcome {
   if (spec.url && server.url !== spec.url)
     return { status: 'version-mismatch', message: '다른 주소로 등록되어 있어요.' };
   if (spec.package) {
@@ -612,7 +662,13 @@ export async function runChecks(
       };
       // These need the dependency to run at all, so a known absence saves starting anything.
       const needs =
-        item.check.kind === 'pip' ? 'python' : item.check.kind === 'mcp' ? 'claude' : '';
+        item.check.kind === 'pip'
+          ? 'python'
+          : item.check.kind === 'mcp'
+            ? item.check.client === 'codex'
+              ? 'codex'
+              : 'claude'
+            : '';
       if (needs && waitingFor.includes(needs))
         return {
           ...base,

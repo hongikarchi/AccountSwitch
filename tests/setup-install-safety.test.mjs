@@ -1203,3 +1203,81 @@ test('the other checks are not affected by the bar set after an install', async 
   assert.equal(result.status, 'installed');
   assert.equal(pc.named('py').length, 1);
 });
+
+// --- GPT's connections (SPEC 3.7)
+
+const CODEX = `${APPDATA}\\npm\\codex.cmd`;
+const CODEX_CONFIG = `${HOME}\\.codex\\config.toml`;
+const codexCalls = (pc) => pc.named('codex').filter((call) => call.args[0] === 'mcp');
+
+test('a GPT connection is added with no lock, no account folder and nothing logged', () =>
+  withRunner(
+    {
+      present: [CODEX, UV, UVX],
+      on: (request, name, pc) => {
+        if (name !== 'codex' || request.args[0] !== 'mcp') return undefined;
+        pc.files.write(
+          CODEX_CONFIG,
+          '[mcp_servers.blender]\ncommand = "uvx"\nargs = ["blender-mcp@1.5.5"]\n',
+        );
+        return ok(SECRET);
+      },
+    },
+    async ({ runner, pc }) => {
+      runner.start({ items: ['blender-mcp-codex'], mode: 'auto' });
+      await runner.settled();
+      assert.equal(statusOf(runner.progress(), 'blender-mcp-codex'), 'done');
+      const [add] = codexCalls(pc);
+      assert.deepEqual(add.args, [
+        'mcp',
+        'add',
+        'blender',
+        '--env',
+        'DISABLE_TELEMETRY=true',
+        '--',
+        'uvx',
+        'blender-mcp@1.5.5',
+      ]);
+      assert.equal(add.env.CODEX_HOME, undefined);
+      assert.ok(!pc.insideLock.includes(add), 'no lock');
+      assert.ok(!pc.log().includes(SECRET), 'output is not logged');
+    },
+  ));
+
+test('a GPT connection registered differently needs the confirmation, and is then replaced in place', async () => {
+  const files = {
+    [CODEX_CONFIG]: '[mcp_servers.rhino]\ncommand = "uvx"\nargs = ["rhinomcp@0.3.0"]\n',
+  };
+  const on = (request, name) => (name === 'codex' && request.args[0] === 'mcp' ? ok() : undefined);
+  await withRunner({ present: [CODEX, UV, UVX], files, on }, async ({ runner, pc }) => {
+    runner.start({ items: ['rhinomcp-codex'], mode: 'auto' });
+    await until(() => itemOf(runner.progress(), 'rhinomcp-codex').status === 'needs-user');
+    assert.equal(itemOf(runner.progress(), 'rhinomcp-codex').reason, 'REPLACE_NOT_CONFIRMED');
+    assert.equal(codexCalls(pc).length, 0);
+  });
+  await withRunner({ present: [CODEX, UV, UVX], files, on }, async ({ runner, pc }) => {
+    runner.start({ items: ['rhinomcp-codex'], mode: 'auto', replace: ['rhinomcp-codex'] });
+    await until(() => codexCalls(pc).length > 0);
+    assert.deepEqual(
+      codexCalls(pc).map((call) => call.args[1]),
+      ['add'],
+    );
+  });
+});
+
+test('a failed GPT connection says so, in the words of Codex CLI', () =>
+  withRunner(
+    {
+      present: [CODEX, UV, UVX],
+      on: (request, name) =>
+        name === 'codex' && request.args[0] === 'mcp' ? exit(1, SECRET) : undefined,
+    },
+    async ({ runner, pc }) => {
+      runner.start({ items: ['cordyceps-codex'], mode: 'auto' });
+      await until(() => runner.progress().phase === 'waiting');
+      const item = itemOf(runner.progress(), 'cordyceps-codex');
+      assert.equal(item.status, 'failed');
+      assert.match(item.message, /Codex CLI/);
+      noLeak(runner, pc);
+    },
+  ));

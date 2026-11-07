@@ -61,10 +61,14 @@ export type CheckSpec =
   | { kind: 'file'; path: string }
   /** `<root>\<version>[\<marker>]` must exist; another version folder means 버전 다름. */
   | { kind: 'versioned-folder'; root: string; version: string; marker?: string }
-  /** A user-scope server in `~/.claude.json`, read inside DefaultLogin.exclusive (SPEC 3.7). */
+  /**
+   * A user-scope server in `~/.claude.json`, read inside DefaultLogin.exclusive, or with `client:
+   * 'codex'` a server in `~/.codex/config.toml` (SPEC 3.7).
+   */
   | {
       kind: 'mcp';
       name: string;
+      client?: 'codex';
       /** Package and version expected in the registered command (uvx servers). */
       package?: string;
       version?: string;
@@ -128,6 +132,8 @@ export type InstallStep =
   | { kind: 'yak'; program: string; package: string; version: string }
   /** `claude <args>` inside DefaultLogin.exclusive (SPEC 3.7). */
   | { kind: 'claude-mcp-add'; args: string[] }
+  /** `codex <args>`; it replaces an entry of the same name in place (SPEC 3.7). */
+  | { kind: 'codex-mcp-add'; args: string[] }
   | {
       kind: 'environment';
       userPathFolder: string;

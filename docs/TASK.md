@@ -34,7 +34,9 @@ Status marks: `[ ]` open, `[~]` in progress, `[x]` done, `[?]` waiting for the u
 - [x] T-032 Endpoints `GET /api/v1/setup`, `POST /api/v1/setup/check`; server tests.
 - [x] T-033 설치 tab: first screen (two modes), stepper per DESIGN §5.6 rendering check results. Run screens are built too, checked against faked run routes until the runner is merged.
 - [x] T-034 Auto-open rule (SPEC 3.1) and `setup-state.json`.
-- [~] T-036 Program screen in auto mode (SPEC 3.2): cards for Claude Code, GPT, Rhino, Blender and ZWCAD, names only; 다음 needs Claude Code or GPT (a warning window otherwise) and installs what the ticked cards and the base group miss. Checked with a faked server; the real run is T-048.
+- [~] T-036 Program screen in auto mode (SPEC 3.2): cards for Claude Code, GPT, Rhino, Blender and ZWCAD, names only, ticked by their border; a card with everything there says 설치됨. 다음 needs Claude Code or GPT, ticked or there (a warning window otherwise), and installs what the ticked cards and the base group miss. Checked with a faked server; the real run is T-048.
+- [~] T-037 GPT's connections: `rhinomcp-codex`, `cordyceps-codex`, `blender-mcp-codex` in `~/.codex/config.toml` (SPEC 3.3, 3.7). The commands and the file format were measured in a scratch `CODEX_HOME`; that Codex reaches the servers waits for T-048.
+- [~] T-039 The checklist as one stepper (SPEC 3.2): Claude Code and Codex CLI under the base items, Rhino and Blender as rows with a count and a 설치 button instead of checkboxes. Checked with a faked server.
 - [x] T-035 Verify check results on this PC; record which items report 버전 다름 and why. 2026-11-06: no item reports 버전 다름; a run takes under a second and left `~/.claude.json` untouched. Node 24.15.0 passes against pin 24.22.1 because any 24.x is accepted; `python` is missing because only 3.14 is reachable through `py`. The Sandbox half of M2 still waits for T-048.
 
 ## M3 Installs

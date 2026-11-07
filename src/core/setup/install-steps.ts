@@ -401,6 +401,8 @@ async function runYak(context: StepContext, step: Extract<InstallStep, { kind: '
 
 const CLAUDE_MISSING = 'Claude Code를 찾지 못했어요. 먼저 설치해 주세요.';
 const MCP_FAILED = 'Claude Code에 등록하지 못했어요. 로그를 확인해 보세요.';
+const CODEX_MISSING = 'Codex CLI를 찾지 못했어요. 먼저 설치해 주세요.';
+const CODEX_MCP_FAILED = 'Codex CLI에 등록하지 못했어요. 로그를 확인해 보세요.';
 const MCP_CONFIG_UNREADABLE =
   'Claude Code 설정 파일을 읽지 못해서 등록을 그대로 뒀어요. 다시 시도해 보세요.';
 const MCP_PUT_BACK = '새 설정으로 등록하지 못해서 원래 설정으로 되돌렸어요.';
@@ -494,6 +496,27 @@ async function runClaudeMcp(
   });
 }
 
+/**
+ * No lock: an account switch changes only Codex's auth.json. The add replaces an entry of the same
+ * name in place, so there is nothing to remove first and a failed add leaves the old one (SPEC 3.7).
+ * Output is not logged, for the same reason as `claude mcp`.
+ */
+async function runCodexMcp(
+  context: StepContext,
+  step: Extract<InstallStep, { kind: 'codex-mcp-add' }>,
+) {
+  const { check } = context.deps;
+  if (context.precheck.status === 'version-mismatch' && !context.replace)
+    throw new StepStop('failed', 'REPLACE_NOT_CONFIRMED', CODEX_MCP_FAILED);
+  const codex = check.executable('codex-cli');
+  if (!codex) throw new StepStop('failed', 'CODEX_MISSING', CODEX_MISSING);
+  const result = await context.exec(
+    { program: codex, args: step.args, cwd: check.home },
+    { quiet: true },
+  );
+  return judge(result, [], { reason: 'MCP_FAILED', message: CODEX_MCP_FAILED });
+}
+
 export async function executeStep(context: StepContext, step: InstallStep): Promise<StepResult> {
   switch (step.kind) {
     case 'winget': {
@@ -513,6 +536,8 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
       return runPip(context, step);
     case 'yak':
       return runYak(context, step);
+    case 'codex-mcp-add':
+      return runCodexMcp(context, step);
     case 'claude-mcp-add':
       return runClaudeMcp(context, step);
     case 'environment':

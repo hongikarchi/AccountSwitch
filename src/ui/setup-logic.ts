@@ -126,60 +126,123 @@ export function defaultChecked(
   openGroups: ReadonlySet<string>,
 ) {
   const results = resultsById(report);
+  const using = usingGroups(catalog, report, openGroups);
   return new Set(
     visibleItems(catalog, openGroups)
       .filter(
         (item) =>
-          results.get(item.id)?.status === 'missing' &&
-          !needsClosedGroup(catalog, item, openGroups),
+          results.get(item.id)?.status === 'missing' && !needsClosedGroup(catalog, item, using),
       )
       .map((item) => item.id),
   );
+}
+
+const isThere = (status: CheckResult['status'] | undefined) =>
+  status === 'installed' || status === 'version-mismatch';
+
+/** The groups in use: the ones picked, and the terminal programs that are already installed. */
+export function usingGroups(
+  catalog: SetupCatalog,
+  report: CheckReport | null | undefined,
+  picked: ReadonlySet<string> = new Set(),
+) {
+  const results = resultsById(report);
+  const using = new Set(picked);
+  for (const group of catalog.groups) {
+    const items = catalog.items.filter((item) => item.group === group.id);
+    if (group.cli && items.some((item) => isThere(results.get(item.id)?.status)))
+      using.add(group.id);
+  }
+  return using;
+}
+
+/** What a group holds that applies: a connection to a terminal program not in use does not. */
+export function groupItems(catalog: SetupCatalog, group: string, using: ReadonlySet<string>) {
+  return catalog.items.filter(
+    (item) => item.group === group && !needsClosedGroup(catalog, item, using),
+  );
+}
+
+/** A card with nothing left to do (SPEC 3.2). An unknown state is not "there". */
+export function cardDone(
+  catalog: SetupCatalog,
+  report: CheckReport | null | undefined,
+  group: string,
+  picked: ReadonlySet<string>,
+) {
+  if (!report) return false;
+  const results = resultsById(report);
+  const using = usingGroups(catalog, report, picked);
+  return groupItems(catalog, group, using).every((item) => isThere(results.get(item.id)?.status));
+}
+
+/** Rhino and Blender as one row of the checklist: what it shows and what its button runs. */
+export function stepFromGroup(
+  catalog: SetupCatalog,
+  group: SetupGroup,
+  report: CheckReport | null | undefined,
+  lastRun: ReadonlyMap<string, RunItemProgress>,
+  mode: SetupMode,
+  picked: ReadonlySet<string> = new Set(),
+) {
+  const results = resultsById(report);
+  const items = groupItems(catalog, group.id, usingGroups(catalog, report, picked));
+  const status = (item: SetupItem) => results.get(item.id)?.status;
+  const missing = items.filter((item) => status(item) === 'missing');
+  const failed = items.some(
+    (item) => lastRun.get(item.id)?.status === 'failed' && status(item) !== 'installed',
+  );
+  const other = items.some((item) => status(item) === 'version-mismatch');
+  const unknown = items.some((item) => isUnknown(status(item)));
+  const manual = items
+    .map((item) => actionFor(item, results.get(item.id), mode))
+    .find((action) => action.kind === 'manual');
+  const node: NodeState = !report
+    ? 'pending'
+    : failed
+      ? 'failed'
+      : items.every((item) => status(item) === 'installed')
+        ? 'done'
+        : unknown
+          ? 'unknown'
+          : manual
+            ? 'needs-user'
+            : missing.length
+              ? 'pending'
+              : 'mismatch';
+  const view: StepView = {
+    id: group.id,
+    label: group.label,
+    description: group.description,
+    node,
+    meta: groupCount(catalog, report, group.id, picked),
+    notes: [],
+    parts: [],
+    elevating: false,
+    ...(manual ? { manual: { message: manual.message, url: manual.url } } : {}),
+  };
+  return {
+    view,
+    items,
+    /** Everything missing, an item only the user can install included: the run reports that one. */
+    install: missing.some((item) => item.install.automatic) ? missing.map((item) => item.id) : [],
+    attention: failed || other || unknown,
+  };
 }
 
 /** Whether something this item depends on sits in an optional group that is not picked. */
 function needsClosedGroup(catalog: SetupCatalog, item: SetupItem, openGroups: ReadonlySet<string>) {
   return item.dependsOn.some((id) => {
     const group = catalog.items.find((entry) => entry.id === id)?.group;
-    return !!group && isOptional(catalog.groups, group) && !openGroups.has(group);
+    return (
+      !!group && group !== item.group && isOptional(catalog.groups, group) && !openGroups.has(group)
+    );
   });
 }
 
 /** Auto mode needs one of the terminal programs: without one there is nothing to use (SPEC 3.2). */
 export function picksCli(catalog: SetupCatalog, picked: ReadonlySet<string>) {
   return catalog.groups.some((group) => group.cli && picked.has(group.id));
-}
-
-/** Ticking a group shows it and checks what is missing in it; unticking drops all of it. */
-export function toggleGroup(
-  catalog: SetupCatalog,
-  report: CheckReport | null | undefined,
-  state: { checked: ReadonlySet<string>; openGroups: ReadonlySet<string> },
-  group: string,
-  on: boolean,
-) {
-  const results = resultsById(report);
-  const openGroups = new Set(state.openGroups);
-  const checked = new Set(state.checked);
-  if (on) openGroups.add(group);
-  else openGroups.delete(group);
-  for (const item of catalog.items) {
-    if (!on) {
-      if (item.group === group) checked.delete(item.id);
-      continue;
-    }
-    // What this group holds, and what in another group on screen was only waiting for it.
-    const waiting =
-      openGroups.has(item.group) &&
-      item.dependsOn.some((id) => catalog.items.find((entry) => entry.id === id)?.group === group);
-    if (
-      (item.group === group || waiting) &&
-      results.get(item.id)?.status === 'missing' &&
-      !needsClosedGroup(catalog, item, openGroups)
-    )
-      checked.add(item.id);
-  }
-  return { checked, openGroups };
 }
 
 /** Checked items in catalog order. A run of only things the user must do installs nothing. */
@@ -213,7 +276,10 @@ export function confirmationsFor(
         item.pinnedVersion && item.pinnedVersion !== 'latest'
           ? `${item.pinnedVersion} 버전으로 `
           : '';
-      const text = `Claude Code에 등록된 내용을 지우고 ${version}다시 등록해요.`;
+      const text =
+        item.check.kind === 'mcp' && item.check.client === 'codex'
+          ? `Codex CLI에 등록된 내용을 ${version}다시 등록해요.`
+          : `Claude Code에 등록된 내용을 지우고 ${version}다시 등록해요.`;
       return [{ id: item.id, label: item.label, text, replace: true }];
     }
     if (action.kind === 'install' && action.warning)
@@ -428,18 +494,28 @@ export function checkSummary(
   openGroups: ReadonlySet<string>,
 ) {
   const results = resultsById(report);
-  const items = visibleItems(catalog, openGroups);
+  const using = usingGroups(catalog, report, openGroups);
+  const items = catalog.items.filter(
+    (item) => isListed(catalog, item.group, openGroups) && !needsClosedGroup(catalog, item, using),
+  );
   const done = items.filter((item) => results.get(item.id)?.status === 'installed').length;
   return summaryLine(items.length, done);
+}
+
+/** Whether a group's rows count on the checklist: always, for the base group and the terminals. */
+export function isListed(catalog: SetupCatalog, id: string, openGroups: ReadonlySet<string>) {
+  const group = catalog.groups.find((entry) => entry.id === id);
+  return !group?.optional || !!group.cli || openGroups.has(id);
 }
 
 export function groupCount(
   catalog: SetupCatalog,
   report: CheckReport | null | undefined,
   group: string,
+  picked: ReadonlySet<string> = new Set(),
 ) {
   const results = resultsById(report);
-  const items = catalog.items.filter((item) => item.group === group);
+  const items = groupItems(catalog, group, usingGroups(catalog, report, picked));
   const installed = items.filter((item) => results.get(item.id)?.status === 'installed').length;
   return report ? `${items.length}개 중 ${installed}개 설치됨` : `${items.length}개`;
 }

@@ -22,12 +22,15 @@ test('the catalog has every item of the spec, once, in the spec order', () => {
       'rhino',
       'rhinomcp-plugin',
       'rhinomcp-mcp',
+      'rhinomcp-codex',
       'cordyceps-plugin',
       'cordyceps-mcp',
+      'cordyceps-codex',
       'rhino-settings',
       'blender',
       'blender-mcp-addon',
       'blender-mcp',
+      'blender-mcp-codex',
     ],
   );
   assert.equal(byId.size, catalog.items.length);
@@ -90,6 +93,45 @@ test('what the pip check looks for is what its install installs', () => {
   for (const id of ['py-base', 'py-gis', 'py-3d']) {
     const item = byId.get(id);
     assert.deepEqual(item.install.steps[0].packages, item.check.packages);
+  }
+});
+
+test("GPT's connections run the same servers, with telemetry off and the same pins", () => {
+  const step = (id) => byId.get(id).install.steps[0];
+  assert.deepEqual(step('rhinomcp-codex'), {
+    kind: 'codex-mcp-add',
+    args: [
+      'mcp',
+      'add',
+      'rhino',
+      '--env',
+      'RHINO_MCP_HOST=127.0.0.1',
+      '--',
+      'uvx',
+      'rhinomcp@0.4.1.1',
+    ],
+  });
+  assert.deepEqual(step('cordyceps-codex').args, [
+    'mcp',
+    'add',
+    'cordyceps',
+    '--url',
+    'http://127.0.0.1:26929/mcp',
+  ]);
+  assert.deepEqual(step('blender-mcp-codex').args, [
+    'mcp',
+    'add',
+    'blender',
+    '--env',
+    'DISABLE_TELEMETRY=true',
+    '--',
+    'uvx',
+    'blender-mcp@1.5.5',
+  ]);
+  for (const id of ['rhinomcp-codex', 'cordyceps-codex', 'blender-mcp-codex']) {
+    assert.equal(byId.get(id).check.client, 'codex');
+    assert.ok(byId.get(id).dependsOn.includes('codex'));
+    assert.ok(!byId.get(id).dependsOn.includes('claude'));
   }
 });
 

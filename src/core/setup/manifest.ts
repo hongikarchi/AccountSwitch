@@ -146,6 +146,11 @@ function mcpInstall(summary: string, args: string[]) {
   return { summary, automatic: true, steps: [step] };
 }
 
+function codexMcpInstall(summary: string, args: string[]) {
+  const step: InstallStep = { kind: 'codex-mcp-add', args: ['mcp', 'add', ...args] };
+  return { summary, automatic: true, steps: [step] };
+}
+
 const groups: SetupGroup[] = [
   {
     id: 'base',
@@ -170,13 +175,13 @@ const groups: SetupGroup[] = [
   {
     id: 'rhino',
     label: 'Rhino',
-    description: 'Claude Code가 Rhino와 Grasshopper를 다룰 수 있게 연결해요.',
+    description: 'Claude Code나 GPT가 Rhino와 Grasshopper를 다룰 수 있게 연결해요.',
     optional: true,
   },
   {
     id: 'blender',
     label: 'Blender',
-    description: 'Blender를 설치하고 Claude Code와 연결해요.',
+    description: 'Blender를 설치하고 Claude Code나 GPT와 연결해요.',
     optional: true,
   },
 ];
@@ -417,7 +422,7 @@ const items: SetupItem[] = [
   {
     id: 'rhinomcp-plugin',
     label: 'rhinomcp 플러그인',
-    description: 'Claude Code가 Rhino 안에서 스크립트를 실행하게 해 줘요.',
+    description: 'Claude Code나 GPT가 Rhino 안에서 스크립트를 실행하게 해 줘요.',
     group: 'rhino',
     dependsOn: ['rhino'],
     check: {
@@ -435,7 +440,7 @@ const items: SetupItem[] = [
   },
   {
     id: 'rhinomcp-mcp',
-    label: 'rhinomcp 연결',
+    label: 'rhinomcp 연결 (Claude Code)',
     description: 'Claude Code에 rhinomcp를 등록해요.',
     group: 'rhino',
     dependsOn: ['claude', 'uv'],
@@ -452,9 +457,33 @@ const items: SetupItem[] = [
     mayElevate: false,
   },
   {
+    id: 'rhinomcp-codex',
+    label: 'rhinomcp 연결 (GPT)',
+    description: 'Codex CLI에 rhinomcp를 등록해요.',
+    group: 'rhino',
+    dependsOn: ['codex', 'uv'],
+    check: {
+      kind: 'mcp',
+      client: 'codex',
+      name: 'rhino',
+      package: 'rhinomcp',
+      version: PINS.rhinomcp,
+    },
+    install: codexMcpInstall('Codex CLI에 등록해요.', [
+      'rhino',
+      '--env',
+      'RHINO_MCP_HOST=127.0.0.1',
+      '--',
+      'uvx',
+      `rhinomcp@${PINS.rhinomcp}`,
+    ]),
+    pinnedVersion: PINS.rhinomcp,
+    mayElevate: false,
+  },
+  {
     id: 'cordyceps-plugin',
     label: 'Cordyceps 플러그인',
-    description: 'Claude Code가 Grasshopper를 다루게 해 줘요.',
+    description: 'Claude Code나 GPT가 Grasshopper를 다루게 해 줘요.',
     group: 'rhino',
     dependsOn: ['rhino'],
     check: {
@@ -473,7 +502,7 @@ const items: SetupItem[] = [
   },
   {
     id: 'cordyceps-mcp',
-    label: 'Cordyceps 연결',
+    label: 'Cordyceps 연결 (Claude Code)',
     description: 'Claude Code에 Cordyceps를 등록해요.',
     group: 'rhino',
     dependsOn: ['claude'],
@@ -482,6 +511,21 @@ const items: SetupItem[] = [
       '--transport',
       'http',
       'cordyceps',
+      'http://127.0.0.1:26929/mcp',
+    ]),
+    pinnedVersion: null,
+    mayElevate: false,
+  },
+  {
+    id: 'cordyceps-codex',
+    label: 'Cordyceps 연결 (GPT)',
+    description: 'Codex CLI에 Cordyceps를 등록해요.',
+    group: 'rhino',
+    dependsOn: ['codex'],
+    check: { kind: 'mcp', client: 'codex', name: 'cordyceps', url: 'http://127.0.0.1:26929/mcp' },
+    install: codexMcpInstall('Codex CLI에 등록해요.', [
+      'cordyceps',
+      '--url',
       'http://127.0.0.1:26929/mcp',
     ]),
     pinnedVersion: null,
@@ -576,7 +620,7 @@ const items: SetupItem[] = [
   },
   {
     id: 'blender-mcp',
-    label: 'blender-mcp 연결',
+    label: 'blender-mcp 연결 (Claude Code)',
     description: 'Claude Code에 blender-mcp를 등록해요.',
     group: 'blender',
     dependsOn: ['claude', 'uv'],
@@ -585,6 +629,31 @@ const items: SetupItem[] = [
     install: mcpInstall('Claude Code에 등록해요. 정보 수집은 꺼 둬요.', [
       'blender',
       '-e',
+      'DISABLE_TELEMETRY=true',
+      '--',
+      'uvx',
+      `blender-mcp@${PINS.blenderMcp}`,
+    ]),
+    pinnedVersion: PINS.blenderMcp,
+    mayElevate: false,
+  },
+  {
+    id: 'blender-mcp-codex',
+    label: 'blender-mcp 연결 (GPT)',
+    description: 'Codex CLI에 blender-mcp를 등록해요.',
+    group: 'blender',
+    dependsOn: ['codex', 'uv'],
+    check: {
+      kind: 'mcp',
+      client: 'codex',
+      name: 'blender',
+      package: 'blender-mcp',
+      version: PINS.blenderMcp,
+    },
+    // Off here too (SPEC 3.3).
+    install: codexMcpInstall('Codex CLI에 등록해요. 정보 수집은 꺼 둬요.', [
+      'blender',
+      '--env',
       'DISABLE_TELEMETRY=true',
       '--',
       'uvx',

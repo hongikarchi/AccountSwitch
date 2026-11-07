@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { win32 } from 'node:path';
 import {
   blendListsModule,
+  codexMcpServer,
   DEFAULT_TIMEOUTS,
   findPackage,
   userMcpServer,
@@ -663,4 +664,74 @@ test('pathHasFolder ignores letter case and a trailing backslash', () => {
   assert.equal(pathHasFolder('C:\\A;C:\\B\\', 'c:\\b'), true);
   assert.equal(pathHasFolder('C:\\A', 'C:\\A\\sub'), false);
   assert.equal(pathHasFolder(null, 'C:\\A'), false);
+});
+
+const CODEX_CONFIG = `${HOME}\\.codex\\config.toml`;
+const CODEX_TOML = `cli_auth_credentials_store = "file"
+
+[mcp_servers.rhino]
+command = "uvx"
+args = ["rhinomcp@0.4.1.1"]
+
+[mcp_servers.rhino.env]
+RHINO_MCP_HOST = "127.0.0.1"
+RHINO_TOKEN = "${SECRET}"
+
+[mcp_servers.cordyceps]
+url = "http://127.0.0.1:26929/mcp"
+
+[mcp_servers.blender]
+command = 'uvx'
+args = [
+  "blender-mcp@1.4.0",
+]
+
+[profiles.other]
+url = "http://elsewhere"
+`;
+
+test('codexMcpServer reads one table and nothing of its env', () => {
+  const config = Buffer.from(CODEX_TOML);
+  const rhino = codexMcpServer(config, 'rhino');
+  assert.deepEqual(rhino, { command: 'uvx rhinomcp@0.4.1.1', url: undefined });
+  assert.ok(!JSON.stringify(rhino).includes(SECRET));
+  assert.equal(codexMcpServer(config, 'cordyceps').url, 'http://127.0.0.1:26929/mcp');
+  assert.equal(codexMcpServer(config, 'blender').command, 'uvx blender-mcp@1.4.0');
+  assert.equal(codexMcpServer(config, 'other'), undefined);
+  assert.equal(
+    codexMcpServer(Buffer.from('\uFEFF[mcp_servers."rhino"]\r\nurl = "x"\r\n'), 'rhino').url,
+    'x',
+  );
+});
+
+test("GPT's connections are read from Codex's config, with no lock and no secret", async () => {
+  const pc = fakePc({
+    contents: { [CODEX_CONFIG]: CODEX_TOML },
+    answers: { codex: () => ok('0.163.0') },
+  });
+  pc.deps.executable = (provider) => (provider === 'codex-cli' ? 'C:\\c\\codex.cmd' : undefined);
+  let locked = 0;
+  pc.deps.exclusive = async (task) => {
+    locked++;
+    return task();
+  };
+  const report = await runChecks(pc.deps);
+  assert.equal(statusOf(report, 'rhinomcp-codex').status, 'installed');
+  assert.equal(statusOf(report, 'rhinomcp-codex').foundVersion, '0.4.1.1');
+  assert.equal(statusOf(report, 'cordyceps-codex').status, 'installed');
+  const other = statusOf(report, 'blender-mcp-codex');
+  assert.equal(other.status, 'version-mismatch');
+  assert.equal(other.foundVersion, '1.4.0');
+  // Claude Code is not there, so its connections are simply missing, without reading its file.
+  assert.equal(statusOf(report, 'rhinomcp-mcp').status, 'missing');
+  assert.equal(locked, 0);
+  assert.ok(!JSON.stringify(report).includes(SECRET));
+});
+
+test("without Codex CLI, GPT's connections are missing whatever the file says", async () => {
+  const pc = fakePc({ contents: { [CODEX_CONFIG]: CODEX_TOML } });
+  pc.deps.executable = () => undefined;
+  const report = await runChecks(pc.deps);
+  assert.equal(statusOf(report, 'rhinomcp-codex').status, 'missing');
+  assert.ok(statusOf(report, 'rhinomcp-codex').waitingFor.includes('codex'));
 });

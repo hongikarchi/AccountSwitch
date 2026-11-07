@@ -269,8 +269,8 @@
 .step-description {
   color: var(--muted);
 }
-.step[data-node='pending']:not([data-active='true']) .step-title,
-.step[data-node='skipped'] .step-title {
+.step[data-node='pending']:not([data-active='true']) > .step-body > .step-main .step-title,
+.step[data-node='skipped'] > .step-body > .step-main .step-title {
   color: var(--muted);
 }
 .step-control {
@@ -325,35 +325,9 @@
   gap: 8px 16px;
 }
 
-/* Optional groups: one row with a checkbox until ticked. */
-.optional-label {
-  margin-bottom: -24px;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 500;
-}
-.step-section[data-optional='true'] + .step-section[data-optional='true'] {
-  margin-top: -16px;
-  padding-top: 24px;
-  border-top: 1px solid var(--line);
-}
-.group-row {
-  display: grid;
-  grid-template-columns: 24px minmax(0, 1fr);
-  column-gap: 16px;
-  cursor: pointer;
-}
-.group-box {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-}
-.group-text {
-  display: grid;
-  min-width: 0;
-  padding-top: 4px;
+/* A group's own steps, inside its step. */
+.step-sublist {
+  margin-top: 20px;
 }
 
 /* The program screen (5.6). */
@@ -392,10 +366,9 @@
   color: var(--muted);
   cursor: default;
 }
-.program-card input {
-  position: absolute;
-  top: 10px;
-  right: 10px;
+.program-card:has(input:focus-visible) {
+  outline: 2px solid var(--line-strong);
+  outline-offset: 2px;
 }
 .program-name {
   font-size: 15px;

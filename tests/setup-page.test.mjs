@@ -8,6 +8,7 @@ import {
   byGroup,
   canStart,
   checkSummary,
+  cardDone,
   checkedInOrder,
   clock,
   confirmationsFor,
@@ -24,8 +25,9 @@ import {
   runRequest,
   runSummary,
   stepFromCheck,
+  stepFromGroup,
+  usingGroups,
   stepFromRun,
-  toggleGroup,
   visibleItems,
 } from '../src/ui/setup-logic.ts';
 
@@ -69,13 +71,8 @@ test('optional groups stay out until the user ticks the group', () => {
   assert.deepEqual([...first], ['git']);
   assert.ok(visibleItems(catalog, none).every((entry) => entry.group === 'base'));
 
-  const on = toggleGroup(catalog, state, { checked: first, openGroups: none }, 'blender', true);
-  assert.deepEqual(checkedInOrder(catalog, on.checked), ['git', 'blender']);
-  assert.ok(on.openGroups.has('blender'));
-
-  const off = toggleGroup(catalog, state, on, 'blender', false);
-  assert.deepEqual(checkedInOrder(catalog, off.checked), ['git']);
-  assert.ok(!off.openGroups.has('blender'));
+  const on = defaultChecked(catalog, state, new Set(['blender']));
+  assert.deepEqual(checkedInOrder(catalog, on), ['git', 'blender']);
 });
 
 test('ticking a group does not check what is already there or of another version', () => {
@@ -83,8 +80,8 @@ test('ticking a group does not check what is already there or of another version
     blender: { status: 'version-mismatch', foundVersion: '4.5.0' },
     'blender-mcp-addon': missing,
   });
-  const on = toggleGroup(catalog, state, { checked: none, openGroups: none }, 'blender', true);
-  assert.deepEqual(checkedInOrder(catalog, on.checked), ['blender-mcp-addon']);
+  const on = defaultChecked(catalog, state, new Set(['blender']));
+  assert.deepEqual(checkedInOrder(catalog, on), ['blender-mcp-addon']);
 });
 
 test('the checked items go in catalog order, and only they go', () => {
@@ -329,9 +326,9 @@ test('a run item the catalog does not know still gets a row', () => {
 
 test('counts', () => {
   const state = report({ git: missing, node: missing });
-  assert.equal(checkSummary(catalog, state, none), '8개 중 6개 완료');
-  assert.equal(groupCount(catalog, report({ rhino: missing }), 'rhino'), '6개 중 5개 설치됨');
-  assert.equal(groupCount(catalog, null, 'rhino'), '6개');
+  assert.equal(checkSummary(catalog, state, none), '10개 중 8개 완료');
+  assert.equal(groupCount(catalog, report({ rhino: missing }), 'rhino'), '8개 중 7개 설치됨');
+  assert.equal(groupCount(catalog, null, 'rhino'), '4개');
   const run = {
     phase: 'finished',
     mode: 'auto',
@@ -467,21 +464,97 @@ test('다음 needs Claude Code or GPT', () => {
   assert.equal(picksCli(catalog, new Set(['codex', 'rhino'])), true);
 });
 
-test('without Claude Code picked, its connections stay unticked until it is', () => {
+test('a connection applies only to a terminal program in use', () => {
   const state = report({
     codex: missing,
     claude: missing,
-    'blender-mcp': missing,
     blender: missing,
+    'blender-mcp': missing,
+    'blender-mcp-codex': missing,
   });
-  const picked = new Set(['codex', 'blender']);
-  const checked = defaultChecked(catalog, state, picked);
-  assert.deepEqual(checkedInOrder(catalog, checked), ['codex', 'blender']);
-  const on = toggleGroup(catalog, state, { checked, openGroups: picked }, 'claude', true);
-  assert.deepEqual(checkedInOrder(catalog, on.checked), [
-    'claude',
-    'codex',
-    'blender',
+  const items = (picked) =>
+    checkedInOrder(catalog, defaultChecked(catalog, state, new Set(picked)));
+  assert.deepEqual(items(['codex', 'blender']), ['codex', 'blender', 'blender-mcp-codex']);
+  assert.deepEqual(items(['claude', 'blender']), ['claude', 'blender', 'blender-mcp']);
+  assert.deepEqual(items(['blender']), ['blender']);
+});
+
+test('a terminal program already installed is in use without being picked', () => {
+  const state = report({ codex: missing, 'blender-mcp': missing, 'blender-mcp-codex': missing });
+  assert.deepEqual([...usingGroups(catalog, state)], ['claude']);
+  assert.ok(picksCli(catalog, usingGroups(catalog, state)));
+  assert.deepEqual(checkedInOrder(catalog, defaultChecked(catalog, state, new Set(['blender']))), [
     'blender-mcp',
   ]);
+  const nothing = report({ claude: missing, codex: missing });
+  assert.ok(!picksCli(catalog, usingGroups(catalog, nothing)));
+});
+
+test('a card says 설치됨 when nothing applicable is left, and not for an unknown state', () => {
+  const only = report({ codex: missing, 'rhinomcp-codex': missing, 'cordyceps-codex': missing });
+  // Without GPT its connections do not count; ticking GPT makes them something left to do.
+  assert.equal(cardDone(catalog, only, 'rhino', new Set()), true);
+  assert.equal(cardDone(catalog, only, 'rhino', new Set(['codex'])), false);
+  assert.equal(cardDone(catalog, only, 'codex', new Set()), false);
+  assert.equal(cardDone(catalog, only, 'claude', new Set()), true);
+  assert.equal(cardDone(catalog, null, 'claude', new Set()), false);
+  const other = report({ blender: { status: 'version-mismatch', foundVersion: '4.5.0' } });
+  assert.equal(cardDone(catalog, other, 'blender', new Set()), true);
+  const unknown = report({ blender: { status: 'timeout' } });
+  assert.equal(cardDone(catalog, unknown, 'blender', new Set()), false);
+});
+
+test('a group row counts what applies and its button runs what is missing', () => {
+  const rhino = catalog.groups.find((group) => group.id === 'rhino');
+  const state = report({
+    codex: missing,
+    'rhinomcp-plugin': missing,
+    'rhino-settings': missing,
+    'rhinomcp-codex': missing,
+    'cordyceps-codex': missing,
+  });
+  const step = stepFromGroup(catalog, rhino, state, new Map(), 'check');
+  assert.equal(step.view.meta, '6개 중 4개 설치됨');
+  assert.equal(step.view.node, 'pending');
+  assert.deepEqual(step.install, ['rhinomcp-plugin', 'rhino-settings']);
+  assert.equal(step.attention, false);
+
+  const done = report({ codex: missing, 'rhinomcp-codex': missing, 'cordyceps-codex': missing });
+  const finished = stepFromGroup(catalog, rhino, done, new Map(), 'check');
+  assert.equal(finished.view.node, 'done');
+  assert.deepEqual(finished.install, []);
+
+  // Rhino itself only the user can install: its link shows, and it goes along to be reported.
+  const noRhino = stepFromGroup(
+    catalog,
+    rhino,
+    report({ ...{ codex: missing }, rhino: missing, 'rhinomcp-plugin': missing }),
+    new Map(),
+    'check',
+  );
+  assert.equal(noRhino.view.node, 'needs-user');
+  assert.ok(noRhino.view.manual);
+  assert.deepEqual(noRhino.install.slice(0, 2), ['rhino', 'rhinomcp-plugin']);
+
+  const onlyManual = stepFromGroup(catalog, rhino, report({ rhino: missing }), new Map(), 'check');
+  assert.deepEqual(onlyManual.install, []);
+
+  const other = stepFromGroup(
+    catalog,
+    rhino,
+    report({ 'rhinomcp-mcp': { status: 'version-mismatch' } }),
+    new Map(),
+    'check',
+  );
+  assert.equal(other.attention, true);
+
+  const failed = stepFromGroup(
+    catalog,
+    rhino,
+    report({ 'rhinomcp-plugin': missing }),
+    new Map([['rhinomcp-plugin', { id: 'rhinomcp-plugin', status: 'failed' }]]),
+    'check',
+  );
+  assert.equal(failed.view.node, 'failed');
+  assert.equal(failed.attention, true);
 });

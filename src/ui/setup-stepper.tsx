@@ -63,12 +63,15 @@ export function StepRow({
   active = false,
   control,
   actions,
+  children,
 }: {
   view: StepView;
   /** Reads at full strength even while pending: the user has it checked. */
   active?: boolean;
   control?: ReactNode;
   actions?: ReactNode;
+  /** A group's own steps, unfolded inside its step. */
+  children?: ReactNode;
 }) {
   return (
     <li className="step" data-node={view.node} data-active={active ? 'true' : undefined}>
@@ -108,6 +111,7 @@ export function StepRow({
           </p>
         ) : null}
         {actions ? <div className="step-actions">{actions}</div> : null}
+        {children}
       </div>
     </li>
   );
@@ -123,49 +127,7 @@ export function GroupLabel({ label, count }: { label: string; count: number }) {
   );
 }
 
-/** An optional group: one row with a checkbox, and its steps only once ticked. */
-export function OptionalGroup({
-  label,
-  description,
-  count,
-  open,
-  toggle,
-  children,
-}: {
-  label: string;
-  description: string;
-  count: string;
-  open: boolean;
-  toggle: (on: boolean) => void;
-  children: ReactNode;
-}) {
-  const descriptionId = useId();
-  return (
-    <section className="step-section" data-optional="true">
-      <label className="group-row">
-        <span className="group-box">
-          <input
-            type="checkbox"
-            aria-label={label}
-            aria-describedby={descriptionId}
-            checked={open}
-            onChange={(event) => toggle(event.target.checked)}
-          />
-        </span>
-        <span className="group-text">
-          <small className="step-meta">{count}</small>
-          <span className="step-title">{label}</span>
-          <span className="step-description" id={descriptionId}>
-            {description}
-          </span>
-        </span>
-      </label>
-      {open ? children : null}
-    </section>
-  );
-}
-
-/** One program on the program screen, ticked as a whole. Without `toggle` it cannot be chosen yet. */
+/** One card of the program screen, ticked by its border. Without `toggle` it cannot be chosen. */
 export function ProgramCard({
   name,
   note,
@@ -184,6 +146,7 @@ export function ProgramCard({
       data-disabled={toggle ? undefined : 'true'}
     >
       <input
+        className="sr-only"
         type="checkbox"
         checked={picked}
         disabled={!toggle}

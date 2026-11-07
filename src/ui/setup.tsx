@@ -12,13 +12,15 @@ import {
   autoOpens,
   byGroup,
   canStart,
+  cardDone,
   checkedInOrder,
   checkSummary,
   confirmationsFor,
   defaultChecked,
   failureMessage,
-  groupCount,
+  groupItems,
   groupsOfRun,
+  isListed,
   isRunActive,
   parseLog,
   parseOverview,
@@ -31,15 +33,15 @@ import {
   runRequest,
   runSummary,
   stepFromCheck,
+  stepFromGroup,
   stepFromRun,
-  toggleGroup,
+  usingGroups,
   type Confirmation,
 } from './setup-logic.ts';
 import {
   ConfirmPanel,
   GroupLabel,
   LogPanel,
-  OptionalGroup,
   ProgramCard,
   StepRow,
   SummaryBar,
@@ -134,9 +136,9 @@ function PageHead({ title, detail, back }: { title: string; detail?: string; bac
 /** Auto mode's first question (SPEC 3.2): nothing happens here until 다음 is pressed. */
 function ProgramScreen({
   overview,
+  report,
   picked,
   setPicked,
-  ready,
   checking,
   busy,
   error,
@@ -144,9 +146,9 @@ function ProgramScreen({
   back,
 }: {
   overview: SetupOverview;
+  report: CheckReport | null;
   picked: ReadonlySet<string>;
   setPicked: (next: ReadonlySet<string>) => void;
-  ready: boolean;
   checking: boolean;
   busy: boolean;
   error: string;
@@ -159,26 +161,30 @@ function ProgramScreen({
       <div className="program-cards">
         {overview.catalog.groups
           .filter((group) => group.optional)
-          .map((group) => (
-            <ProgramCard
-              key={group.id}
-              name={group.label}
-              picked={picked.has(group.id)}
-              toggle={(on) => {
-                const after = new Set(picked);
-                if (on) after.add(group.id);
-                else after.delete(group.id);
-                setPicked(after);
-              }}
-            />
-          ))}
+          .map((group) =>
+            cardDone(overview.catalog, report, group.id, picked) ? (
+              <ProgramCard key={group.id} name={group.label} note="설치됨" />
+            ) : (
+              <ProgramCard
+                key={group.id}
+                name={group.label}
+                picked={picked.has(group.id)}
+                toggle={(on) => {
+                  const after = new Set(picked);
+                  if (on) after.add(group.id);
+                  else after.delete(group.id);
+                  setPicked(after);
+                }}
+              />
+            ),
+          )}
         <ProgramCard name="ZWCAD" note="준비 중" />
       </div>
       <SummaryBar {...(checking ? { line: '확인하는 중이에요' } : {})} error={error}>
         <button
           type="button"
           className="primary-button"
-          disabled={checking || busy || !ready}
+          disabled={checking || busy || !report}
           onClick={next}
         >
           다음
@@ -305,6 +311,7 @@ export function SetupTab({ active }: { active: boolean }) {
   const [picking, setPicking] = useState(false);
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [warning, setWarning] = useState(false);
+  const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState<{
     items: string[];
@@ -501,12 +508,13 @@ export function SetupTab({ active }: { active: boolean }) {
   };
 
   /**
-   * 다음: the press that installs what the ticked cards and the base group miss. Without Claude Code
-   * or GPT it only warns (SPEC 3.2). With nothing to install, the checklist says where things are.
+   * 다음: the press that installs what the ticked cards and the base group miss. With neither Claude
+   * Code nor GPT, ticked or there, it only warns (SPEC 3.2). With nothing to install, the checklist
+   * says where things are.
    */
   const startPicked = () => {
     const { catalog } = overview!;
-    if (!picksCli(catalog, picked)) return setWarning(true);
+    if (!picksCli(catalog, usingGroups(catalog, report, picked))) return setWarning(true);
     const nextChecked = defaultChecked(catalog, report, picked);
     chooseGroups(picked);
     setChecked(nextChecked);
@@ -618,9 +626,9 @@ export function SetupTab({ active }: { active: boolean }) {
         <>
           <ProgramScreen
             overview={overview}
+            report={report}
             picked={picked}
             setPicked={setPicked}
-            ready={!!report}
             checking={checking}
             busy={busy}
             error={actionError || checkError}
@@ -654,8 +662,7 @@ export function SetupTab({ active }: { active: boolean }) {
       const action = actionFor(item, results.get(item.id), listMode);
       return (
         (action.kind === 'install' || action.kind === 'register-again') &&
-        (!catalog.groups.find((group) => group.id === item.group)?.optional ||
-          openGroups.has(item.group))
+        isListed(catalog, item.group, openGroups)
       );
     });
 
@@ -697,9 +704,12 @@ export function SetupTab({ active }: { active: boolean }) {
       return <StepRow key={item.id} view={view} active={auto && isChecked} control={control} />;
     };
 
-    const required = catalog.groups.filter((group) => !group.optional);
-    const optional = catalog.groups.filter((group) => group.optional);
-    const inGroup = (id: string) => catalog.items.filter((item) => item.group === id);
+    const listed = catalog.items.filter((item) => {
+      const group = catalog.groups.find((entry) => entry.id === item.group);
+      return !group?.optional || group.cli;
+    });
+    const programs = catalog.groups.filter((group) => group.optional && !group.cli);
+    const lastByItem = new Map((lastRun?.items ?? []).map((entry) => [entry.id, entry]));
 
     return (
       <>
@@ -714,29 +724,76 @@ export function SetupTab({ active }: { active: boolean }) {
           back={backToFirst}
         />
         <div className="stepper">
-          {required.map((group) => (
-            <section key={group.id} className="step-section">
-              <GroupLabel label={group.label} count={inGroup(group.id).length} />
-              <ol className="step-list">{inGroup(group.id).map(row)}</ol>
+          <section className="step-section">
+            <GroupLabel
+              label={catalog.groups.find((group) => !group.optional)?.label ?? ''}
+              count={listed.length}
+            />
+            <ol className="step-list">{listed.map(row)}</ol>
+          </section>
+          {programs.length ? (
+            <section className="step-section">
+              <GroupLabel label="필요하면 더 고르세요" count={programs.length} />
+              <ol className="step-list">
+                {programs.map((group) => {
+                  const step = stepFromGroup(
+                    catalog,
+                    group,
+                    report,
+                    lastByItem,
+                    listMode,
+                    openGroups,
+                  );
+                  const open = step.attention || unfolded.has(group.id);
+                  return (
+                    <StepRow
+                      key={group.id}
+                      view={step.view}
+                      control={
+                        step.install.length ? (
+                          <button
+                            type="button"
+                            aria-label={`${group.label} 설치`}
+                            disabled={busy || checking}
+                            onClick={() => requestRun(step.install, listMode)}
+                          >
+                            설치
+                          </button>
+                        ) : undefined
+                      }
+                      actions={
+                        step.attention ? undefined : (
+                          <button
+                            type="button"
+                            className="text-button"
+                            aria-expanded={open}
+                            onClick={() => {
+                              const next = new Set(unfolded);
+                              if (open) next.delete(group.id);
+                              else next.add(group.id);
+                              setUnfolded(next);
+                            }}
+                          >
+                            {open ? '접기' : '항목 보기'}
+                          </button>
+                        )
+                      }
+                    >
+                      {open ? (
+                        <ol className="step-list step-sublist">
+                          {groupItems(
+                            catalog,
+                            group.id,
+                            usingGroups(catalog, report, openGroups),
+                          ).map(row)}
+                        </ol>
+                      ) : null}
+                    </StepRow>
+                  );
+                })}
+              </ol>
             </section>
-          ))}
-          {optional.length ? <p className="optional-label">필요하면 더 고르세요</p> : null}
-          {optional.map((group) => (
-            <OptionalGroup
-              key={group.id}
-              label={group.label}
-              description={group.description}
-              count={groupCount(catalog, report, group.id)}
-              open={openGroups.has(group.id)}
-              toggle={(on) => {
-                const next = toggleGroup(catalog, report, { checked, openGroups }, group.id, on);
-                chooseGroups(next.openGroups);
-                setChecked(next.checked);
-              }}
-            >
-              <ol className="step-list">{inGroup(group.id).map(row)}</ol>
-            </OptionalGroup>
-          ))}
+          ) : null}
         </div>
         {confirming ? (
           <ConfirmPanel

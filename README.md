@@ -24,8 +24,8 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 | 기본 | Git, Node.js 24, uv, Python 3.13, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
 | Claude Code | Claude Code |
 | GPT | Codex CLI |
-| Rhino | Rhino 8은 직접 설치하고, 플러그인과 Claude Code 연결(rhinomcp, Cordyceps)을 설치합니다 |
-| Blender | Blender 5.2.3, 애드온, Claude Code 연결(blender-mcp) |
+| Rhino | Rhino 8은 직접 설치하고, 플러그인과 Claude Code·GPT 연결(rhinomcp, Cordyceps)을 설치합니다 |
+| Blender | Blender 5.2.3, 애드온, Claude Code·GPT 연결(blender-mcp) |
 
 - **이미 있는 프로그램은 건드리지 않습니다.** 다른 버전이 있으면 "버전 다름"으로 알려 주고 그대로 둡니다. Claude Code 연결을 다시 등록하는 일과, 점검만 모드에서 다른 버전의 Blender 옆에 설치하는 일은 먼저 물어봅니다. winget으로 Blender를 설치하면 다른 버전이 지워질 수 있어 경고합니다.
 - **로그인 정보를 읽거나 쓰지 않습니다.** `~/.claude.json`에 쓰는 일은 계정 전환과 겹치지 않게 하나씩 실행합니다.
