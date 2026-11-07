@@ -69,6 +69,6 @@ Code for T-040 to T-047 is done and tested with fakes only. Nothing has really b
 
 ## M6 Release
 
-- [~] T-070 README for 0.3.0; version bump. README done; the bump waits for the release (T-072).
+- [x] T-070 README for 0.3.0; version bump.
 - [ ] T-071 Release checklist (PLAN §4), including the 0.2.2 regression on an expired account.
 - [ ] T-072 Tag `v0.3.0` after the user confirms.
