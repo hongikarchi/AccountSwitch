@@ -130,29 +130,26 @@ export function OptionalGroup({
   count,
   open,
   toggle,
-  disabled,
   children,
 }: {
   label: string;
   description: string;
   count: string;
   open: boolean;
-  toggle?: (on: boolean) => void;
-  disabled?: boolean;
-  children?: ReactNode;
+  toggle: (on: boolean) => void;
+  children: ReactNode;
 }) {
   const descriptionId = useId();
   return (
     <section className="step-section" data-optional="true">
-      <label className="group-row" data-disabled={disabled ? 'true' : undefined}>
+      <label className="group-row">
         <span className="group-box">
           <input
             type="checkbox"
             aria-label={label}
             aria-describedby={descriptionId}
             checked={open}
-            disabled={disabled}
-            onChange={(event) => toggle?.(event.target.checked)}
+            onChange={(event) => toggle(event.target.checked)}
           />
         </span>
         <span className="group-text">
@@ -168,6 +165,36 @@ export function OptionalGroup({
   );
 }
 
+/** One program on the program screen, ticked as a whole. Without `toggle` it cannot be chosen yet. */
+export function ProgramCard({
+  name,
+  note,
+  picked = false,
+  toggle,
+}: {
+  name: string;
+  note?: string;
+  picked?: boolean;
+  toggle?: (on: boolean) => void;
+}) {
+  return (
+    <label
+      className="program-card"
+      data-picked={picked ? 'true' : undefined}
+      data-disabled={toggle ? undefined : 'true'}
+    >
+      <input
+        type="checkbox"
+        checked={picked}
+        disabled={!toggle}
+        onChange={(event) => toggle?.(event.target.checked)}
+      />
+      <span className="program-name">{name}</span>
+      {note ? <small>{note}</small> : null}
+    </label>
+  );
+}
+
 /** "8개 중 5개 완료" and the area's one primary button, kept in view at the bottom. */
 export function SummaryBar({
   line,
@@ -175,7 +202,7 @@ export function SummaryBar({
   error,
   children,
 }: {
-  line: string;
+  line?: string;
   detail?: string;
   error?: string;
   children?: ReactNode;
@@ -183,7 +210,7 @@ export function SummaryBar({
   return (
     <div className="setup-summary">
       <div className="summary-text" role="status" aria-live="polite">
-        <span className="summary-line">{line}</span>
+        {line ? <span className="summary-line">{line}</span> : null}
         {detail ? <small className="summary-detail">{detail}</small> : null}
         {error ? (
           <small className="summary-detail" data-tone="danger">

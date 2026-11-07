@@ -9,7 +9,7 @@ Order is chosen so the riskiest unknowns are measured early and every milestone 
 | M0 | Docs: SPEC, DESIGN, PLAN, TASK, ADR, CLAUDE.md | Committed on a branch when the user asks |
 | M1 | Design system and redesign of the 계정 tab, theme toggle, header with tabs | Light and dark screenshots at 480 px and 1100 px match DESIGN; `src/core` and `src/server` unchanged |
 | M2 | Setup engine, read only: manifest, checks, PATH re-read, `GET /setup`, `POST /setup/check`; 설치 tab shows the stepper with real status | Correct status on the development PC (most items present) and in Windows Sandbox (nothing present) |
-| M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `claude`, `codex`, `env`, `py-base`), Python bundles, Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |
+| M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `claude`, `codex`, `env`, `py-base`, `py-gis`, `py-3d`), Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |
 | M4 | Launcher: shell bridge, folder dialog, `cmd /K` running Claude Code or Codex CLI | Opens both in a folder with a Korean name and spaces |
 | M5 | Logo and icons | Approved concept, hand-drawn SVG, ICO and tray icons legible at 16 px on light and dark taskbars |
 | M6 | Release 0.3.0 | §4 checklist passed, user confirms, tag pushed |
@@ -37,7 +37,7 @@ Everything in M3 has so far run against fakes only. Windows Sandbox proves:
 4. Downloads pass the allowlist on the real redirects: github.com to release-assets, claude.ai to downloads.claude.ai, astral.sh.
 5. The `uv` and `claude` scripts work through `iex` on the saved copy with `-NonInteractive`. Record whether `claude.exe install` writes `~/.claude.json`; if it does not, drop the lock from that step (it can hold the account lock for up to 15 minutes, SPEC 3.7).
 6. `codex` installs through `node npm-cli.js`.
-7. `py-base` and the three bundles install. Note whether `pyhwp` and `rtree` build on 3.13.
+7. `py-base`, `py-gis` and `py-3d` install. Note whether `rtree` builds on 3.13.
 8. `env`: the read-PATH script runs for real, the value stays `REG_EXPAND_SZ` with other entries untouched, the policy is `RemoteSigned`, `PYTHONUTF8=1`.
 9. A new `cmd` window finds git, node, uv, uvx, py, claude and codex.
 10. Blender group: MSI fallback, then the add-on command on 5.2.3. `userpref.blend` lists the module, the telemetry preference is off, existing preferences survive. `copy_prev` works under `-b` and old settings arrive; note how far back it accepts a version folder. Note the `DisplayName` of an LTS Blender if one can be installed.

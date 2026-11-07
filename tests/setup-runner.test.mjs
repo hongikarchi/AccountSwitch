@@ -1013,9 +1013,9 @@ test('the optional Python bundles need Python, and install when it is there', ()
       },
     },
     async ({ runner }) => {
-      runner.start(auto('py-gis', 'py-3d', 'py-hwp'));
+      runner.start(auto('py-gis', 'py-3d'));
       await runner.settled();
-      for (const id of ['py-gis', 'py-3d', 'py-hwp'])
+      for (const id of ['py-gis', 'py-3d'])
         assert.equal(statusOf(runner.progress(), id), 'done', id);
     },
   ));

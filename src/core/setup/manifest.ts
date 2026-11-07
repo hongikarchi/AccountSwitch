@@ -154,36 +154,16 @@ const groups: SetupGroup[] = [
     optional: false,
   },
   {
-    id: 'py-gis',
-    label: 'Python 지도(GIS)',
-    description: '지도와 땅 정보 파일을 다루는 패키지예요.',
-    optional: true,
-  },
-  {
-    id: 'py-3d',
-    label: 'Python 3D',
-    description: 'Rhino 파일과 3D 모양을 코드로 다루는 패키지예요.',
-    optional: true,
-  },
-  {
-    id: 'py-hwp',
-    label: 'Python 한글 문서',
-    description: '한글(HWP) 문서를 읽는 패키지예요.',
-    optional: true,
-  },
-  {
     id: 'rhino',
     label: 'Rhino',
     description: 'Claude Code가 Rhino와 Grasshopper를 다룰 수 있게 연결해요.',
     optional: true,
-    program: true,
   },
   {
     id: 'blender',
     label: 'Blender',
     description: 'Blender를 설치하고 Claude Code와 연결해요.',
     optional: true,
-    program: true,
   },
 ];
 
@@ -389,17 +369,16 @@ const items: SetupItem[] = [
       'python-dotenv',
     ],
   ),
-  pipItem('py-gis', 'py-gis', '지도(GIS) 패키지', 'SHP 파일과 좌표계를 다뤄요.', [
+  pipItem('py-gis', 'base', 'Python 지도(GIS) 패키지', 'SHP 파일과 좌표계를 다뤄요.', [
     'pyshp',
     'pyproj',
     'shapely',
     'rtree',
   ]),
-  pipItem('py-3d', 'py-3d', '3D 패키지', 'Rhino 파일과 3D 모양을 코드로 다뤄요.', [
+  pipItem('py-3d', 'base', 'Python 3D 패키지', 'Rhino 파일과 3D 모양을 코드로 다뤄요.', [
     'rhino3dm',
     'trimesh',
   ]),
-  pipItem('py-hwp', 'py-hwp', '한글 문서 패키지', '한글(HWP) 문서를 읽어요.', ['pyhwp']),
   {
     id: 'rhino',
     label: `Rhino ${PINS.rhino}`,

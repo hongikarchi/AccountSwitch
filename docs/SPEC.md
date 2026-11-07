@@ -41,7 +41,7 @@ New features add files and endpoints; they do not edit the account modules excep
 The first screen of the wizard offers two choices:
 
 - **이미 세팅했어요 (점검만)**: run every check (read only), show the result, offer an install button per missing item. Nothing installs unless pressed.
-- **자동으로 설정해 주세요**: first ask which programs the user works with (user, 2026-11-07). One screen lists the optional groups as rows to tick, the groups with `program: true` first (Rhino, Blender), then an unavailable CAD row saying it comes later (out of 0.3.0, ADR-004), then the Python groups. Pressing **다음** runs the check result through the same rule as the checklist: everything missing in the base group and the ticked groups installs in catalog order, at once. The screen says so before the press, and 다음 stays disabled until the check has answered. When nothing can install (nothing missing, or only items the user has to install), 다음 shows the checklist instead of starting a run. **항목 직접 고르기** on the same screen opens the checklist with those items checked, then installs after one 시작 press. After a run, and whenever the tab opens with `mode: auto` in `setup-state.json`, the screen is the checklist.
+- **자동으로 설정해 주세요**: first ask which programs the user works with (user, 2026-11-07). One screen shows the programs and nothing else: a card each for the optional groups (Rhino, Blender) and an unavailable CAD card that comes later (out of 0.3.0, ADR-004). Pressing **다음** with at least one card ticked runs the check result through the same rule as the checklist: everything missing in the base group and the ticked groups installs in catalog order, at once. 다음 stays disabled until the check has answered. With nothing ticked, nothing installs: 다음 goes to the 점검만 result and records it, as if the user had picked 점검만, so the wizard does not reopen on the next start and each item there still has its own button. When something is ticked and nothing can install (nothing missing, or only items the user has to install), 다음 shows the checklist instead of starting a run. After a run, and whenever the tab opens with `mode: auto` in `setup-state.json`, the screen is the checklist.
 
 Rules for both modes:
 
@@ -67,14 +67,13 @@ The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-li
 | `codex` | `executable('codex-cli')` resolves | `npm i -g @openai/codex` (after `node`; `%APPDATA%\npm`) | latest | no |
 | `env` | all three hold: CurrentUser execution policy allows local scripts; user PATH contains `%USERPROFILE%\.local\bin`; user variable `PYTHONUTF8=1` | set what is missing (3.5) | – | no |
 | `py-base` | `py -3.13 -m pip show` finds all of: openpyxl pypdf pdfplumber pymupdf pillow numpy requests beautifulsoup4 python-dotenv | `py -3.13 -m pip install <missing>` | latest | no |
+| `py-gis` | pip show pyshp pyproj shapely rtree | pip install | latest | no |
+| `py-3d` | pip show rhino3dm trimesh | pip install | latest | no |
 
-**Optional groups (unchecked until the user ticks the group):**
+**Optional groups, the programs (unchecked until the user ticks the group). The Python map and 3D packages are part of the base group, and the HWP package is gone (user, 2026-11-07):**
 
 | Group | id | Check | Install | Version |
 |---|---|---|---|---|
-| Python GIS | `py-gis` | pip show pyshp pyproj shapely rtree | pip install | latest |
-| Python 3D | `py-3d` | pip show rhino3dm trimesh | pip install | latest |
-| Python 한글 문서 | `py-hwp` | pip show pyhwp | pip install | latest |
 | Rhino | `rhino` | `C:\Program Files\Rhino 8\System\Rhino.exe` exists | not installable: show "Rhino 8을 먼저 설치하세요" with a link; later Rhino items wait for it | 8 |
 | Rhino | `rhinomcp-plugin` | `%APPDATA%\McNeel\Rhinoceros\packages\8.0\rhinomcp\0.4.1.1\` exists | `C:\Program Files\Rhino 8\System\Yak.exe install rhinomcp 0.4.1.1` | 0.4.1.1 |
 | Rhino | `rhinomcp-mcp` | user-scope MCP server `rhino` exists in `~/.claude.json` | `claude mcp add -s user rhino -e RHINO_MCP_HOST=127.0.0.1 -- uvx rhinomcp@0.4.1.1` | 0.4.1.1 |

@@ -19,7 +19,6 @@ test('the catalog has every item of the spec, once, in the spec order', () => {
       'py-base',
       'py-gis',
       'py-3d',
-      'py-hwp',
       'rhino',
       'rhinomcp-plugin',
       'rhinomcp-mcp',
@@ -55,8 +54,7 @@ test('every item has Korean text and a known group, and dependencies come first'
 test('dependencies follow the spec rules', () => {
   const dependsOn = (id) => byId.get(id).dependsOn;
   assert.deepEqual(dependsOn('codex'), ['node']);
-  for (const id of ['py-base', 'py-gis', 'py-3d', 'py-hwp'])
-    assert.deepEqual(dependsOn(id), ['python']);
+  for (const id of ['py-base', 'py-gis', 'py-3d']) assert.deepEqual(dependsOn(id), ['python']);
   assert.deepEqual(dependsOn('rhinomcp-mcp'), ['claude', 'uv']);
   assert.deepEqual(dependsOn('blender-mcp'), ['claude', 'uv']);
   assert.deepEqual(dependsOn('cordyceps-mcp'), ['claude']);
@@ -89,7 +87,7 @@ test('the pins of the spec are what checks and installs use', () => {
 });
 
 test('what the pip check looks for is what its install installs', () => {
-  for (const id of ['py-base', 'py-gis', 'py-3d', 'py-hwp']) {
+  for (const id of ['py-base', 'py-gis', 'py-3d']) {
     const item = byId.get(id);
     assert.deepEqual(item.install.steps[0].packages, item.check.packages);
   }

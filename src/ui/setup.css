@@ -344,10 +344,6 @@
   column-gap: 16px;
   cursor: pointer;
 }
-.group-row[data-disabled='true'] {
-  color: var(--muted);
-  cursor: default;
-}
 .group-box {
   display: grid;
   place-items: center;
@@ -358,6 +354,48 @@
   display: grid;
   min-width: 0;
   padding-top: 4px;
+}
+
+/* The program screen (5.6). */
+.program-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+.program-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  text-align: center;
+  cursor: pointer;
+}
+.program-card:hover:not([data-disabled]) {
+  background: var(--panel);
+}
+/* The extra pixel is a shadow so that ticking moves nothing. */
+.program-card[data-picked] {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.program-card[data-disabled] {
+  color: var(--muted);
+  cursor: default;
+}
+.program-card input {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+.program-name {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
 }
 
 /* Summary bar: stays in view at the bottom of the window while the list scrolls. */

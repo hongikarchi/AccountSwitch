@@ -26,7 +26,7 @@ Avoid (the "AI-made" look): gradients, glass blur, glow, colored shadows, emoji,
 3. Numbers are the content: clear, tabular, aligned right. They never outgrow the section title; the bar beside them already carries the weight.
 4. One primary action per area, in solid black (white in dark mode).
 5. Everything aligns to a 4 px grid and one left edge per column.
-6. Room first (user, 2026-11-06: the first build felt cramped and its big type too big). When a screen feels full, remove or fold something before shrinking anything. A one-off action stays folded until asked for. Each account is one outlined box (5.3), the one thing on a page that is a box; elsewhere a hairline only separates two things and never closes a list.
+6. Room first (user, 2026-11-06: the first build felt cramped and its big type too big). When a screen feels full, remove or fold something before shrinking anything. A one-off action stays folded until asked for. Each account is one outlined box (5.3), and so is each program on the program screen (5.6); elsewhere a hairline only separates two things and never closes a list.
 
 ## 3. Tokens
 
@@ -127,14 +127,14 @@ Vertical, after the reference stepper, in black and white:
 - Needs user (e.g. Rhino missing): `--text` ring with an arrow; one link-style action.
 - 버전 다름: `--text` ring with `≠`. Unknown (no answer from a check): `--faint` ring with `?`. Skipped: `--faint` ring with `–`.
 - Each step: meta line (Small, muted: found version or time), title (H2), one-line description (Body, muted), group label above the first step of a group (Label).
-- Optional groups appear as one collapsed row with a checkbox and a count ("6개 중 3개 설치됨") until ticked, even when partly installed, because opening one would check its missing items. The program screen below uses the same row.
+- Optional groups appear as one collapsed row with a checkbox and a count ("6개 중 3개 설치됨") until ticked, even when partly installed, because opening one would check its missing items.
 - Each group is its own list, so connectors break between groups. 32 px between steps, 40 px between groups.
 - Summary bar at the bottom, sticking to the window's bottom edge: "8개 중 5개 완료" and the primary 시작 / 계속 button. A confirmation (Blender warning, MCP 다시 등록) is one inline panel above the bar, not a modal.
 - 처음으로 is a text button at the right of the checklist title, back to the first screen.
 
 The first screen of the wizard: Display title "이 PC를 준비할게요", two large choice rows (이미 세팅했어요 — 점검만 / 자동으로 설정해 주세요), each with one line of explanation.
 
-The program screen, after 자동으로 설정해 주세요: title "어떤 프로그램을 쓰세요?" with 처음으로 at its right, rows to tick for Rhino, Blender and CAD (disabled, "준비 중"), then the Python groups under the same "필요하면 더 고르세요" label as the checklist. The summary bar says what pressing 다음 will do, in plain words, with 항목 직접 고르기 (text) and 다음 (primary).
+The program screen, after 자동으로 설정해 주세요: title "어떤 프로그램을 쓰세요?" with 처음으로 at its right, and three cards in one row, equal width, 12 px apart: Rhino, Blender, CAD. A card is 96 px high with a 10 px radius and 1 px `--line`, its name centered (H2) and a checkbox in the top right corner; the whole card is the press target, hover `--panel`. A ticked card has a 2 px `--line-strong` border. CAD is disabled: name in `--muted`, "준비 중" under it (Small). Names only: the user chose no logos (2026-11-07), and no descriptions. Under the cards only the summary bar with the primary 다음, which says "확인하는 중이에요" while the check runs.
 
 ### 5.7 Empty and error states
 

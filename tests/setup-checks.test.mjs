@@ -191,7 +191,7 @@ test('python is asked for 3.13 exactly; pip items run through it and report what
           : ok(
               args.includes('rhino3dm')
                 ? 'Name: rhino3dm\nVersion: 8\n---\nName: trimesh\nVersion: 4\n'
-                : args.includes('pyhwp')
+                : args.includes('pyshp')
                   ? ''
                   : 'Name: Pillow\nName: openpyxl\nName: PyMuPDF\nName: python_dotenv\n',
             ),
@@ -202,7 +202,12 @@ test('python is asked for 3.13 exactly; pip items run through it and report what
   assert.equal(statusOf(report, 'python').foundVersion, '3.13.5');
   assert.ok(calls.some((call) => call.args[0] === '-3.13' && call.args.includes('show')));
   assert.equal(statusOf(report, 'py-3d').status, 'installed');
-  assert.deepEqual(statusOf(report, 'py-hwp').missingPackages, ['pyhwp']);
+  assert.deepEqual(statusOf(report, 'py-gis').missingPackages, [
+    'pyshp',
+    'pyproj',
+    'shapely',
+    'rtree',
+  ]);
   // Letter case and - or _ do not matter, as on PyPI.
   assert.deepEqual(statusOf(report, 'py-base').missingPackages, [
     'pypdf',

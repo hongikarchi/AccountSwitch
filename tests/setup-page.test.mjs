@@ -18,7 +18,6 @@ import {
   parseOverview,
   parseReport,
   parseRun,
-  pickerGroups,
   runAnnouncement,
   runOutcome,
   runRequest,
@@ -64,18 +63,18 @@ test('auto mode checks what is missing and nothing else', () => {
 });
 
 test('optional groups stay out until the user ticks the group', () => {
-  const state = report({ git: missing, 'py-gis': missing, rhino: missing, blender: missing });
+  const state = report({ git: missing, 'rhinomcp-mcp': missing, blender: missing });
   const first = defaultChecked(catalog, state, none);
   assert.deepEqual([...first], ['git']);
   assert.ok(visibleItems(catalog, none).every((entry) => entry.group === 'base'));
 
-  const on = toggleGroup(catalog, state, { checked: first, openGroups: none }, 'py-gis', true);
-  assert.deepEqual(checkedInOrder(catalog, on.checked), ['git', 'py-gis']);
-  assert.ok(on.openGroups.has('py-gis'));
+  const on = toggleGroup(catalog, state, { checked: first, openGroups: none }, 'blender', true);
+  assert.deepEqual(checkedInOrder(catalog, on.checked), ['git', 'blender']);
+  assert.ok(on.openGroups.has('blender'));
 
-  const off = toggleGroup(catalog, state, on, 'py-gis', false);
+  const off = toggleGroup(catalog, state, on, 'blender', false);
   assert.deepEqual(checkedInOrder(catalog, off.checked), ['git']);
-  assert.ok(!off.openGroups.has('py-gis'));
+  assert.ok(!off.openGroups.has('blender'));
 });
 
 test('ticking a group does not check what is already there or of another version', () => {
@@ -329,7 +328,7 @@ test('a run item the catalog does not know still gets a row', () => {
 
 test('counts', () => {
   const state = report({ git: missing, node: missing });
-  assert.equal(checkSummary(catalog, state, none), '8개 중 6개 완료');
+  assert.equal(checkSummary(catalog, state, none), '10개 중 8개 완료');
   assert.equal(groupCount(catalog, report({ rhino: missing }), 'rhino'), '6개 중 5개 설치됨');
   assert.equal(groupCount(catalog, null, 'rhino'), '6개');
   const run = {
@@ -432,16 +431,13 @@ test('a failure is told in Korean, never as a bare code', () => {
   assert.match(failureMessage('what', known), /다시 시도/);
 });
 
-test('the program screen lists programs first and installs only what the ticked groups miss', () => {
-  const { programs, others } = pickerGroups(catalog);
+test('the programs are the only choice, and the Python map and 3D packages are base items', () => {
   assert.deepEqual(
-    programs.map((group) => group.id),
+    catalog.groups.filter((group) => group.optional).map((group) => group.id),
     ['rhino', 'blender'],
   );
-  assert.deepEqual(
-    others.map((group) => group.id),
-    ['py-gis', 'py-3d', 'py-hwp'],
-  );
+  for (const id of ['py-gis', 'py-3d'])
+    assert.equal(catalog.items.find((item) => item.id === id).group, 'base');
   const state = report({ git: missing, 'blender-mcp': missing, 'rhinomcp-mcp': missing });
   const items = (picked) =>
     checkedInOrder(catalog, defaultChecked(catalog, state, new Set(picked)));

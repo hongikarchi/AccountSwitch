@@ -132,15 +132,6 @@ export function defaultChecked(
   );
 }
 
-/** The optional groups of the program screen (SPEC 3.2): programs first, then the rest. */
-export function pickerGroups(catalog: SetupCatalog) {
-  const optional = catalog.groups.filter((group) => group.optional);
-  return {
-    programs: optional.filter((group) => group.program),
-    others: optional.filter((group) => !group.program),
-  };
-}
-
 /** Ticking a group shows it and checks what is missing in it; unticking drops all of it. */
 export function toggleGroup(
   catalog: SetupCatalog,
