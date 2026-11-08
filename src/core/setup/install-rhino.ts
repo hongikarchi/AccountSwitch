@@ -1,13 +1,15 @@
 import { win32 } from 'node:path';
-import { expandPath, readWindowsSnapshot } from './environment.ts';
 import { StepStop, type InstallFiles } from './install-deps.ts';
 import type { StepContext, StepResult } from './install-steps.ts';
 import { isProgramRunning } from './install-windows.ts';
+import { roleNote } from './role-note.ts';
 import type { CheckSpec } from './types.ts';
 
-// The rhino-settings item (SPEC 3.8). Parts 1 and 4 are done here. Parts 2 (the start-up command
-// element) and 3 (the starter .gh) need a measurement in a real Rhino session, so they are not
-// guessed: the item ends needs-user while they are open. Rhino is only ever looked at, never stopped.
+export { roleNote };
+
+// The rhino-settings item (SPEC 3.8): part 1 (the read-only warning) and part 4 (the tool-role
+// note). Parts 2 (mcpstart at Rhino start) and 3 (a Grasshopper starter file) are not set (#3); the
+// note asks the agent to have the user start them. Rhino is only ever looked at, never stopped.
 
 const WARNING_KEY = 'EnableFileLockingOpenWarning';
 const WARNING_ON = `<entry key="${WARNING_KEY}">True</entry>`;
@@ -146,18 +148,6 @@ export function applyMarkedBlock(
   return { text, changed: text !== source };
 }
 
-/** Part 4's text. It is read by Claude Code and Codex, so English, like every agent-facing note. */
-export function roleNote(starterFile: string) {
-  return [
-    '## Rhino tools (written by AccountSwitch)',
-    '',
-    '- Use `rhino` (rhinomcp) for scripts and measurements in the Rhino document.',
-    '- Use `cordyceps` for Grasshopper and for how the viewport looks.',
-    `- Cordyceps starts when its component is on a Grasshopper canvas. If \`${starterFile}\` exists, open it through rhinomcp \`run_command\`: \`-_Grasshopper _Document _Open "${starterFile}" _Enter\`. Otherwise ask the user to place the component.`,
-    '- Never kill Rhino by process name. A killed Rhino leaves `.rhl` lock files that make files open read-only.',
-  ].join('\n');
-}
-
 export const BACKUP_SUFFIX = '.accountswitch-bak';
 
 /**
@@ -212,7 +202,6 @@ function applyRoleNote(
   name: string,
   path: string,
   spec: Extract<CheckSpec, { kind: 'rhino-settings' }>,
-  starter: string,
 ) {
   const { files } = context.deps;
   const place = `${name} 안내 파일(${win32.basename(path)})`;
@@ -225,7 +214,7 @@ function applyRoleNote(
     file.state === 'text' ? file.text : undefined,
     spec.roleNoteStart,
     spec.roleNoteEnd,
-    roleNote(starter),
+    roleNote(),
   );
   if (note.problem) return `${place}의 표시가 어긋나 있어서 그대로 뒀어요.`;
   if (!note.changed) return undefined;
@@ -261,24 +250,14 @@ export async function applyRhinoSettings(context: StepContext): Promise<StepResu
   if (warning === 'read-error')
     open.push('Rhino 설정 파일을 읽거나 쓰지 못해서 그대로 뒀어요. 다시 시도해 보세요.');
 
-  // The real Documents folder, which may have moved (OneDrive), as the check reads it.
   const { check } = context.deps;
-  const snapshot = await readWindowsSnapshot(check.run, check.env, check.home);
-  const starter = expandPath(
-    spec.starterFile,
-    check.env,
-    check.home,
-    snapshot?.documents ?? undefined,
-  );
   for (const note of spec.roleNotes) {
     if (!check.executable(note.provider)) continue;
-    const problem = applyRoleNote(context, note.name, context.path(note.file), spec, starter);
+    const problem = applyRoleNote(context, note.name, context.path(note.file), spec);
     if (problem) open.push(problem);
   }
 
-  open.push(
-    'Rhino를 켤 때 mcpstart를 자동으로 실행하는 설정과 Grasshopper 시작 파일은 아직 자동으로 맞출 수 없어요. 당분간 Rhino에서 mcpstart 명령을 직접 실행하고, Grasshopper에 Cordyceps 컴포넌트를 직접 올려 주세요.',
-  );
+  if (!open.length) return { ran: true };
   return {
     ran: true,
     needsUser: { reason: 'SETTINGS_PARTS_OPEN', message: open.join(' ') },

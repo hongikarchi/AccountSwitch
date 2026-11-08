@@ -12,6 +12,7 @@ import {
   versionMatches,
 } from '../src/core/setup/checks.ts';
 import { expandPath, pathHasFolder, rebuildPath } from '../src/core/setup/environment.ts';
+import { roleNote } from '../src/core/setup/role-note.ts';
 
 const HOME = 'C:\\Users\\tester';
 const APPDATA = `${HOME}\\AppData\\Roaming`;
@@ -493,14 +494,12 @@ test('the blender add-on needs the file and the module listed in user prefs', as
   assert.equal((await check([file], { [prefs]: '\x28\xb5\x2f\xfdcompressed' })).status, 'error');
 });
 
-test('rhino-settings reports each of its four parts, from files only', async () => {
+test('rhino-settings reports its parts, from files only', async () => {
   const settings = `${APPDATA}\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml`;
-  const starter = `${HOME}\\Documents\\AccountSwitch\\cordyceps-start.gh`;
   const note = `${HOME}\\.claude\\CLAUDE.md`;
   const parts = (result) => Object.fromEntries(result.parts.map((part) => [part.id, part.ok]));
   const off = fakePc({
     contents: {
-      // The entry that only counts past uses of mcpstart must not count as a start-up command.
       [settings]:
         '<entry key="EnableFileLockingOpenWarning">False</entry>\n' +
         '<child key="Command Use Counts"><entry key="f0b5b632.mcpstart">2</entry></child>',
@@ -511,18 +510,14 @@ test('rhino-settings reports each of its four parts, from files only', async () 
   assert.equal(none.status, 'missing');
   assert.deepEqual(parts(none), {
     'read-only-warning': false,
-    mcpstart: false,
-    'starter-file': false,
     'role-note': false,
     'codex-role-note': false,
   });
   const on = fakePc({
-    files: [starter],
     contents: {
-      [settings]:
-        '<entry key="EnableFileLockingOpenWarning">True</entry>\n' +
-        '<entry key="StartupCommands">_foo _mcpstart</entry>',
-      [note]: 'mine\n<!-- accountswitch:start -->\nnote\n<!-- accountswitch:end -->\n',
+      [settings]: '<entry key="EnableFileLockingOpenWarning">True</entry>\n',
+      // The current text counts with any line endings; an older text would be written again.
+      [note]: `mine\r\n<!-- accountswitch:start -->\r\n${roleNote().replaceAll('\n', '\r\n')}\r\n<!-- accountswitch:end -->\r\n`,
     },
   });
   assert.equal(statusOf(await runChecks(on.deps), 'rhino-settings').status, 'installed');
@@ -535,16 +530,6 @@ test('rhino-settings reports each of its four parts, from files only', async () 
   assert.equal(both.status, 'missing');
   assert.equal(parts(both)['role-note'], true);
   assert.equal(parts(both)['codex-role-note'], false);
-});
-
-test('the starter file follows a moved Documents folder', async () => {
-  const moved = 'D:\\OneDrive\\문서';
-  const { deps } = fakePc({
-    files: [`${moved}\\AccountSwitch\\cordyceps-start.gh`],
-    snap: snapshot({ documents: moved }),
-  });
-  const parts = statusOf(await runChecks(deps), 'rhino-settings').parts;
-  assert.equal(parts.find((part) => part.id === 'starter-file').ok, true);
 });
 
 test('a hanging command gives timeout for that item and the rest still answer', async () => {

@@ -38,14 +38,6 @@ export const PINS = {
   },
 } as const;
 
-/**
- * SPEC 3.8 part 2: the exact element for "run these commands every time Rhino starts" is still
- * **verify** (likely `StartupCommands`; #3 finds it by diffing). This matches an entry whose key
- * mentions start and whose value holds the command. It must not match the entry `<guid>.mcpstart`
- * in "Command Use Counts", which only counts past uses and whose value is a number.
- */
-const RHINO_STARTUP_COMMAND_PATTERN = 'key="[^"]*start[^"]*"[^>]*>[^<]*mcpstart';
-
 const PROGRAM_FILES = '%ProgramFiles%';
 const LOCAL_BIN = '%USERPROFILE%\\.local\\bin';
 const PY_FOLDERS = [
@@ -534,15 +526,13 @@ const items: SetupItem[] = [
   {
     id: 'rhino-settings',
     label: 'Rhino 설정',
-    description: '읽기 전용 경고, 시작 명령, Grasshopper 시작 파일, 도구 안내를 맞춰요.',
+    description: '읽기 전용 경고를 켜고, Claude Code·GPT에 Rhino 도구 쓰는 법을 적어 둬요.',
     group: 'rhino',
     dependsOn: ['rhino'],
     check: {
       kind: 'rhino-settings',
       settingsFile: '%APPDATA%\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml',
       readOnlyWarningPattern: '<entry key="EnableFileLockingOpenWarning">\\s*True\\s*</entry>',
-      startupCommandPattern: RHINO_STARTUP_COMMAND_PATTERN,
-      starterFile: '%DOCUMENTS%\\AccountSwitch\\cordyceps-start.gh',
       roleNotes: [
         {
           id: 'role-note',

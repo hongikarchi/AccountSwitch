@@ -90,15 +90,12 @@ export type CheckSpec =
     }
   /** A module file in the add-ons folder that is also listed in userpref.blend. */
   | { kind: 'blender-addon'; addonsFolder: string; userPrefs: string; module: string }
-  /** The four parts of SPEC 3.8. */
+  /** The parts of SPEC 3.8 the wizard sets: 1 and 4. */
   | {
       kind: 'rhino-settings';
       settingsFile: string;
       /** Regular expression: the read-only warning is on. */
       readOnlyWarningPattern: string;
-      /** Regular expression: `mcpstart` is in the start-up commands. */
-      startupCommandPattern: string;
-      starterFile: string;
       /** Part 4, one file for each terminal program; only for a program that is there. */
       roleNotes: {
         id: string;
