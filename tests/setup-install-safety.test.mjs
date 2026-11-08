@@ -1221,7 +1221,7 @@ test('a GPT connection is added with no lock, no account folder and nothing logg
         if (name !== 'codex' || request.args[0] !== 'mcp') return undefined;
         pc.files.write(
           CODEX_CONFIG,
-          '[mcp_servers.blender]\ncommand = "uvx"\nargs = ["blender-mcp@1.5.5"]\n',
+          '[mcp_servers.blender]\ncommand = "uvx"\nargs = ["--with", "mcp==1.30.0", "blender-mcp@1.5.5"]\n',
         );
         return ok(SECRET);
       },
@@ -1239,6 +1239,8 @@ test('a GPT connection is added with no lock, no account folder and nothing logg
         'DISABLE_TELEMETRY=true',
         '--',
         'uvx',
+        '--with',
+        'mcp==1.30.0',
         'blender-mcp@1.5.5',
       ]);
       assert.equal(add.env.CODEX_HOME, undefined);

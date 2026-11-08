@@ -30,6 +30,12 @@ export const PINS = {
   blenderInstallerSha256: 'a103d4ece8d9acffd2a95c9d8860355b1f209977cc983b4a3d1e1cfb441c8605',
   blenderSeries: '5.2',
   blenderMcp: '1.5.5',
+  /**
+   * The MCP SDK its server runs on. blender-mcp 1.5.5 asks for `mcp[cli]>=1.3.0` with no upper
+   * bound, and `mcp` 2.x renamed FastMCP, so the server dies at start (measured 2026-11-09). An
+   * exact pin, not `<2`: `<` would be a redirection when codex.cmd passes it through cmd.
+   */
+  blenderMcpSdk: '1.30.0',
   /** The commit whose server is byte-identical to PyPI 1.5.5; the project publishes no releases. */
   blenderAddon: {
     commit: '15c775ff78264346a1d09089a799c52c2fd9f797',
@@ -37,14 +43,6 @@ export const PINS = {
     module: 'blender_mcp_addon',
   },
 } as const;
-
-/**
- * SPEC 3.8 part 2: the exact element for "run these commands every time Rhino starts" is still
- * **verify** (likely `StartupCommands`; #3 finds it by diffing). This matches an entry whose key
- * mentions start and whose value holds the command. It must not match the entry `<guid>.mcpstart`
- * in "Command Use Counts", which only counts past uses and whose value is a number.
- */
-const RHINO_STARTUP_COMMAND_PATTERN = 'key="[^"]*start[^"]*"[^>]*>[^<]*mcpstart';
 
 const PROGRAM_FILES = '%ProgramFiles%';
 const LOCAL_BIN = '%USERPROFILE%\\.local\\bin';
@@ -534,15 +532,13 @@ const items: SetupItem[] = [
   {
     id: 'rhino-settings',
     label: 'Rhino 설정',
-    description: '읽기 전용 경고, 시작 명령, Grasshopper 시작 파일, 도구 안내를 맞춰요.',
+    description: '읽기 전용 경고를 켜고, Claude Code·GPT에 Rhino 도구 쓰는 법을 적어 둬요.',
     group: 'rhino',
     dependsOn: ['rhino'],
     check: {
       kind: 'rhino-settings',
       settingsFile: '%APPDATA%\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml',
       readOnlyWarningPattern: '<entry key="EnableFileLockingOpenWarning">\\s*True\\s*</entry>',
-      startupCommandPattern: RHINO_STARTUP_COMMAND_PATTERN,
-      starterFile: '%DOCUMENTS%\\AccountSwitch\\cordyceps-start.gh',
       roleNotes: [
         {
           id: 'role-note',
@@ -637,7 +633,13 @@ const items: SetupItem[] = [
     description: 'Claude Code에 blender-mcp를 등록해요.',
     group: 'blender',
     dependsOn: ['claude', 'uv'],
-    check: { kind: 'mcp', name: 'blender', package: 'blender-mcp', version: PINS.blenderMcp },
+    check: {
+      kind: 'mcp',
+      name: 'blender',
+      package: 'blender-mcp',
+      version: PINS.blenderMcp,
+      with: [`mcp==${PINS.blenderMcpSdk}`],
+    },
     // Its server sends data to the project's database unless told not to (SPEC 3.3).
     install: mcpInstall('Claude Code에 등록해요. 정보 수집은 꺼 둬요.', [
       'blender',
@@ -645,6 +647,8 @@ const items: SetupItem[] = [
       'DISABLE_TELEMETRY=true',
       '--',
       'uvx',
+      '--with',
+      `mcp==${PINS.blenderMcpSdk}`,
       `blender-mcp@${PINS.blenderMcp}`,
     ]),
     pinnedVersion: PINS.blenderMcp,
@@ -662,6 +666,7 @@ const items: SetupItem[] = [
       name: 'blender',
       package: 'blender-mcp',
       version: PINS.blenderMcp,
+      with: [`mcp==${PINS.blenderMcpSdk}`],
     },
     // Off here too (SPEC 3.3).
     install: codexMcpInstall('Codex CLI에 등록해요. 정보 수집은 꺼 둬요.', [
@@ -670,6 +675,8 @@ const items: SetupItem[] = [
       'DISABLE_TELEMETRY=true',
       '--',
       'uvx',
+      '--with',
+      `mcp==${PINS.blenderMcpSdk}`,
       `blender-mcp@${PINS.blenderMcp}`,
     ]),
     pinnedVersion: PINS.blenderMcp,

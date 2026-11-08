@@ -275,3 +275,25 @@ test('the keychain service name is the one Claude Code derives from CLAUDE_CONFI
   // NFC: a decomposed é hashes like the composed one.
   assert.equal(claudeKeychainService('/Users/é'), claudeKeychainService('/Users/é'));
 });
+
+test('uninstalling leaves the account in use where the user removed the default login', async (t) => {
+  const { home, data, profiles, select } = fixture(t);
+  const credentials = join(home, '.claude', '.credentials.json');
+  const auth = join(home, '.codex', 'auth.json');
+  put(credentials, { claudeAiOauth: { accessToken: 'mine' } });
+  put(join(home, '.claude.json'), { oauthAccount: { accountUuid: 'mine' } });
+  put(auth, { tokens: { access_token: 'mine', account_id: 'acct-mine' } });
+  const p = profiles.add('claude-cli', 'P');
+  const q = profiles.add('codex-cli', 'Q');
+  claudeLogin(join(data, p.id), 'p-1', 'p');
+  put(join(data, q.id, 'auth.json'), { tokens: { access_token: 'q', account_id: 'acct-q' } });
+  select('claude-cli', p.id);
+  select('codex-cli', q.id);
+  profiles.remove('claude-cli', 'default');
+  const result = await restoreDefaultLogins(data, { home, platform: 'win32' });
+  assert.deepEqual(result, { restored: ['codex-cli'], failed: [] });
+  assert.equal(get(credentials).claudeAiOauth.accessToken, 'p-1');
+  assert.equal(get(auth).tokens.access_token, 'mine');
+  const after = new AccountProfiles(data, () => false);
+  assert.deepEqual(after.list().active, { 'claude-cli': p.id, 'codex-cli': 'default' });
+});

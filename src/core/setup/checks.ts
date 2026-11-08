@@ -19,6 +19,7 @@ import {
   type WindowsSnapshot,
 } from './environment.ts';
 import { catalog } from './manifest.ts';
+import { hasRoleNote } from './role-note.ts';
 import type { CheckPart, CheckReport, CheckResult, CheckSpec, SetupItem } from './types.ts';
 
 // The checks of SPEC 3.3. Strictly read only: they look at files and run version commands. They
@@ -434,6 +435,16 @@ function mcpOutcome(
       return { status: 'version-mismatch', message: '버전을 고정하지 않고 등록되어 있어요.' };
     if (found.version !== spec.version)
       return { status: 'version-mismatch', foundVersion: found.version };
+    const words = server.command.split(/\s+/);
+    const lacking = (spec.with ?? []).some(
+      (extra) => !words.some((word, index) => word === extra && words[index - 1] === '--with'),
+    );
+    if (lacking)
+      return {
+        status: 'version-mismatch',
+        foundVersion: found.version,
+        message: '예전 방식으로 등록되어 있어서 연결되지 않아요. 다시 등록해 주세요.',
+      };
     return { status: 'installed', foundVersion: found.version };
   }
   return { status: 'installed' };
@@ -539,16 +550,6 @@ function checkRhinoSettings(
       label: '읽기 전용 경고',
       ok: new RegExp(spec.readOnlyWarningPattern, 'i').test(settings),
     },
-    {
-      id: 'mcpstart',
-      label: 'Rhino 시작할 때 mcpstart 실행',
-      ok: new RegExp(spec.startupCommandPattern, 'i').test(settings),
-    },
-    {
-      id: 'starter-file',
-      label: 'Grasshopper 시작 파일',
-      ok: context.deps.exists(context.path(spec.starterFile)),
-    },
     ...spec.roleNotes
       .filter((note) => context.deps.executable(note.provider))
       .map((note) => {
@@ -556,7 +557,7 @@ function checkRhinoSettings(
         return {
           id: note.id,
           label: `${note.name} 도구 안내`,
-          ok: text.includes(spec.roleNoteStart) && text.includes(spec.roleNoteEnd),
+          ok: hasRoleNote(text, spec.roleNoteStart, spec.roleNoteEnd),
         };
       }),
   ];

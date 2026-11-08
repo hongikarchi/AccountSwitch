@@ -14,6 +14,7 @@ import {
   underNodeTest,
 } from '../src/core/setup/install-deps.ts';
 import { readLogTail } from '../src/core/setup/install-log.ts';
+import { roleNote } from '../src/core/setup/role-note.ts';
 import { readSetupState } from '../src/core/setup/state.ts';
 import { catalog, PINS } from '../src/core/setup/manifest.ts';
 import { SetupService } from '../src/core/setup/service.ts';
@@ -1160,6 +1161,8 @@ test('every MCP write runs inside the lock, without CLAUDE_CONFIG_DIR, and is no
         'DISABLE_TELEMETRY=true',
         '--',
         'uvx',
+        '--with',
+        `mcp==${PINS.blenderMcpSdk}`,
         `blender-mcp@${PINS.blenderMcp}`,
       ]);
       const log = pc.log();
@@ -1595,7 +1598,7 @@ test('when Windows does not say whether Rhino runs, nothing changes either', () 
     },
   ));
 
-test('Rhino closed: backup, warning on, note between markers; the open parts are said plainly', () =>
+test('Rhino closed: backup, warning on, note between markers, and the item is done', () =>
   withRunner(
     {
       present: [RHINO, CLAUDE],
@@ -1605,17 +1608,14 @@ test('Rhino closed: backup, warning on, note between markers; the open parts are
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
       const item = itemOf(runner.progress(), 'rhino-settings');
-      assert.equal(item.status, 'needs-user');
-      assert.equal(item.reason, 'SETTINGS_PARTS_OPEN');
-      assert.match(item.message, /mcpstart/);
-      assert.match(item.message, /Grasshopper/);
+      assert.equal(item.status, 'done');
       assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True'));
       assert.equal(pc.files.read(`${SETTINGS}.accountswitch-bak`).toString(), settingsXml('False'));
       const note = pc.files.read(NOTE).toString();
       assert.ok(note.startsWith('# Mine\nkeep this\n\n<!-- accountswitch:start -->\n'));
       assert.ok(note.endsWith('<!-- accountswitch:end -->\n'));
-      assert.ok(note.includes(`${HOME}\\Documents\\AccountSwitch\\cordyceps-start.gh`));
-      // Nothing guessed: no start-up command written, no starter file made.
+      assert.ok(note.includes('type `mcpstart` in Rhino'));
+      // Parts 2 and 3 are not set (#3): no start-up command written, no starter file made.
       assert.ok(!pc.files.read(SETTINGS).toString().includes('mcpstart'));
       assert.equal([...pc.files.store.keys()].filter((path) => path.endsWith('.gh')).length, 0);
       assert.equal(runner.progress().phase, 'finished');
@@ -1677,15 +1677,12 @@ test('broken markers in the note: the note file is left alone', () => {
   );
 });
 
-test('all four parts in place by hand: done without changing a thing', () => {
-  const xml = settingsXml('True').replace(
-    '</child>\r\n    </child>',
-    '</child>\r\n    </child>\r\n    <child key="Startup"><entry key="StartupCommands">_mcpstart</entry></child>',
-  );
-  const note = '<!-- accountswitch:start -->\nx\n<!-- accountswitch:end -->\n';
+test('everything in place by hand: done without changing a thing', () => {
+  const xml = settingsXml('True');
+  const note = `<!-- accountswitch:start -->\n${roleNote()}\n<!-- accountswitch:end -->\n`;
   return withRunner(
     {
-      present: [RHINO, `${HOME}\\Documents\\AccountSwitch\\cordyceps-start.gh`],
+      present: [RHINO],
       files: { [SETTINGS]: xml, [NOTE]: note },
     },
     async ({ runner, pc }) => {

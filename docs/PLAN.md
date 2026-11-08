@@ -50,7 +50,7 @@ The Sandbox cannot prove these; they need the user on a real PC:
 
 - 아니요 on a real prompt for `msiexec` and the Python bundle (1602 or 1223, SPEC 3.6). Reports say the Sandbox runs without a prompt.
 - Yak installs on a PC where Rhino is licensed.
-- Rhino parts 2 and 3 (SPEC 3.8): set the startup commands once in Rhino Options, close Rhino, diff the settings file; make the starter `.gh` in a real Grasshopper session.
+- Rhino parts 2 and 3 (SPEC 3.8, #3, left out of the wizard for now): set the startup commands once in Rhino Options, close Rhino, diff the settings file; make the starter `.gh` in a real Grasshopper session.
 - Disable the add-on once and confirm the module name leaves `userpref.blend` (SPEC 3.3).
 
 Known limit: a quit during an MCP restore can cut it short, because the engine waits at most 12 s and the restore may take up to 30 s (SPEC 3.7).

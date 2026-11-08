@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { Provider } from './providers.ts';
-import type { AccountProfiles } from './account-profiles.ts';
+import { accountIds, type AccountProfiles } from './account-profiles.ts';
 import { LoginExpired } from './token-refresh.ts';
 
 // Multi-account usage, opt-in because the usage addresses are the providers' own undocumented ones:
@@ -394,11 +394,7 @@ export class AccountUsageService {
     const data = this.options.profiles.list();
     const rows: AccountUsage[] = [];
     for (const provider of ['claude-cli', 'codex-cli'] as const)
-      for (const id of [
-        'default',
-        ...data.profiles.filter((p) => p.provider === provider).map((p) => p.id),
-      ])
-        rows.push(await this.get(provider, id, force));
+      for (const id of accountIds(data, provider)) rows.push(await this.get(provider, id, force));
     return rows;
   }
   private load(usage: AccountUsage) {
@@ -419,7 +415,7 @@ export class AccountUsageService {
       return { id: current, switched: false };
     const data = this.options.profiles.list();
     const others = await Promise.all(
-      ['default', ...data.profiles.filter((p) => p.provider === provider).map((p) => p.id)]
+      accountIds(data, provider)
         .filter((id) => id !== current)
         .map((id) => this.get(provider, id)),
     );

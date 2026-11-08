@@ -269,7 +269,11 @@ export async function startServer({
       }
       if (url.pathname === '/api/v1/accounts/remove' && request.method === 'POST') {
         const input = z
-          .object({ provider, id: z.string().uuid(), deleteLocalData: z.literal(true) })
+          .object({
+            provider,
+            id: z.union([z.literal('default'), z.string().uuid()]),
+            deleteLocalData: z.literal(true),
+          })
           .strict()
           .parse(await body(request));
         profiles.assertIdle(input.provider);

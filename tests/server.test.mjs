@@ -56,6 +56,19 @@ test('the API needs the launch token session, this origin for writes, and this a
     // ...but it cannot be signed out from here.
     const logout = await post('logout', { provider: 'claude-cli', id: 'default' });
     assert.deepEqual([logout.status, (await logout.json()).code], [409, 'PROFILE_ACTIVE']);
+    // The default login may be asked to go (0.3.1), but not while it is in use.
+    const remove = await post('remove', {
+      provider: 'claude-cli',
+      id: 'default',
+      deleteLocalData: true,
+    });
+    assert.deepEqual([remove.status, (await remove.json()).code], [409, 'PROFILE_ACTIVE']);
+    const unknown = await post('remove', {
+      provider: 'claude-cli',
+      id: 'x',
+      deleteLocalData: true,
+    });
+    assert.equal(unknown.status, 400);
     // fetch() cannot change Host, so ask with a raw request as a rebinding page would arrive.
     const other = await new Promise((resolve, reject) =>
       request(

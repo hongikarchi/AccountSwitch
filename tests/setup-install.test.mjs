@@ -431,15 +431,13 @@ test('markers that are not one pair in order leave the file alone', () => {
 });
 
 test('the note says what SPEC 3.8 asks, and the check finds its markers', () => {
-  const note = roleNote('D:\\내 문서\\AccountSwitch\\cordyceps-start.gh');
+  const note = roleNote();
   assert.match(note, /`rhino`/);
   assert.match(note, /`cordyceps`/);
   assert.match(note, /Never kill Rhino by process name/);
-  assert.ok(
-    note.includes(
-      '-_Grasshopper _Document _Open "D:\\내 문서\\AccountSwitch\\cordyceps-start.gh" _Enter',
-    ),
-  );
+  // Parts 2 and 3 are not set (#3): the agent asks the user to start both.
+  assert.match(note, /type `mcpstart` in Rhino/);
+  assert.match(note, /place the Cordyceps component/);
   const { check } = catalog.items.find((item) => item.id === 'rhino-settings');
   assert.equal(check.roleNoteStart, START);
   assert.equal(check.roleNoteEnd, END);
@@ -593,4 +591,13 @@ test('the real file functions, against a temporary folder', async () => {
   } finally {
     await rm(folder, { recursive: true, force: true });
   }
+});
+
+test('a note from an older version does not count, so it is written again', async () => {
+  const { hasRoleNote } = await import('../src/core/setup/role-note.ts');
+  const block = (body) => `mine\n${START}\n${body}\n${END}\n`;
+  assert.equal(hasRoleNote(block(roleNote()), START, END), true);
+  assert.equal(hasRoleNote(block(roleNote()).replaceAll('\n', '\r\n'), START, END), true);
+  assert.equal(hasRoleNote(block('## Rhino tools (an older text)'), START, END), false);
+  assert.equal(hasRoleNote('mine\n', START, END), false);
 });

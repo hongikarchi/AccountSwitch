@@ -18,7 +18,8 @@ export async function restoreDefaultLogins(
   const profiles = new AccountProfiles(root, () => false);
   const login = new DefaultLogin({ root, ...options });
   for (const provider of providers) {
-    if (profiles.selected(provider) === 'default') continue;
+    // A default login the user removed is gone: the account in use stays the CLI's login.
+    if (profiles.selected(provider) === 'default' || !profiles.hasDefault(provider)) continue;
     try {
       const release = await login.lock(provider);
       try {

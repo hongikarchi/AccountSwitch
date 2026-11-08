@@ -13,7 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { AccountProfiles } from '../src/core/account-profiles.ts';
+import { AccountProfiles, accountIds } from '../src/core/account-profiles.ts';
 const swaps = [];
 const swap = (from, to) => swaps.push([from, to]);
 test('profile metadata persists, provider identities stay separate and a switch moves the login', () => {
@@ -96,7 +96,7 @@ test('removal cleans only an idle managed profile and persists default selection
     assert.throws(() => profiles.remove('codex-cli', row.id), { code: 'PROFILE_IN_USE' });
     assert.equal(existsSync(directory), true);
     busy = false;
-    assert.throws(() => profiles.remove('codex-cli', 'default'), { code: 'PROFILE_NOT_FOUND' });
+    assert.throws(() => profiles.remove('codex-cli', 'default'), { code: 'PROFILE_ACTIVE' });
     assert.throws(() => profiles.remove('codex-cli', keep.id), { code: 'PROFILE_NOT_FOUND' });
     profiles.remove('codex-cli', row.id);
     assert.equal(existsSync(directory), false);
@@ -201,6 +201,49 @@ test('accounts keep the order they were given; a removed one leaves it', () => {
     assert.deepEqual(restored.list().order, { 'claude-cli': [b.id, 'default', a.id] });
     restored.remove('claude-cli', b.id);
     assert.deepEqual(restored.list().order, { 'claude-cli': ['default', a.id] });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a default login that is not in use can be removed, and it stays gone (0.3.1)', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'accountswitch-remove-default-')));
+  try {
+    const profiles = new AccountProfiles(root, () => false);
+    const a = profiles.add('claude-cli', 'A');
+    const b = profiles.add('codex-cli', 'B');
+    profiles.rename('claude-cli', 'default', '옛 계정');
+    profiles.reorder('claude-cli', [a.id, 'default']);
+    // In use: refused, and nothing changes.
+    assert.throws(() => profiles.remove('claude-cli', 'default'), { code: 'PROFILE_ACTIVE' });
+    profiles.select('claude-cli', a.id, swap);
+    const folder = profiles.directory('claude-cli', 'default');
+    writeFileSync(join(folder, 'leftover.json'), '{}');
+    profiles.remove('claude-cli', 'default');
+    assert.equal(existsSync(folder), false);
+
+    const after = new AccountProfiles(root, () => false);
+    const data = after.list();
+    assert.deepEqual(data.removedDefaults, { 'claude-cli': true });
+    assert.equal(data.defaultLabels['claude-cli'], undefined);
+    assert.deepEqual(data.order['claude-cli'], [a.id]);
+    assert.deepEqual(accountIds(data, 'claude-cli'), [a.id]);
+    assert.deepEqual(accountIds(data, 'codex-cli'), ['default', b.id]);
+    assert.equal(after.hasDefault('claude-cli'), false);
+    assert.equal(after.hasDefault('codex-cli'), true);
+    for (const run of [
+      () => after.select('claude-cli', 'default', swap),
+      () => after.directory('claude-cli', 'default'),
+      () => after.rename('claude-cli', 'default', 'x'),
+      () => after.remove('claude-cli', 'default'),
+    ])
+      assert.throws(run, { code: 'PROFILE_NOT_FOUND' });
+    assert.equal(existsSync(folder), false, 'no call made the folder again');
+    assert.throws(() => after.reorder('claude-cli', ['default', a.id]), /INVALID_INPUT/);
+    assert.deepEqual(after.reorder('claude-cli', [a.id]).order['claude-cli'], [a.id]);
+    // The other service's default login is untouched.
+    assert.equal(after.selected('codex-cli'), 'default');
+    assert.equal(after.directory('codex-cli', 'default'), undefined);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

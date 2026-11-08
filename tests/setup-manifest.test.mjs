@@ -81,7 +81,12 @@ test('the pins of the spec are what checks and installs use', () => {
   assert.equal(step('node').id, 'OpenJS.NodeJS.LTS');
   assert.equal(byId.get('node').check.acceptVersion, '24.x');
   assert.deepEqual(step('rhinomcp-mcp').args.slice(-2), ['uvx', 'rhinomcp@0.4.1.1']);
-  assert.deepEqual(step('blender-mcp').args.slice(-2), ['uvx', 'blender-mcp@1.5.5']);
+  assert.deepEqual(step('blender-mcp').args.slice(-4), [
+    'uvx',
+    '--with',
+    'mcp==1.30.0',
+    'blender-mcp@1.5.5',
+  ]);
   assert.equal(byId.get('rhinomcp-mcp').check.version, '0.4.1.1');
   assert.equal(byId.get('blender-mcp').check.version, '1.5.5');
   assert.equal(step('rhinomcp-plugin').version, '0.4.1.1');
@@ -126,6 +131,8 @@ test("GPT's connections run the same servers, with telemetry off and the same pi
     'DISABLE_TELEMETRY=true',
     '--',
     'uvx',
+    '--with',
+    'mcp==1.30.0',
     'blender-mcp@1.5.5',
   ]);
   for (const id of ['rhinomcp-codex', 'cordyceps-codex', 'blender-mcp-codex']) {
