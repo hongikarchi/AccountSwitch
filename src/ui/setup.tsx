@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   CheckReport,
   RunProgress,
@@ -10,7 +10,6 @@ import { api, errors } from './gateway.ts';
 import {
   actionFor,
   autoOpens,
-  byGroup,
   canStart,
   cardDone,
   checkedInOrder,
@@ -194,108 +193,6 @@ function ProgramScreen({
   );
 }
 
-function RunScreen({
-  overview,
-  run,
-  busy,
-  connectionLost,
-  error,
-  act,
-  cancel,
-  showLog,
-  logPanel,
-}: {
-  overview: SetupOverview;
-  run: RunProgress;
-  busy: boolean;
-  connectionLost: boolean;
-  error: string;
-  act: (route: 'skip' | 'retry', item: string) => void;
-  cancel: () => void;
-  showLog: () => void;
-  logPanel: ReactNode;
-}) {
-  const { catalog } = overview;
-  const waiting = run.phase === 'waiting';
-  const rows = run.items.map((progress) => {
-    const item = catalog.items.find((entry) => entry.id === progress.id);
-    return { progress, group: item?.group ?? '', view: stepFromRun(item, progress) };
-  });
-  // An id the catalog does not know has no group to sit under; it still has to be seen.
-  const grouped = byGroup(catalog, rows);
-  const loose = rows.filter((row) => !catalog.groups.some((group) => group.id === row.group));
-  const renderRow = (row: (typeof rows)[number]) => (
-    <StepRow
-      key={row.view.id}
-      view={row.view}
-      actions={
-        row.progress.status === 'failed' && waiting && !run.cancelling ? (
-          <>
-            <button type="button" disabled={busy} onClick={() => act('retry', row.view.id)}>
-              다시 시도
-            </button>
-            <button
-              type="button"
-              className="text-button"
-              disabled={busy}
-              onClick={() => act('skip', row.view.id)}
-            >
-              건너뛰기
-            </button>
-            <button type="button" className="text-button" onClick={showLog}>
-              로그 보기
-            </button>
-          </>
-        ) : undefined
-      }
-    />
-  );
-  return (
-    <>
-      <PageHead
-        title={waiting ? '설치가 멈췄어요' : '설치하고 있어요'}
-        detail={
-          waiting
-            ? '실패한 항목을 다시 시도하거나 건너뛰면 이어서 설치해요.'
-            : '이 화면을 떠나도 설치는 계속돼요. 돌아오면 이어서 보여 드려요.'
-        }
-      />
-      <p className="sr-only" aria-live="polite">
-        {runAnnouncement(catalog, run)}
-      </p>
-      <div className="stepper" data-live="true">
-        {grouped.map(({ group, rows: inGroup }) => (
-          <section key={group.id} className="step-section">
-            <GroupLabel label={group.label} count={inGroup.length} />
-            <ol className="step-list">{inGroup.map(renderRow)}</ol>
-          </section>
-        ))}
-        {loose.length ? (
-          <section className="step-section">
-            <ol className="step-list">{loose.map(renderRow)}</ol>
-          </section>
-        ) : null}
-      </div>
-      {logPanel}
-      <SummaryBar
-        line={runSummary(run)}
-        detail={
-          run.cancelling
-            ? '취소하는 중이에요. 지금 하던 작업이 끝나면 멈춰요.'
-            : connectionLost
-              ? '연결이 끊겼어요. 다시 연결하는 중이에요.'
-              : undefined
-        }
-        error={error}
-      >
-        <button type="button" disabled={busy || run.cancelling} onClick={cancel}>
-          {run.cancelling ? '취소하는 중' : '취소'}
-        </button>
-      </SummaryBar>
-    </>
-  );
-}
-
 export function SetupTab({ active }: { active: boolean }) {
   const [overview, setOverview] = useState<SetupOverview>();
   const [loadError, setLoadError] = useState('');
@@ -400,6 +297,9 @@ export function SetupTab({ active }: { active: boolean }) {
       if (isRunActive(current)) {
         applyRun(current);
         chooseGroups(new Set(groupsOfRun(next.catalog, current)));
+        // The run shows on the checklist, whose other rows need the PC's state (read only).
+        setMode(current.mode);
+        void runCheck();
       } else if (current) {
         finishRun(current, next);
       } else if (next.stateFile === 'ok' && next.state) {
@@ -485,6 +385,7 @@ export function SetupTab({ active }: { active: boolean }) {
     try {
       await api('/setup/run', 'POST', runRequest(items, runMode, confirmed));
       focusTitle.current = true;
+      setPicking(false);
       setLastRun(null);
       setLog(null);
       setMode(runMode);
@@ -596,22 +497,7 @@ export function SetupTab({ active }: { active: boolean }) {
           </button>
         </EmptyState>
       );
-    if (run)
-      return (
-        <>
-          <RunScreen
-            overview={overview}
-            run={run}
-            busy={busy}
-            connectionLost={connectionLost > 0}
-            error={actionError}
-            act={(route, item) => void act(() => api(`/setup/run/${route}`, 'POST', { item }))}
-            cancel={() => void act(() => api('/setup/cancel', 'POST', {}))}
-            showLog={() => void loadLog()}
-            logPanel={logPanel}
-          />
-        </>
-      );
+    if (run) return checklist();
     if (!mode) return <FirstScreen choose={choose} />;
     if (checkError && !report)
       return (
@@ -658,6 +544,30 @@ export function SetupTab({ active }: { active: boolean }) {
     const outcome = lastRun ? runOutcome(lastRun) : undefined;
     const selected = checkedInOrder(catalog, checked);
     const startable = canStart(catalog, checked);
+    // A run in progress shows on these rows (SPEC 3.2): its items take their run state in place.
+    const inRun = new Map((run?.items ?? []).map((entry) => [entry.id, entry]));
+    const waiting = run?.phase === 'waiting';
+    const runActions = (id: string) =>
+      run && waiting && !run.cancelling && inRun.get(id)?.status === 'failed' ? (
+        <>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void act(() => api('/setup/run/retry', 'POST', { item: id }))}
+          >
+            다시 시도
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            disabled={busy}
+            onClick={() => void act(() => api('/setup/run/skip', 'POST', { item: id }))}
+          >
+            건너뛰기
+          </button>
+          {logButton}
+        </>
+      ) : undefined;
     const anythingToInstall = catalog.items.some((item) => {
       const action = actionFor(item, results.get(item.id), listMode);
       return (
@@ -667,6 +577,11 @@ export function SetupTab({ active }: { active: boolean }) {
     });
 
     const row = (item: SetupItem) => {
+      const progress = inRun.get(item.id);
+      if (progress)
+        return (
+          <StepRow key={item.id} view={stepFromRun(item, progress)} actions={runActions(item.id)} />
+        );
       const result = results.get(item.id);
       const action = actionFor(item, result, listMode);
       const isChecked = checked.has(item.id);
@@ -681,6 +596,7 @@ export function SetupTab({ active }: { active: boolean }) {
           <input
             type="checkbox"
             aria-label={`${item.label} ${verb}`}
+            disabled={!!run}
             checked={isChecked}
             onChange={(event) => {
               const next = new Set(checked);
@@ -695,7 +611,7 @@ export function SetupTab({ active }: { active: boolean }) {
         <button
           type="button"
           aria-label={`${item.label} ${verb}`}
-          disabled={busy || checking || !!result?.waitingFor?.length}
+          disabled={busy || checking || !!run || !!result?.waitingFor?.length}
           onClick={() => requestRun([item.id], 'check')}
         >
           {verb}
@@ -714,16 +630,31 @@ export function SetupTab({ active }: { active: boolean }) {
     return (
       <>
         <PageHead
-          title={outcome?.title ?? (auto ? '설치할 항목을 고르세요' : '점검 결과')}
-          detail={
-            outcome?.detail ??
-            (auto
-              ? '없는 항목에 미리 체크해 두었어요. 시작을 눌러야 설치가 시작돼요.'
-              : '확인만 했어요. 아무것도 바꾸지 않았어요. 필요한 것만 골라 설치할 수 있어요.')
+          title={
+            run
+              ? waiting
+                ? '설치가 멈췄어요'
+                : '설치하고 있어요'
+              : (outcome?.title ?? (auto ? '설치할 항목을 고르세요' : '점검 결과'))
           }
-          back={backToFirst}
+          detail={
+            run
+              ? waiting
+                ? '실패한 항목을 다시 시도하거나 건너뛰면 이어서 설치해요.'
+                : '이 화면을 떠나도 설치는 계속돼요. 돌아오면 이어서 보여 드려요.'
+              : (outcome?.detail ??
+                (auto
+                  ? '없는 항목에 미리 체크해 두었어요. 시작을 눌러야 설치가 시작돼요.'
+                  : '확인만 했어요. 아무것도 바꾸지 않았어요. 필요한 것만 골라 설치할 수 있어요.'))
+          }
+          {...(run ? {} : { back: backToFirst })}
         />
-        <div className="stepper">
+        {run ? (
+          <p className="sr-only" aria-live="polite">
+            {runAnnouncement(catalog, run)}
+          </p>
+        ) : null}
+        <div className="stepper" {...(run ? { 'data-live': 'true' } : {})}>
           <section className="step-section">
             <GroupLabel
               label={catalog.groups.find((group) => !group.optional)?.label ?? ''}
@@ -744,17 +675,28 @@ export function SetupTab({ active }: { active: boolean }) {
                     listMode,
                     openGroups,
                   );
-                  const open = step.attention || unfolded.has(group.id);
+                  // Its items in the run: unfolded, and the row's own node follows them.
+                  const runs = step.items
+                    .map((item) => inRun.get(item.id)?.status)
+                    .filter((status) => status !== undefined);
+                  const view = !runs.length
+                    ? step.view
+                    : runs.includes('failed')
+                      ? { ...step.view, node: 'failed' as const }
+                      : runs.some((status) => status === 'running' || status === 'pending')
+                        ? { ...step.view, node: 'running' as const, meta: '설치하는 중' }
+                        : step.view;
+                  const open = step.attention || unfolded.has(group.id) || runs.length > 0;
                   return (
                     <StepRow
                       key={group.id}
-                      view={step.view}
+                      view={view}
                       control={
                         step.install.length ? (
                           <button
                             type="button"
                             aria-label={`${group.label} 설치`}
-                            disabled={busy || checking}
+                            disabled={busy || checking || !!run}
                             onClick={() => requestRun(step.install, listMode)}
                           >
                             설치
@@ -762,7 +704,7 @@ export function SetupTab({ active }: { active: boolean }) {
                         ) : undefined
                       }
                       actions={
-                        step.attention ? undefined : (
+                        step.attention || runs.length ? undefined : (
                           <button
                             type="button"
                             className="text-button"
@@ -795,7 +737,7 @@ export function SetupTab({ active }: { active: boolean }) {
             </section>
           ) : null}
         </div>
-        {confirming ? (
+        {confirming && !run ? (
           <ConfirmPanel
             entries={confirming.entries}
             busy={busy}
@@ -804,50 +746,73 @@ export function SetupTab({ active }: { active: boolean }) {
           />
         ) : null}
         {logPanel}
-        <SummaryBar
-          line={
-            checking && !report ? '확인하는 중이에요' : checkSummary(catalog, report, openGroups)
-          }
-          detail={
-            checking
-              ? '지금 상태를 확인하는 중이에요.'
-              : auto && startable
-                ? `체크한 ${selected.length}개를 설치해요.`
-                : undefined
-          }
-          error={actionError || checkError}
-        >
-          {lastRun ? logButton : null}
-          {auto && anythingToInstall ? (
-            <>
+        {run ? (
+          <SummaryBar
+            line={runSummary(run)}
+            detail={
+              run.cancelling
+                ? '취소하는 중이에요. 지금 하던 작업이 끝나면 멈춰요.'
+                : connectionLost
+                  ? '연결이 끊겼어요. 다시 연결하는 중이에요.'
+                  : undefined
+            }
+            error={actionError}
+          >
+            {logButton}
+            <button
+              type="button"
+              disabled={busy || run.cancelling}
+              onClick={() => void act(() => api('/setup/cancel', 'POST', {}))}
+            >
+              {run.cancelling ? '취소하는 중' : '취소'}
+            </button>
+          </SummaryBar>
+        ) : (
+          <SummaryBar
+            line={
+              checking && !report ? '확인하는 중이에요' : checkSummary(catalog, report, openGroups)
+            }
+            detail={
+              checking
+                ? '지금 상태를 확인하는 중이에요.'
+                : auto && startable
+                  ? `체크한 ${selected.length}개를 설치해요.`
+                  : undefined
+            }
+            error={actionError || checkError}
+          >
+            {lastRun ? logButton : null}
+            {auto && anythingToInstall ? (
+              <>
+                <button
+                  type="button"
+                  className="text-button"
+                  disabled={checking}
+                  onClick={() => void runCheck()}
+                >
+                  다시 확인
+                </button>
+                <button
+                  type="button"
+                  className="primary-button"
+                  disabled={!startable || busy || checking || !!confirming}
+                  onClick={() => requestRun(selected, 'auto')}
+                >
+                  {lastRun ? '계속' : '시작'}
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                className="text-button"
+                className="primary-button"
                 disabled={checking}
                 onClick={() => void runCheck()}
               >
                 다시 확인
               </button>
-              <button
-                type="button"
-                className="primary-button"
-                disabled={!startable || busy || checking || !!confirming}
-                onClick={() => requestRun(selected, 'auto')}
-              >
-                {lastRun ? '계속' : '시작'}
-              </button>
-            </>
-          ) : (
-            <button
-              type="button"
-              className="primary-button"
-              disabled={checking}
-              onClick={() => void runCheck()}
-            >
-              다시 확인
-            </button>
-          )}
-        </SummaryBar>
+            )}
+          </SummaryBar>
+        )}
       </>
     );
   }

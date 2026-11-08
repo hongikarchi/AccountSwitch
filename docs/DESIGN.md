@@ -131,6 +131,7 @@ Vertical, after the reference stepper, in black and white:
 - Each group is its own list, so connectors break between groups. 32 px between steps, 40 px between groups.
 - Summary bar at the bottom, sticking to the window's bottom edge: "8개 중 5개 완료" and the primary 시작 / 계속 button. A confirmation (Blender warning, MCP 다시 등록) is one inline panel above the bar, not a modal.
 - 처음으로 is a text button at the right of the checklist title, back to the first screen.
+- A run never changes the screen: the checklist stays, and the rows in the run take their state in place, so the user sees the ring turn on the row they pressed (user, 2026-11-08). Only the title, the summary bar (count and 취소) and the off controls tell that a run is on.
 
 The first screen of the wizard: Display title "이 PC를 준비할게요", two large choice rows (이미 세팅했어요 — 점검만 / 자동으로 설정해 주세요), each with one line of explanation.
 
