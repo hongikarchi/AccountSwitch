@@ -28,7 +28,7 @@ const timedOut = () => ({ code: null, stdout: '', stderr: '', timedOut: true });
 const CLAUDE_CONFIG = `${HOME}\\.claude.json`;
 const mcpConfig = (servers, over = {}) =>
   JSON.stringify({ oauthAccount: { emailAddress: SECRET }, mcpServers: servers, ...over });
-const uvx = (pkg) => ({ type: 'stdio', command: 'uvx', args: [pkg], env: { TOKEN: SECRET } });
+const uvx = (...args) => ({ type: 'stdio', command: 'uvx', args, env: { TOKEN: SECRET } });
 const http = (url) => ({ type: 'http', url, headers: { Authorization: `Bearer ${SECRET}` } });
 
 const snapshot = (over = {}) => ({
@@ -332,7 +332,7 @@ test('MCP checks: the file is read inside the lock, no server starts, no secret 
     mcpConfig({
       rhino: uvx('rhinomcp@0.4.1.1'),
       cordyceps: http('http://127.0.0.1:26929/mcp'),
-      blender: uvx('blender-mcp@1.5.5'),
+      blender: uvx('--with', 'mcp==1.30.0', 'blender-mcp@1.5.5'),
     }),
   );
   let inLock = 0;
@@ -729,4 +729,17 @@ test("without Codex CLI, GPT's connections are missing whatever the file says", 
   const report = await runChecks(pc.deps);
   assert.equal(statusOf(report, 'rhinomcp-codex').status, 'missing');
   assert.ok(statusOf(report, 'rhinomcp-codex').waitingFor.includes('codex'));
+});
+
+test('a Blender connection registered without its MCP SDK pin is to be added again', async () => {
+  for (const [args, status] of [
+    [['blender-mcp@1.5.5'], 'version-mismatch'],
+    [['--with', 'mcp==1.29.0', 'blender-mcp@1.5.5'], 'version-mismatch'],
+    [['--with', 'mcp==1.30.0', 'blender-mcp@1.5.5'], 'installed'],
+  ]) {
+    const pc = mcpPc(mcpConfig({ blender: uvx(...args) }));
+    const result = statusOf(await runChecks(pc.deps), 'blender-mcp');
+    assert.equal(result.status, status, args.join(' '));
+    if (status !== 'installed') assert.match(result.message, /다시 등록/);
+  }
 });

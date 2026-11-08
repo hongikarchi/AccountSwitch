@@ -72,6 +72,8 @@ export type CheckSpec =
       /** Package and version expected in the registered command (uvx servers). */
       package?: string;
       version?: string;
+      /** Packages the command must also carry as `--with <spec>`; without one it is re-added. */
+      with?: string[];
       /** Address expected of an HTTP server. */
       url?: string;
     }

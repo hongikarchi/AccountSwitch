@@ -1161,6 +1161,8 @@ test('every MCP write runs inside the lock, without CLAUDE_CONFIG_DIR, and is no
         'DISABLE_TELEMETRY=true',
         '--',
         'uvx',
+        '--with',
+        `mcp==${PINS.blenderMcpSdk}`,
         `blender-mcp@${PINS.blenderMcp}`,
       ]);
       const log = pc.log();

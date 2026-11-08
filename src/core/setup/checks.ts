@@ -435,6 +435,16 @@ function mcpOutcome(
       return { status: 'version-mismatch', message: '버전을 고정하지 않고 등록되어 있어요.' };
     if (found.version !== spec.version)
       return { status: 'version-mismatch', foundVersion: found.version };
+    const words = server.command.split(/\s+/);
+    const lacking = (spec.with ?? []).some(
+      (extra) => !words.some((word, index) => word === extra && words[index - 1] === '--with'),
+    );
+    if (lacking)
+      return {
+        status: 'version-mismatch',
+        foundVersion: found.version,
+        message: '예전 방식으로 등록되어 있어서 연결되지 않아요. 다시 등록해 주세요.',
+      };
     return { status: 'installed', foundVersion: found.version };
   }
   return { status: 'installed' };

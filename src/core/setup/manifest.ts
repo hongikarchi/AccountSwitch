@@ -30,6 +30,12 @@ export const PINS = {
   blenderInstallerSha256: 'a103d4ece8d9acffd2a95c9d8860355b1f209977cc983b4a3d1e1cfb441c8605',
   blenderSeries: '5.2',
   blenderMcp: '1.5.5',
+  /**
+   * The MCP SDK its server runs on. blender-mcp 1.5.5 asks for `mcp[cli]>=1.3.0` with no upper
+   * bound, and `mcp` 2.x renamed FastMCP, so the server dies at start (measured 2026-11-09). An
+   * exact pin, not `<2`: `<` would be a redirection when codex.cmd passes it through cmd.
+   */
+  blenderMcpSdk: '1.30.0',
   /** The commit whose server is byte-identical to PyPI 1.5.5; the project publishes no releases. */
   blenderAddon: {
     commit: '15c775ff78264346a1d09089a799c52c2fd9f797',
@@ -627,7 +633,13 @@ const items: SetupItem[] = [
     description: 'Claude Code에 blender-mcp를 등록해요.',
     group: 'blender',
     dependsOn: ['claude', 'uv'],
-    check: { kind: 'mcp', name: 'blender', package: 'blender-mcp', version: PINS.blenderMcp },
+    check: {
+      kind: 'mcp',
+      name: 'blender',
+      package: 'blender-mcp',
+      version: PINS.blenderMcp,
+      with: [`mcp==${PINS.blenderMcpSdk}`],
+    },
     // Its server sends data to the project's database unless told not to (SPEC 3.3).
     install: mcpInstall('Claude Code에 등록해요. 정보 수집은 꺼 둬요.', [
       'blender',
@@ -635,6 +647,8 @@ const items: SetupItem[] = [
       'DISABLE_TELEMETRY=true',
       '--',
       'uvx',
+      '--with',
+      `mcp==${PINS.blenderMcpSdk}`,
       `blender-mcp@${PINS.blenderMcp}`,
     ]),
     pinnedVersion: PINS.blenderMcp,
@@ -652,6 +666,7 @@ const items: SetupItem[] = [
       name: 'blender',
       package: 'blender-mcp',
       version: PINS.blenderMcp,
+      with: [`mcp==${PINS.blenderMcpSdk}`],
     },
     // Off here too (SPEC 3.3).
     install: codexMcpInstall('Codex CLI에 등록해요. 정보 수집은 꺼 둬요.', [
@@ -660,6 +675,8 @@ const items: SetupItem[] = [
       'DISABLE_TELEMETRY=true',
       '--',
       'uvx',
+      '--with',
+      `mcp==${PINS.blenderMcpSdk}`,
       `blender-mcp@${PINS.blenderMcp}`,
     ]),
     pinnedVersion: PINS.blenderMcp,
