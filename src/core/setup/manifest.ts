@@ -40,7 +40,7 @@ export const PINS = {
 
 /**
  * SPEC 3.8 part 2: the exact element for "run these commands every time Rhino starts" is still
- * **verify** (likely `StartupCommands`; T-049 finds it by diffing). This matches an entry whose key
+ * **verify** (likely `StartupCommands`; #3 finds it by diffing). This matches an entry whose key
  * mentions start and whose value holds the command. It must not match the entry `<guid>.mcpstart`
  * in "Command Use Counts", which only counts past uses and whose value is a number.
  */
@@ -71,7 +71,7 @@ const WINGET = '%LOCALAPPDATA%\\Microsoft\\WindowsApps\\winget.exe';
 const WINGET_DECLINED = [2316632332];
 /** The Inno Setup fallback of Git (SPEC 3.6). */
 const INNO_DECLINED = [2];
-/** msiexec and the Python bundle. SPEC 3.6: **verify** by pressing 아니요 once (T-047). */
+/** msiexec and the Python bundle. SPEC 3.6: **verify** by pressing 아니요 once (#2). */
 const MSI_DECLINED = [1602, 1223];
 /** Stands for the downloaded file in `download-installer`. */
 const FILE = '<file>';

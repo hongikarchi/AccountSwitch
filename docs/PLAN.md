@@ -1,12 +1,12 @@
 # Plan for 0.3.0 (Windows)
 
-Order is chosen so the riskiest unknowns are measured early and every milestone leaves a working app. Each milestone ends with the checks in §3 and a short note in `TASK.md`.
+Order is chosen so the riskiest unknowns are measured early and every milestone leaves a working app. Each milestone ends with the checks in §3 and a note on its GitHub issue.
 
 ## 1. Milestones
 
 | # | Milestone | Done when |
 |---|---|---|
-| M0 | Docs: SPEC, DESIGN, PLAN, TASK, ADR, CLAUDE.md | Committed on a branch when the user asks |
+| M0 | Docs: SPEC, DESIGN, PLAN, ADR, CLAUDE.md | Committed on a branch when the user asks |
 | M1 | Design system and redesign of the 계정 tab, theme toggle, header with tabs | Light and dark screenshots at 480 px and 1100 px match DESIGN; `src/core` and `src/server` unchanged |
 | M2 | Setup engine, read only: manifest, checks, PATH re-read, `GET /setup`, `POST /setup/check`; 설치 tab shows the stepper with real status | Correct status on the development PC (most items present) and in Windows Sandbox (nothing present) |
 | M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `env`, `py-base`, `py-gis`, `py-3d`), then `claude`, `codex`, Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |
@@ -27,7 +27,7 @@ M1 goes first because the wizard screens are built from the same components. M2 
 - Rhino cannot be licensed in the sandbox: there, test the "Rhino 8을 먼저 설치하세요" path; test plugin detection on this PC, where both plugins are installed.
 - Never kill Rhino or Blender by name (CLAUDE.md).
 
-### First real install run (T-048), in order
+### First real install run (#1), in order
 
 Everything in M3 has so far run against fakes only. Windows Sandbox proves:
 

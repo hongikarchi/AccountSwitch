@@ -9,25 +9,26 @@ AccountSwitch is a desktop app for Windows (C# WinForms + WebView2 shell, `src/d
 | How it behaves | `docs/SPEC.md` |
 | How it looks | `docs/DESIGN.md` |
 | Order, milestones, how to verify | `docs/PLAN.md` |
-| What to do next | `docs/TASK.md` |
+| What to do next | GitHub issues: `gh issue list` |
 | Why a decision was made | `docs/adr/` |
 
 ## Language
 
 - Talk to the user in Korean.
 - Human-facing text (README, every UI string) is plain, intuitive Korean. Explain jargon or avoid it.
-- Agent-facing documents (this file, SPEC, PLAN, TASK, DESIGN, ADR) and code comments are in English.
+- Agent-facing documents (this file, SPEC, PLAN, DESIGN, ADR) and code comments are in English. GitHub issues are read by the user, so they are in plain Korean.
 - Write Korean directly in tool input. Unicode escapes have produced wrong characters.
 
 ## Rules
 
 - The user's current request comes first.
-- **Docs first.** A behavior change updates SPEC and TASK before code. Look and feel goes to DESIGN, order and verification to PLAN, reasons to `docs/adr/`.
+- **Docs first.** A behavior change updates SPEC before code. Look and feel goes to DESIGN, order and verification to PLAN, reasons to `docs/adr/`.
+- **Work is tracked in GitHub issues**, not in a file. Open an issue for new work, tick its checklist and comment as it goes, and close it from the commit or PR that finishes it (`Closes #N`). Issues are public like the code.
 - **Never break account switching.** `src/core/default-login.ts`, `account-profiles.ts`, `token-refresh.ts`, `keychain.ts`, `restore.ts` change only with tests that cover the change. The setup wizard never reads or writes credentials.
 - Every write to `~/.claude.json` made by the setup wizard (for example `claude mcp add`) runs inside `DefaultLogin.exclusive('claude-cli', …)` so it cannot interleave with an account switch (SPEC 3.7).
 - Installs never start on their own. They run only after the user presses a button, and only the items the user left checked.
 - Pinned versions live in one place, the setup manifest (SPEC 3.3). Change the manifest and SPEC together.
-- **Public repository.** No personal paths, names, e-mail addresses, client or project names, or keys in code, docs, tests, or commit messages. Design references are linked by URL; never commit other people's images.
+- **Public repository.** No personal paths, names, e-mail addresses, client or project names, or keys in code, docs, tests, commit messages, or issues. Design references are linked by URL; never commit other people's images.
 - Do not launch or kill Rhino or Blender by process name while testing. A killed Rhino leaves `.rhl` lock files that make files open read-only (ADR-003).
 - Commit, tag, and publish only when asked. Pushing a tag `vX.Y.Z` releases to every installed copy through auto-update, so confirm with the user before tagging.
 - Before reporting work done: `npm test`, `npm run typecheck`, `npm run format:check`; for shell changes also `npm run build:desktop`.

@@ -112,7 +112,7 @@ export type CheckSpec =
     };
 
 /**
- * What an install step does, for the runner (T-040). The checks never execute these.
+ * What an install step does, for the runner. The checks never execute these.
  * `declinedExitCodes`: the exit codes that mean the user said no to the elevation prompt, which ends
  * the item as ELEVATION_DECLINED and does not start the fallback (SPEC 3.6).
  */

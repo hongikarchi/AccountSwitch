@@ -6,7 +6,7 @@ import { isProgramRunning } from './install-windows.ts';
 import type { InstallStep } from './types.ts';
 
 // The blender-mcp add-on (SPEC 3.3). Written against SPEC and tested with fakes; the Blender command
-// itself still needs one real run (T-045). The add-on file holds a third party's key, so it lives
+// itself still needs one real run (#1). The add-on file holds a third party's key, so it lives
 // only in the data folder, for as long as the install takes, and never in this repository.
 
 const MODULE_NAME = /^[A-Za-z_]\w*$/;
@@ -49,7 +49,7 @@ export function isOlderSeries(folder: string, series: string) {
 
 /**
  * Saving the prefs below creates userpref.blend, after which Blender no longer offers to import the
- * previous version's settings, so they come along first (SPEC 3.3, **verify** T-048). A failure loses
+ * previous version's settings, so they come along first (SPEC 3.3, **verify** #1). A failure loses
  * nothing and does not stop the add-on; it comes back as what to tell the user. A cancel stays one.
  */
 async function copyPreviousSettings(

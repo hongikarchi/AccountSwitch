@@ -312,7 +312,7 @@ test('every program gets the fresh PATH, no keys and no account folder', () =>
     },
   ));
 
-// --- winget, then the fallback (T-041)
+// --- winget, then the fallback
 
 test('a failing winget moves to the fallback, and the download is the pinned file', () =>
   withRunner(
@@ -418,7 +418,7 @@ test('a download from a host off the list ends in failed and runs nothing', () =
     },
   ));
 
-// --- Elevation (T-047, SPEC 3.6)
+// --- Elevation (SPEC 3.6)
 
 for (const [label, code] of [
   ['as the unsigned number', DECLINED],
@@ -857,7 +857,7 @@ test('nothing is appended for a program that is not in that folder', () =>
     },
   ));
 
-// --- Base items (T-042, T-044)
+// --- Base items
 
 test('uv and Claude Code: the script is fetched through the host list, then run', () =>
   withRunner(
@@ -1020,7 +1020,7 @@ test('the optional Python bundles need Python, and install when it is there', ()
     },
   ));
 
-// --- env (T-043)
+// --- env
 
 const envItem = (over, body) =>
   withRunner(
@@ -1092,7 +1092,7 @@ test('a policy the user chose is left alone', () =>
     assert.equal(pc.calls.filter((c) => c.args.at(-1)?.includes('Set-ExecutionPolicy')).length, 0);
   }));
 
-// --- MCP (T-046, SPEC 3.3, 3.7)
+// --- MCP (SPEC 3.3, 3.7)
 
 const claudeCalls = (pc) => pc.calls.filter((call) => commandName(call) === 'claude');
 const mcpWrites = (pc) => claudeCalls(pc).filter((call) => call.args[0] === 'mcp');
@@ -1325,7 +1325,7 @@ test('cancel while waiting for the lock ends the wait, and nothing runs when the
   );
 });
 
-// --- Rhino plugins (T-046)
+// --- Rhino plugins
 
 test('Yak installs the pinned plugin versions by full path', () =>
   withRunner(
@@ -1422,7 +1422,7 @@ test('after an install the old version still answering is reported, not called d
     },
   ));
 
-// --- Blender (T-045)
+// --- Blender
 
 const ADDON_BYTES = Buffer.from('# the add-on\n');
 const addonSha = createHash('sha256').update(ADDON_BYTES).digest('hex');
@@ -1549,7 +1549,7 @@ test('Blender: the pinned winget version, then the MSI', () =>
     },
   ));
 
-// --- Rhino settings (T-049)
+// --- Rhino settings
 
 const settingsXml = (value) =>
   `\uFEFF<settings id="2.0">\r\n  <settings>\r\n    <child key="Options">\r\n      <child key="FileSettings">\r\n        <entry key="EnableFileLockingOpenWarning">${value}</entry>\r\n      </child>\r\n    </child>\r\n  </settings>\r\n</settings>\r\n`;
