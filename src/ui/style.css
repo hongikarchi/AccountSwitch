@@ -350,12 +350,12 @@ select {
 }
 .account-list {
   display: grid;
-  gap: 12px;
+  gap: 8px;
 }
 .account-block {
   display: grid;
-  gap: 12px;
-  padding: 20px;
+  gap: 8px;
+  padding: 12px 16px;
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
 }
@@ -446,13 +446,13 @@ select {
 /* Usage under a row: fixed columns, so bars align across rows and accounts. */
 .account-usage {
   display: grid;
-  gap: 6px;
+  gap: 4px;
 }
 .usage-line {
   display: grid;
-  grid-template-columns: 72px minmax(0, 1fr) 44px 96px;
+  grid-template-columns: 72px minmax(0, 1fr) 40px 96px;
   align-items: center;
-  column-gap: 12px;
+  column-gap: 10px;
   font-variant-numeric: tabular-nums;
 }
 .usage-label {
@@ -466,8 +466,8 @@ select {
   white-space: nowrap;
 }
 .usage-track {
-  height: 4px;
-  border-radius: 2px;
+  height: 6px;
+  border-radius: 3px;
   background: var(--line);
   overflow: hidden;
 }
@@ -477,8 +477,8 @@ select {
   background: var(--accent);
 }
 .usage-value {
-  font-size: 15px;
-  line-height: 20px;
+  font-size: 14px;
+  line-height: 18px;
   font-weight: 500;
   text-align: right;
   white-space: nowrap;
@@ -610,6 +610,14 @@ select {
 }
 .account-menu button.danger {
   color: var(--danger);
+}
+/* Why the greyed items above are off. */
+.account-menu-note {
+  max-width: 220px;
+  padding: 4px 8px 6px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
 }
 
 /* Signing in: one quiet panel under the row. */

@@ -72,7 +72,7 @@ Font: Pretendard (Korean and Latin, OFL), bundled as `woff2` in the build becaus
 | Display | 24 / 32 | 600 | -0.02em | Wizard step title on its first screen, empty states |
 | H1 | 18 / 26 | 600 | -0.01em | Provider name (Claude, ChatGPT), tab page title |
 | H2 | 15 / 22 | 600 | 0 | Step title, section title |
-| Number | 15 / 20 | 500 | 0 | Usage percent |
+| Number | 14 / 18 | 500 | 0 | Usage percent, the size of a button's text (user, 2026-11-08) |
 | Body | 14 / 22 | 400 | 0 | Rows, descriptions |
 | Small | 12 / 18 | 400 | 0 | Meta: e-mail, plan, reset time, versions |
 | Label | 12 / 16 | 500 | 0, uppercase for Latin | Column labels, step index |
@@ -95,8 +95,8 @@ At the right end of the header, on both tabs. A pill 96 × 28 px. The track is `
 
 - Two columns (Claude | ChatGPT), 32 px apart, when the window is wider than 880 px, else stacked 48 px apart. The shell opens at 760 px, so stacked is the usual view.
 - Section head: provider mark dot (8 px, provider color) + name (H1) + count of accounts (Small, muted).
-- Each account is one box: 1 px `--line`, 10 px radius, 20 px padding, 12 px between boxes. The user missed the per-account boxes of 0.2 once they were gone (2026-11-06). Row: name (Body 500) with 사용 중 as a small provider-colored text marker, meta line (Small, muted: e-mail · plan · login end), right side actions (사용 or 로그인 as secondary button, ⋯ menu).
-- Usage under the row, 12 px below it, its lines 6 px apart: inside a box, things sit a little closer than the space around it (user, 2026-11-07). Label column (5시간, 7일, model limits; Label) · thin 4 px bar (track `--line`, fill provider color, red at limit) · percent (Number) · reset time (Small, muted). Fixed column widths so bars align across rows.
+- Each account is one box: 1 px `--line`, 10 px radius, 12 px padding top and bottom and 16 px at the sides, 8 px between boxes. Several accounts should fit in the window without scrolling, so the boxes stay compact (user, 2026-11-08). The user missed the per-account boxes of 0.2 once they were gone (2026-11-06). Row: name (Body 500) with 사용 중 as a small provider-colored text marker, meta line (Small, muted: e-mail · plan · login end), right side actions (사용 or 로그인 as secondary button, ⋯ menu).
+- Usage under the row, 8 px below it, its lines 4 px apart: inside a box, things sit a little closer than the space around it (user, 2026-11-07). Label column (5시간, 7일, model limits; Label) · 6 px bar (4 px was too thin to read, user, 2026-11-08) (track `--line`, fill provider color, red at limit) · percent (Number) · reset time (Small, muted). Fixed column widths so bars align across rows.
 - Adding an account is folded into one text button "+ 계정 추가" under the list. Pressing it opens the name field with 추가 and 취소; it closes again once the account is added.
 - The window a line stands for is named by what the service reports: "5시간", "7일". A service that does not report a shorter window has no line for it, so a line never stands empty and "짧은 한도" is gone (user, 2026-11-07).
 - The bottom row of the tab: 자동 전환 on the left; **Claude 열기** and **GPT 열기** (both primary: they are peers, Windows only) then 새로고침 on the right. Pressing a launch button goes straight to the folder dialog, with no menu. Their disabled help and their failures sit on a line of their own under the buttons: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead.

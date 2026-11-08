@@ -21,6 +21,7 @@ Out of 0.3.0: CAD (AutoCAD, ZWCAD; ADR-004), Claude plugins, skills, `settings.j
 ## 2. Behavior that must not change
 
 - Account model, switching, refresh, auto switch, usage polling, uninstall restore: as in `README.md` (기본 로그인 전환, 자동 전환, 사용량 조회).
+- 0.3.1: the default login (the CLI's own before any switch) can be removed like an added account once it is signed out and not in use. Its folder is deleted, and `removedDefaults` in `profiles.json` keeps it out of the list, the order, auto switch and the uninstall restore (which then leaves the account in use as the CLI's login). It does not come back. A greyed ⋯ item says why under the menu (in use; still signed in).
 - Data folder `%LOCALAPPDATA%\AccountSwitch` (`ACCOUNTSWITCH_DATA` overrides), `profiles\profiles.json`, account folders.
 - API under `/api/v1/accounts/*`, the session cookie and bootstrap token flow, the `127.0.0.1`-only server, the CSP (`default-src 'self'`).
 - Theme storage key `accountswitch-theme` with values `light` and `dark`.

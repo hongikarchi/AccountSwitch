@@ -8,6 +8,7 @@ const schema = z.object({
   profiles: z.array(z.object({ id: z.string(), provider: z.enum(providers), label: z.string() })),
   active: z.record(z.string(), z.string()),
   defaultLabels: z.record(z.string(), z.string()).optional(),
+  removedDefaults: z.record(z.string(), z.boolean()).optional(),
   order: z.record(z.string(), z.array(z.string())).optional(),
 });
 const loginSchema = z.array(
@@ -324,7 +325,9 @@ export function AccountSettings({
   const order = data?.order?.[provider] ?? [];
   const place = (id: string) => (order.includes(id) ? order.indexOf(id) : order.length);
   const rows = [
-    { id: 'default', label: data?.defaultLabels?.[provider] ?? '기본 계정' },
+    ...(data?.removedDefaults?.[provider]
+      ? []
+      : [{ id: 'default', label: data?.defaultLabels?.[provider] ?? '기본 계정' }]),
     ...(data?.profiles.filter((p) => p.provider === provider) ?? []),
   ]
     .map((row, index) => ({ row, index }))
@@ -507,11 +510,17 @@ export function AccountSettings({
                         </button>
                         {(() => {
                           // The same items on every account; the ones that do not apply here are
-                          // greyed out. Any account can sign in again (the one in use in place);
-                          // the one in use cannot be signed out, nor the CLI's own login removed.
+                          // greyed out, with the reason under them. Any account can sign in again
+                          // (the one in use in place); the one in use cannot be signed out or
+                          // removed, and an account is signed out before it is removed.
                           const off = busy || loggingIn;
                           const inUse = off || active;
-                          const kept = inUse || row.id === 'default';
+                          const kept = inUse || signedIn === true;
+                          const why = active
+                            ? '사용 중인 계정이에요. 로그아웃·제거하려면 다른 계정을 먼저 사용하세요.'
+                            : signedIn === true
+                              ? '제거하려면 먼저 로그아웃하세요.'
+                              : undefined;
                           return (
                             <>
                               <button
@@ -555,7 +564,10 @@ export function AccountSettings({
                                 onClick={menu(() => {
                                   if (
                                     !window.confirm(
-                                      `${row.label} 계정을 목록에서 제거하고 이 프로필의 로컬 CLI 설정·이력을 삭제할까요? 먼저 로그아웃해야 합니다.`,
+                                      `${row.label} 계정을 목록에서 제거하고 이 계정의 로컬 CLI 설정·이력을 삭제할까요?` +
+                                        (row.id === 'default'
+                                          ? ' 처음부터 있던 계정이라 제거하면 다시 생기지 않아요.'
+                                          : ''),
                                     )
                                   )
                                     return;
@@ -571,6 +583,7 @@ export function AccountSettings({
                               >
                                 제거
                               </button>
+                              {why ? <small className="account-menu-note">{why}</small> : null}
                             </>
                           );
                         })()}

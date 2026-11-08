@@ -228,3 +228,20 @@ test('a Codex window says how long it is; none shorter than a week leaves no ses
   assert.equal(usage.session, undefined);
   assert.equal(usage.weekly.windowSeconds, 604800);
 });
+
+test('a removed default login is neither listed nor chosen by auto switch', async (t) => {
+  const { service, second, profiles, usage } = await fixture(t);
+  profiles.select('codex-cli', second.id, () => {});
+  profiles.remove('codex-cli', 'default');
+  const rows = await service.all();
+  assert.deepEqual(
+    rows.filter((row) => row.provider === 'codex-cli').map((row) => row.id),
+    [second.id],
+  );
+  // The account in use is at the limit and no other is left: it stays.
+  usage.two = 95;
+  service.setSettings({ autoSwitch: true, threshold: 90 });
+  const choice = await service.choose('codex-cli', second.id);
+  assert.equal(choice.id, second.id);
+  assert.equal(choice.switched, false);
+});

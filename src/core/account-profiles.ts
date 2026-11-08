@@ -41,6 +41,17 @@ const schema = z
       })
       .strict()
       .optional(),
+    /**
+     * Default logins the user removed (signed out and not in use): gone from the list, auto switch
+     * and the uninstall restore, and they do not come back.
+     */
+    removedDefaults: z
+      .object({
+        'claude-cli': z.literal(true).optional(),
+        'codex-cli': z.literal(true).optional(),
+      })
+      .strict()
+      .optional(),
     /** The order the user gave each service's accounts ('default' included); others follow. */
     order: z
       .object({
@@ -55,6 +66,16 @@ type Data = z.infer<typeof schema>;
 const fail = (code: string): never => {
   throw new DomainError(code);
 };
+/** A service's accounts in a list: the default login unless it was removed, then added ones. */
+export function accountIds(
+  data: Pick<Data, 'profiles' | 'removedDefaults'>,
+  provider: Provider,
+): string[] {
+  return [
+    ...(data.removedDefaults?.[provider] ? [] : ['default']),
+    ...data.profiles.filter((p) => p.provider === provider).map((p) => p.id),
+  ];
+}
 /** Local-only metadata. Credentials remain in CLI-owned child directories, never in this manifest. */
 export class AccountProfiles {
   private root: string;
@@ -110,6 +131,15 @@ export class AccountProfiles {
       fail('PROFILE_NOT_FOUND')
     );
   }
+  /** Any account of the list, the default login included unless it was removed. */
+  private check(provider: Provider, id: string) {
+    if (id !== 'default') this.find(provider, id);
+    else if (!this.hasDefault(provider)) fail('PROFILE_NOT_FOUND');
+  }
+  /** Whether the service's default login is still in the list (the user did not remove it). */
+  hasDefault(provider: Provider) {
+    return !this.data.removedDefaults?.[provider];
+  }
   list() {
     return structuredClone(this.data);
   }
@@ -126,10 +156,7 @@ export class AccountProfiles {
   }
   /** Put a service's accounts in this order: every one of them ('default' included), once. */
   reorder(provider: Provider, ids: string[]) {
-    const own = [
-      'default',
-      ...this.data.profiles.filter((p) => p.provider === provider).map((p) => p.id),
-    ];
+    const own = accountIds(this.data, provider);
     if (
       ids.length !== own.length ||
       new Set(ids).size !== ids.length ||
@@ -144,6 +171,7 @@ export class AccountProfiles {
   rename(provider: Provider, id: string, label: string) {
     const name = label.trim();
     if (name.length > 80) fail('INVALID_INPUT');
+    this.check(provider, id);
     if (id === 'default') {
       const labels = { ...this.data.defaultLabels };
       if (name) labels[provider] = name;
@@ -161,7 +189,7 @@ export class AccountProfiles {
    * `from` and installs the one in `to`, then the choice is saved.
    */
   select(provider: Provider, id: string, swap: (from: string, to: string) => void) {
-    if (id !== 'default') this.find(provider, id);
+    this.check(provider, id);
     const current = this.data.active[provider];
     if (current === id) return this.list();
     this.assertIdle(provider);
@@ -173,9 +201,13 @@ export class AccountProfiles {
   selected(provider: Provider) {
     return this.data.active[provider];
   }
+  /**
+   * Remove an account that is not in use, and delete its folder. The default login too: its
+   * folder then holds the original login, which the caller has checked is signed out.
+   */
   remove(provider: Provider, id: string) {
     this.assertIdle(provider);
-    this.find(provider, id); // Never remove the compatible default login.
+    this.check(provider, id);
     if (this.data.active[provider] === id) fail('PROFILE_ACTIVE');
     const directory = this.folder(provider, id);
     const inspect = (path: string) => {
@@ -199,7 +231,12 @@ export class AccountProfiles {
     } catch {
       fail('PROFILE_CLEANUP_FAILED');
     }
-    this.data.profiles = this.data.profiles.filter((row) => row.id !== id);
+    if (id === 'default') {
+      this.data.removedDefaults = { ...this.data.removedDefaults, [provider]: true };
+      const labels = { ...this.data.defaultLabels };
+      delete labels[provider];
+      this.data.defaultLabels = labels;
+    } else this.data.profiles = this.data.profiles.filter((row) => row.id !== id);
     const order = this.data.order?.[provider];
     if (order)
       this.data.order = { ...this.data.order, [provider]: order.filter((row) => row !== id) };
@@ -212,12 +249,12 @@ export class AccountProfiles {
    * account is active.
    */
   directory(provider: Provider, id: string) {
-    if (id !== 'default') this.find(provider, id);
+    this.check(provider, id);
     return this.data.active[provider] === id ? undefined : this.folder(provider, id);
   }
   /** An account's own folder, active or not. */
   private folder(provider: Provider, id: string) {
-    if (id !== 'default') this.find(provider, id);
+    this.check(provider, id);
     const path = join(this.root, id === 'default' ? 'default-' + provider : id);
     if (!existsSync(path)) mkdirSync(path);
     if (
