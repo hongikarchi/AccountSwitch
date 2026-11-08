@@ -1,0 +1,527 @@
+/* The 설치 tab: docs/DESIGN.md sections 4 and 5.6. Tokens come from style.css. */
+
+.setup-page {
+  display: grid;
+  gap: 32px;
+  max-width: 720px;
+  min-width: 0;
+}
+.setup-loading {
+  color: var(--muted);
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.setup-page h1:focus {
+  outline: none;
+}
+
+/* First screen. */
+.setup-first {
+  display: grid;
+  gap: 32px;
+}
+.setup-display {
+  margin: 0;
+  font-size: 24px;
+  line-height: 32px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.choice-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 96px;
+  padding: 24px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-weight: 400;
+  text-align: left;
+  white-space: normal;
+}
+.choice-row + .choice-row {
+  border-top: 1px solid var(--line);
+}
+.choice-row:hover {
+  background: var(--panel);
+}
+.choice-row:focus-visible {
+  outline-offset: -2px;
+}
+.choice-text {
+  display: grid;
+  flex: 1;
+  gap: 4px;
+  min-width: 0;
+}
+.choice-title {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.choice-detail {
+  color: var(--muted);
+}
+.choice-chevron {
+  flex: none;
+  color: var(--muted);
+}
+
+/* Screen title. */
+.setup-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+.setup-head-text {
+  flex: 1;
+  min-width: 0;
+}
+.setup-title {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.setup-detail {
+  margin-top: 8px;
+  color: var(--muted);
+}
+.setup-head .text-button {
+  flex: none;
+  margin-top: 2px;
+}
+
+/* Stepper (5.6). */
+.stepper {
+  display: grid;
+  gap: 40px;
+}
+.step-section {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+.step-group {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  text-transform: uppercase;
+}
+.step-group sup {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 0.75em;
+  line-height: 1;
+  vertical-align: top;
+  font-variant-numeric: tabular-nums;
+}
+.step-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  column-gap: 16px;
+  padding-bottom: 32px;
+}
+.step:last-child {
+  padding-bottom: 0;
+}
+/* The connector, from below this node down to the next one. */
+.step:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  top: 24px;
+  bottom: 0;
+  left: 11.5px;
+  width: 1px;
+  background: var(--line);
+  transform-origin: top;
+}
+.step[data-node='done']:not(:last-child)::after {
+  background: var(--text);
+}
+.step-node {
+  display: block;
+  width: 24px;
+  height: 24px;
+}
+.step-node svg {
+  display: block;
+}
+.node-fill {
+  fill: var(--text);
+}
+.node-check {
+  stroke: var(--bg);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 16;
+}
+.node-track,
+.node-arc,
+.node-strong,
+.node-danger {
+  stroke-width: 2;
+}
+.node-track {
+  stroke: var(--faint);
+}
+.node-arc {
+  stroke: var(--text);
+  stroke-linecap: round;
+  stroke-dasharray: 20 49.2;
+  transform-origin: center;
+  animation: node-turn 1.6s linear infinite;
+}
+.node-ring {
+  stroke: var(--faint);
+  stroke-width: 1.5;
+}
+.node-strong {
+  stroke: var(--text);
+}
+.node-danger {
+  stroke: var(--danger);
+}
+.node-mark,
+.node-danger-mark,
+.node-faint-mark {
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.node-mark {
+  stroke: var(--text);
+}
+.node-danger-mark {
+  stroke: var(--danger);
+}
+.node-faint-mark {
+  stroke: var(--muted);
+}
+@keyframes node-turn {
+  to {
+    transform: rotate(360deg);
+  }
+}
+/* A step finishing while it is watched (6): the check draws, then the connector fills. */
+.stepper[data-live='true'] .node-check {
+  animation: node-draw 200ms ease-out;
+}
+.stepper[data-live='true'] .step[data-node='done']:not(:last-child)::after {
+  animation: connector-fill 200ms ease-out;
+}
+@keyframes node-draw {
+  from {
+    stroke-dashoffset: 16;
+  }
+}
+@keyframes connector-fill {
+  from {
+    transform: scaleY(0);
+  }
+}
+
+.step-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  row-gap: 8px;
+  min-width: 0;
+  padding-top: 4px;
+}
+.step-main {
+  display: grid;
+  min-width: 0;
+}
+.step-body > :not(.step-main, .step-control) {
+  grid-column: 1 / -1;
+}
+.step-meta {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.step-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.step-description {
+  color: var(--muted);
+}
+.step[data-node='pending']:not([data-active='true']) > .step-body > .step-main .step-title,
+.step[data-node='skipped'] > .step-body > .step-main .step-title {
+  color: var(--muted);
+}
+.step-control {
+  align-self: start;
+}
+.step-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.step-elevation {
+  padding: 8px 12px;
+  border-radius: var(--radius-control);
+  background: var(--panel);
+  font-weight: 500;
+}
+.step-note {
+  color: var(--muted);
+}
+.step-note[data-tone='danger'] {
+  color: var(--danger);
+}
+.step-parts {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.step-parts li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
+  color: var(--muted);
+}
+.step-parts li[data-ok='false'] {
+  color: var(--text);
+}
+.step-parts small {
+  color: var(--muted);
+}
+.step-manual a {
+  font-weight: 500;
+}
+.step-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
+/* A group's own steps, inside its step. */
+.step-sublist {
+  margin-top: 20px;
+}
+
+/* The program screen (5.6). */
+.program-cards {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+@media (max-width: 639.98px) {
+  .program-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+.program-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 96px;
+  padding: 12px 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  text-align: center;
+  cursor: pointer;
+}
+.program-card:hover:not([data-disabled]) {
+  background: var(--panel);
+}
+/* The extra pixel is a shadow so that ticking moves nothing. */
+.program-card[data-picked] {
+  border-color: var(--line-strong);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+.program-card[data-disabled] {
+  color: var(--muted);
+  cursor: default;
+}
+.program-card:has(input:focus-visible) {
+  outline: 2px solid var(--line-strong);
+  outline-offset: 2px;
+}
+.program-name {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+
+.setup-warning {
+  width: min(360px, calc(100vw - 32px));
+  margin: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  background: var(--bg);
+  color: var(--text);
+  box-shadow: var(--shadow-menu);
+}
+.setup-warning::backdrop {
+  background: rgb(0 0 0 / 0.4);
+}
+.setup-warning-detail {
+  margin-top: 4px;
+  color: var(--muted);
+}
+.setup-warning-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* Summary bar: stays in view at the bottom of the window while the list scrolls. */
+.setup-summary {
+  position: sticky;
+  bottom: 0;
+  z-index: 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding-block: 20px;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.summary-text {
+  display: grid;
+  flex: 1;
+  min-width: 160px;
+}
+.summary-line {
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.summary-detail {
+  color: var(--muted);
+}
+.summary-detail[data-tone='danger'] {
+  color: var(--danger);
+}
+.summary-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 16px;
+}
+.summary-actions .primary-button {
+  min-width: 88px;
+}
+
+/* Asking first. */
+.setup-confirm {
+  display: grid;
+  gap: 12px;
+  scroll-margin-bottom: 96px;
+  padding: 20px;
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+}
+.setup-confirm:focus {
+  outline: none;
+}
+.confirm-title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.confirm-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.confirm-list li {
+  display: grid;
+}
+.confirm-list strong {
+  font-weight: 500;
+}
+.confirm-list span {
+  color: var(--muted);
+}
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* 로그 보기. */
+.setup-log {
+  display: grid;
+  gap: 8px;
+  scroll-margin-bottom: 96px;
+  min-width: 0;
+}
+.log-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.log-title {
+  flex: 1;
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 600;
+}
+.log-body {
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  word-break: normal;
+}
+.log-error {
+  color: var(--danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .node-arc,
+  .stepper[data-live='true'] .node-check,
+  .stepper[data-live='true'] .step[data-node='done']:not(:last-child)::after {
+    animation: none;
+  }
+  /* Without the turn, a quarter arc would read as stuck: a whole ring says "in progress". */
+  .node-arc {
+    stroke-dasharray: none;
+  }
+}

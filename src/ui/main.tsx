@@ -2,46 +2,70 @@ import './zod-config.ts';
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { z } from 'zod';
-import { AccountSettings } from './account-settings.tsx';
-import { UsageToolbar, useUsage } from './usage.tsx';
+import { AccountSettings, ServiceHead } from './account-settings.tsx';
+import { EmptyState, UsageToolbar, useUsage } from './usage.tsx';
+import { LauncherButton, LauncherNotice, useLauncher } from './launcher.tsx';
+import { SetupTab, useSetupAutoOpen } from './setup.tsx';
 import { api, connect } from './gateway.ts';
 import { providers, type Provider } from '../core/providers.ts';
 
-// One page: each service's accounts (add, sign in, rename, choose, remove) and every account's
-// usage. Light or dark, as chosen (kept in this browser); the system's until one is chosen.
+// One page with two tabs. 계정: each service's accounts (add, sign in, rename, choose, remove) and
+// every account's usage. 설치: the setup wizard (not on macOS). Light or dark, as chosen (kept in
+// this browser); the system's until one is chosen.
 type Theme = 'light' | 'dark';
 const THEME_KEY = 'accountswitch-theme';
 const dark = matchMedia('(prefers-color-scheme: dark)');
-function savedTheme(): Theme {
+function chosenTheme(): Theme | undefined {
   try {
     const value = localStorage.getItem(THEME_KEY);
     if (value === 'light' || value === 'dark') return value;
   } catch {
     /* Not kept. */
   }
-  return dark.matches ? 'dark' : 'light';
+  return undefined;
 }
+const currentTheme = (): Theme => chosenTheme() ?? (dark.matches ? 'dark' : 'light');
 function applyTheme(value: Theme) {
   document.documentElement.dataset.theme = value;
   document.documentElement.style.colorScheme = value;
 }
-applyTheme(savedTheme());
+applyTheme(currentTheme());
 
-// One account menu open at a time, closed by a click anywhere else.
+// One menu open at a time, closed by a click anywhere else. The launcher's menu closes itself the
+// same way (launcher.tsx), and a click on its button closes the account menus here.
 document.addEventListener('click', (event) => {
   for (const open of document.querySelectorAll('details.account-more[open]'))
     if (!open.contains(event.target as Node)) open.removeAttribute('open');
 });
 
-const themes: { id: Theme; label: string }[] = [
-  { id: 'light', label: '라이트' },
-  { id: 'dark', label: '다크' },
-];
-function ThemeSwitch() {
-  const [choice, setChoice] = useState(savedTheme);
-  const choose = (next: Theme) => {
-    setChoice(next);
-    applyTheme(next);
+let fadeTimer: ReturnType<typeof setTimeout>;
+/** Applies a theme with the page colors cross-fading; the CSS rule exists only for that moment. */
+function fadeToTheme(value: Theme) {
+  const root = document.documentElement;
+  root.dataset.themeChanging = 'true';
+  applyTheme(value);
+  clearTimeout(fadeTimer);
+  fadeTimer = setTimeout(() => delete root.dataset.themeChanging, 280);
+}
+
+/** The two-state pill of DESIGN 5.2. Checked means dark. */
+function ThemeToggle() {
+  const [theme, setTheme] = useState(currentTheme);
+  // Until the user chooses, the theme follows the system even while the page is open.
+  useEffect(() => {
+    const follow = () => {
+      if (chosenTheme()) return;
+      const next = currentTheme();
+      setTheme(next);
+      fadeToTheme(next);
+    };
+    dark.addEventListener('change', follow);
+    return () => dark.removeEventListener('change', follow);
+  }, []);
+  const toggle = () => {
+    const next = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    fadeToTheme(next);
     try {
       localStorage.setItem(THEME_KEY, next);
     } catch {
@@ -49,28 +73,79 @@ function ThemeSwitch() {
     }
   };
   return (
-    <div className="theme-switch" role="group" aria-label="화면 테마">
-      {themes.map((theme) => (
+    <button
+      type="button"
+      className="theme-toggle"
+      role="switch"
+      aria-checked={theme === 'dark'}
+      aria-label="화면 테마"
+      onClick={toggle}
+    >
+      <span className="theme-knob" />
+      <span className="theme-label" data-active={String(theme === 'light')}>
+        Light
+      </span>
+      <span className="theme-label" data-active={String(theme === 'dark')}>
+        Dark
+      </span>
+    </button>
+  );
+}
+
+const names: Record<Provider, { cli: string }> = {
+  'claude-cli': { cli: 'Claude Code' },
+  'codex-cli': { cli: 'Codex CLI' },
+};
+const installedSchema = z.array(z.object({ id: z.enum(providers), installed: z.boolean() }));
+
+const mac = navigator.userAgent.includes('Mac OS X');
+
+type Tab = 'accounts' | 'setup';
+const TAB_KEY = 'accountswitch-tab';
+const tabs: { id: Tab; label: string }[] = [
+  { id: 'accounts', label: '계정' },
+  ...(mac ? [] : [{ id: 'setup' as const, label: '설치' }]),
+];
+function savedTab(): Tab {
+  try {
+    const value = localStorage.getItem(TAB_KEY);
+    const saved = tabs.find((tab) => tab.id === value);
+    if (saved) return saved.id;
+  } catch {
+    /* Not kept. */
+  }
+  return 'accounts';
+}
+
+function Tabs({ current, choose }: { current: Tab; choose: (tab: Tab) => void }) {
+  return (
+    <div className="tabs" role="tablist" aria-label="화면">
+      {tabs.map((tab, index) => (
         <button
-          key={theme.id}
+          key={tab.id}
           type="button"
-          aria-pressed={choice === theme.id}
-          onClick={() => choose(theme.id)}
+          className="tab"
+          role="tab"
+          id={`tab-${tab.id}`}
+          aria-controls={`panel-${tab.id}`}
+          aria-selected={current === tab.id}
+          tabIndex={current === tab.id ? 0 : -1}
+          onClick={() => choose(tab.id)}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            const step = event.key === 'ArrowRight' ? 1 : tabs.length - 1;
+            const next = tabs[(index + step) % tabs.length];
+            choose(next.id);
+            document.getElementById(`tab-${next.id}`)?.focus();
+          }}
         >
-          {theme.label}
+          {tab.label}
         </button>
       ))}
     </div>
   );
 }
 
-const names: Record<Provider, { name: string; cli: string }> = {
-  'claude-cli': { name: 'Claude', cli: 'Claude Code' },
-  'codex-cli': { name: 'ChatGPT', cli: 'Codex CLI' },
-};
-const installedSchema = z.array(z.object({ id: z.enum(providers), installed: z.boolean() }));
-
-const mac = navigator.userAgent.includes('Mac OS X');
 /** How to install each CLI: the official command for this system, and the official guide. */
 const install: Record<Provider, { command: string; guide: string }> = {
   'claude-cli': {
@@ -90,14 +165,15 @@ function CliMissing({ provider }: { provider: Provider }) {
   const [copied, setCopied] = useState(false);
   const { command, guide } = install[provider];
   return (
-    <div className="cli-missing">
-      <p>{names[provider].cli}가 설치되어 있지 않습니다.</p>
-      <p className="cli-step">{mac ? '터미널' : 'PowerShell'}에 붙여 넣어 설치하세요.</p>
-      <code>{command}</code>
-      <span className="cli-actions">
+    <EmptyState
+      kind="terminal"
+      title={`${names[provider].cli}가 설치되어 있지 않습니다.`}
+      detail={`${mac ? '터미널' : 'PowerShell'}에 붙여 넣어 설치하세요.`}
+    >
+      <code className="empty-command">{command}</code>
+      <span className="empty-actions">
         <button
           type="button"
-          className="primary-button"
           onClick={() =>
             void navigator.clipboard.writeText(command).then(
               () => setCopied(true),
@@ -112,7 +188,33 @@ function CliMissing({ provider }: { provider: Provider }) {
         </a>
       </span>
       {provider === 'codex-cli' ? <small>Node.js가 필요합니다 (nodejs.org).</small> : null}
-    </div>
+    </EmptyState>
+  );
+}
+
+function AppHead({ tab, choose }: { tab: Tab; choose: (tab: Tab) => void }) {
+  return (
+    <header className="app-head">
+      <div className="app-head-inner">
+        <Tabs current={tab} choose={choose} />
+        {/* Hidden from view: the window's title bar shows the name and the icon (DESIGN 5.1). */}
+        <h1 className="wordmark">AccountSwitch</h1>
+        <ThemeToggle />
+      </div>
+    </header>
+  );
+}
+
+/** Its own component so that the launcher's state changes do not render the accounts again. */
+function Launcher() {
+  const launcher = useLauncher();
+  return (
+    <>
+      {providers.map((provider) => (
+        <LauncherButton key={provider} launcher={launcher} provider={provider} />
+      ))}
+      <LauncherNotice launcher={launcher} />
+    </>
   );
 }
 
@@ -142,34 +244,70 @@ function App() {
     check();
     return () => clearTimeout(timer);
   }, []);
+  const [tab, setTab] = useState(savedTab);
+  // SPEC 3.1: only a new PC opens on 설치, and that does not become the saved tab.
+  useSetupAutoOpen(() => {
+    if (!mac) setTab('setup');
+  });
+  const chooseTab = (next: Tab) => {
+    setTab(next);
+    try {
+      localStorage.setItem(TAB_KEY, next);
+    } catch {
+      /* Not kept; applies until the page reloads. */
+    }
+  };
   return (
-    <main className="app">
-      <header className="app-head">
-        <h1>AccountSwitch</h1>
-        <ThemeSwitch />
-      </header>
-      <div className="services">
-        {providers.map((provider) => (
-          <section
-            key={provider}
-            className="card"
-            data-provider={provider}
-            aria-labelledby={`${provider}-title`}
+    <>
+      <AppHead tab={tab} choose={chooseTab} />
+      <main className="app-body">
+        {/* Both panels stay mounted: leaving a tab must not interrupt a sign-in being followed. */}
+        <div
+          className="tab-panel"
+          role="tabpanel"
+          id="panel-accounts"
+          aria-labelledby="tab-accounts"
+          hidden={tab !== 'accounts'}
+        >
+          <div className="services">
+            {providers.map((provider) => (
+              <section
+                key={provider}
+                className="service"
+                data-provider={provider}
+                aria-labelledby={`${provider}-title`}
+              >
+                {installed && !installed[provider] ? (
+                  <>
+                    <ServiceHead provider={provider} />
+                    <CliMissing provider={provider} />
+                  </>
+                ) : (
+                  <AccountSettings
+                    provider={provider}
+                    usage={usage?.accounts.filter((account) => account.provider === provider)}
+                  />
+                )}
+              </section>
+            ))}
+          </div>
+          <UsageToolbar usage={usage} failure={failure} load={load}>
+            <Launcher />
+          </UsageToolbar>
+        </div>
+        {mac ? null : (
+          <div
+            className="tab-panel"
+            role="tabpanel"
+            id="panel-setup"
+            aria-labelledby="tab-setup"
+            hidden={tab !== 'setup'}
           >
-            <h2 id={`${provider}-title`}>{names[provider].name}</h2>
-            {installed && !installed[provider] ? (
-              <CliMissing provider={provider} />
-            ) : (
-              <AccountSettings
-                provider={provider}
-                usage={usage?.accounts.filter((account) => account.provider === provider)}
-              />
-            )}
-          </section>
-        ))}
-      </div>
-      <UsageToolbar usage={usage} failure={failure} load={load} />
-    </main>
+            <SetupTab active={tab === 'setup'} />
+          </div>
+        )}
+      </main>
+    </>
   );
 }
 
@@ -178,10 +316,17 @@ connect()
   .then(() => root.render(<App />))
   .catch((error: unknown) =>
     root.render(
-      <main className="app">
-        <p className="remote-error">
-          {error instanceof Error ? error.message : '연결하지 못했습니다.'}
-        </p>
+      <main className="app-body">
+        <EmptyState
+          size="large"
+          kind="error"
+          title="연결하지 못했습니다"
+          detail={error instanceof Error ? error.message : undefined}
+        >
+          <button type="button" onClick={() => location.reload()}>
+            다시 시도
+          </button>
+        </EmptyState>
       </main>,
     ),
   );

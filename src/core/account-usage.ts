@@ -22,6 +22,8 @@ const HYSTERESIS = 10;
 export interface UsageWindow {
   percent: number;
   resetsAt: string | null;
+  /** Codex: how long the service says this window is. */
+  windowSeconds?: number;
 }
 export interface AccountUsage {
   provider: Provider;
@@ -368,7 +370,13 @@ export class AccountUsageService {
       (value): value is NonNullable<z.infer<typeof window>> => !!value,
     );
     const view = (value?: z.infer<typeof window>) =>
-      value ? { percent: value.used_percent, resetsAt: iso(value.reset_at) } : undefined;
+      value
+        ? {
+            percent: value.used_percent,
+            resetsAt: iso(value.reset_at),
+            ...(value.limit_window_seconds ? { windowSeconds: value.limit_window_seconds } : {}),
+          }
+        : undefined;
     // Codex reports one or two windows; the one of a week or longer is the weekly limit.
     const weekly = windows.find((w) => (w.limit_window_seconds ?? 0) >= 6 * 86400);
     const session = windows.find((w) => w !== weekly);

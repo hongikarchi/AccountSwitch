@@ -1,15 +1,44 @@
 # AccountSwitch
 
-Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows·macOS 프로그램입니다.
+Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows·macOS 프로그램입니다. Windows에서는 새 PC를 Claude Code로 모델링할 수 있게 준비해 주고, 고른 폴더에서 Claude Code를 바로 열어 줍니다.
 
-> 상태: 초기 개발 중(0.2.x). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다.
+> 상태: 초기 개발 중(0.3). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다. Windows에는 설치 마법사와 Claude 열기 버튼이 더해졌습니다.
 
 ## 화면
 
-- 서비스(Claude·ChatGPT)마다 계정 목록이 있고, 각 계정 아래에 사용량 막대가 붙습니다. 이름 앞의 점과 막대 색으로 서비스를 구분합니다(Claude 주황, ChatGPT 초록).
+- 위쪽에 **계정**과 **설치** 탭이 있습니다. 설치 탭은 Windows에만 있습니다.
+- 서비스(Claude·ChatGPT)마다 계정 목록이 있고, 각 계정 아래에 사용량 막대가 붙습니다. 화면은 흑백이고, 색은 서비스 구분(Claude 주황, ChatGPT 초록)과 오류·한도(빨강)에만 씁니다. 사용량은 한도에 닿으면 빨갛게 바뀝니다.
 - 계정 줄을 끌어다 다른 계정 위에 놓으면 순서가 바뀝니다("기본 계정" 포함). 순서는 서비스별로 `profiles.json`에 저장됩니다.
 - 계정의 "사용"으로 기본 로그인을 바꾸고, `⋯` 메뉴에서 이름 변경·로그인·로그아웃·제거를 합니다(메뉴 항목은 모든 계정에 같고, 쓸 수 없는 항목은 비활성). 로그인이 풀린 계정에는 "사용" 대신 "로그인" 버튼이 나옵니다.
-- 화면 아래에서 자동 전환을 켜고 끄며, 오른쪽 위에서 테마(라이트·다크)를 고릅니다.
+- 화면 아래에서 자동 전환을 켜고 끄며, 오른쪽 위 토글로 테마(라이트·다크)를 고릅니다.
+
+## 설치 탭 (Windows)
+
+이 PC에 무엇이 있는지 확인하고, 없는 것을 차례대로 설치합니다. **버튼을 누르기 전에는 아무것도 설치하지 않습니다.** 처음 켰을 때 Claude Code가 없으면 이 탭이 먼저 열리고, 이미 쓰던 분에게는 저절로 열리지 않습니다.
+
+- **이미 세팅했어요 (점검만)**: 확인만 하고 아무것도 바꾸지 않습니다. 없는 항목마다 설치 버튼이 나옵니다.
+- **자동으로 설정해 주세요**: 쓰는 프로그램(Claude Code, GPT, Rhino, Blender)을 고르고 "다음"을 누르면, 기본 프로그램과 고른 프로그램에 필요한 것 중 없는 것만 차례대로 설치합니다. Claude Code나 GPT 중 하나는 꼭 골라야 합니다.
+
+| 묶음 | 항목 |
+|---|---|
+| 기본 | Git, Node.js 24, uv, Python 3.13, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
+| Claude Code | Claude Code |
+| GPT | Codex CLI |
+| Rhino | Rhino 8은 직접 설치하고, 플러그인과 Claude Code·GPT 연결(rhinomcp, Cordyceps)을 설치합니다 |
+| Blender | Blender 5.2.3, 애드온, Claude Code·GPT 연결(blender-mcp) |
+
+- **이미 있는 프로그램은 건드리지 않습니다.** 다른 버전이 있으면 "버전 다름"으로 알려 주고 그대로 둡니다. Claude Code 연결을 다시 등록하는 일과, 점검만 모드에서 다른 버전의 Blender 옆에 설치하는 일은 먼저 물어봅니다. winget으로 Blender를 설치하면 다른 버전이 지워질 수 있어 경고합니다.
+- **로그인 정보를 읽거나 쓰지 않습니다.** `~/.claude.json`에 쓰는 일은 계정 전환과 겹치지 않게 하나씩 실행합니다.
+- **받는 곳**: winget, 각 프로젝트의 공식 주소, npm, PyPI만 씁니다. 버전을 고정한 설치 파일은 공개된 해시로 확인한 뒤 실행합니다.
+- **Blender 연결**은 자료를 개발사로 보내는 기능(텔레메트리)을 꺼 둔 채로 설치합니다. 켜 두면 프롬프트·코드·스크린샷이 전송될 수 있기 때문입니다.
+- 권한 확인 창이 뜨면 "예"를 누르세요. 실패한 항목은 다시 시도·건너뛰기·로그 보기를 할 수 있고, 로그는 데이터 폴더의 `logs\setup-날짜.log`에 있습니다. 설치 중에 프로그램을 끝내려 하면 먼저 물어봅니다.
+
+## Claude 열기, GPT 열기 (Windows)
+
+계정 탭 아래쪽, 새로고침 왼쪽의 **Claude 열기**나 **GPT 열기**를 누르면 폴더 선택 창이 바로 뜹니다. 폴더를 고르면 그 폴더에서 `cmd` 창이 열리고 Claude Code나 Codex CLI가 시작됩니다. `cd`를 칠 필요가 없고, "사용" 중인 계정으로 실행되며, 프로그램을 끝내도 창은 남습니다.
+
+- `\\서버\폴더` 같은 네트워크 경로에서는 열 수 없습니다. 드라이브 문자로 연결한 폴더를 고르세요.
+- 이 창에는 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 같은 환경 변수가 전달되지 않습니다. 구독 계정으로만 실행합니다.
 
 ## 어떻게 동작하나
 
@@ -49,7 +78,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - 갱신이 거절되면(로그인 자체가 만료) "다시 로그인하세요"로 표시하고 파일은 건드리지 않으며 한 시간 뒤에 다시 시도합니다. 일시적인 실패는 15분 뒤에 다시 시도합니다. 자동 전환은 거절된 로그인으로 바꾸지 않습니다.
 - 갱신은 됐는데 저장하지 못한 경우(드묾), 새 로그인을 데이터 폴더의 `profiles\refresh-rescue-<서비스>-<시각>.json`에 남깁니다(평문, 자동으로 쓰이지 않음, 손으로 되살릴 때용).
 
-- 보이는 값: 5시간(ChatGPT는 짧은 한도)·7일 사용률과 초기화 시각, Claude는 응답의 `limits`에 오는 모델별 주간 한도(예: Fable)도 함께 표시합니다. 자동 전환은 5시간·7일만 봅니다.
+- 보이는 값: 5시간·7일 사용률과 초기화 시각(ChatGPT가 7일 구간만 알려 주는 계정은 7일만 보입니다), Claude는 응답의 `limits`에 오는 모델별 주간 한도(예: Fable)도 함께 표시합니다. 자동 전환은 5시간·7일만 봅니다.
 
 ## 설치
 
@@ -67,7 +96,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 [Releases](https://github.com/hongikarchi/AccountSwitch/releases/latest)에서 `AccountSwitch.dmg`를 받아 열고, AccountSwitch를 응용 프로그램(Applications) 폴더로 끌어다 놓습니다.
 
 - **처음 열 때**: Apple 개발자 서명이 없어 "확인되지 않은 개발자" 경고가 나옵니다. 창을 닫고 시스템 설정 → 개인정보 보호 및 보안 → 아래쪽 **"그래도 열기"**를 누릅니다(macOS 15부터는 우클릭 → 열기로는 열리지 않습니다). 창에 "서버를 시작하지 못했습니다"가 나오면 터미널에서 `xattr -cr /Applications/AccountSwitch.app`를 실행한 뒤 다시 엽니다.
-- **메뉴 막대**: 메뉴 막대의 ⇄ 아이콘에서 열기·로그인 시 실행·창을 닫아도 메뉴 막대에 남기·업데이트 확인·종료를 합니다.
+- **메뉴 막대**: 메뉴 막대의 토글 모양 아이콘에서 열기·로그인 시 실행·창을 닫아도 메뉴 막대에 남기·업데이트 확인·종료를 합니다.
 - **자동 업데이트**(Sparkle): 6시간마다 최신 릴리스를 확인해 내려받고, 앱을 끝낼 때 설치합니다("업데이트 확인…"으로 바로 설치). 업데이트는 EdDSA 서명으로 확인합니다.
 - **지우기 전에** 메뉴 막대 아이콘 → **"원래 로그인으로 되돌리기…"**를 누르세요. macOS에는 삭제 프로그램이 없어, 앱을 휴지통에 넣기만 하면 다른 계정이 기본 로그인으로 남습니다. 계정 데이터(`~/Library/Application Support/AccountSwitch`)는 앱을 지워도 남습니다.
 - Intel Mac용은 아직 없습니다.
@@ -101,6 +130,7 @@ npm run build:exe        # release\engine\AccountSwitch-engine.exe: 앱 서버 (
 npm run build:desktop    # release\app\AccountSwitch.exe: 창·트레이 프로그램 (.NET SDK 필요)
 npm run build:installer  # release\installer\: Velopack 설치 파일·업데이트 패키지
 npm run build:mac        # (macOS) release/mac/: AccountSwitch.app·dmg·업데이트용 zip (Xcode 명령줄 도구 필요)
+npm run build:icons      # assets/brand/: 로고에서 아이콘 파일을 다시 만듭니다 (평소 빌드에는 필요 없음)
 ```
 
 `package.json`의 버전과 같은 태그(`v0.2.0`)를 올리면 GitHub Actions(`.github/workflows/release.yml`)가 Windows와 macOS에서 시험·빌드한 뒤, 두 OS의 설치 파일과 업데이트 패키지(Windows: Velopack, macOS: Sparkle `appcast.xml`)를 같은 릴리스에 올리고, 설치된 프로그램이 이를 받아 업데이트합니다. macOS 업데이트 서명 키는 저장소 비밀값 `SPARKLE_PRIVATE_KEY`이고, 공개키는 `src/desktop/mac/sparkle-public-key.txt`입니다(비밀키를 잃으면 설치된 macOS 앱이 새 업데이트를 받지 못합니다). 잘못된 릴리스도 모든 설치본에 퍼지므로 확인한 뒤에 태그를 올리세요.
@@ -114,13 +144,17 @@ npm run build:mac        # (macOS) release/mac/: AccountSwitch.app·dmg·업데�
 | `src/core/account-login.ts` | 공식 CLI로 로그인·로그아웃 (주소·코드 표시, 10분 제한) |
 | `src/core/account-usage.ts` | 로그인한 사람·요금제, 사용량 조회(모델별 한도 포함), 전환할 계정 고르기 |
 | `src/core/cli.ts` | CLI 찾기, 계정별 환경 변수, 로그인 상태 확인 |
-| `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`) |
+| `src/core/setup/` | 설치 탭: 항목 목록과 고정 버전(`manifest.ts`), 점검, 설치 실행 |
+| `src/core/launcher.ts` | Claude 열기·GPT 열기: 브라우저에서 열기 |
+| `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`, `/api/v1/setup/*`, `/api/v1/launcher/*`) |
 | `src/ui/` | React 화면 |
 | `src/core/keychain.ts` | macOS 로그인 키체인 (Claude Code의 로그인 항목) |
 | `src/core/token-refresh.ts` | 만료된 로그인 갱신 (Claude·Codex 토큰 주소) |
 | `src/desktop/shell/` | Windows: 창(WebView2)·트레이·자동 시작·업데이트(Velopack) 프로그램 (C#, .NET Framework 4.8) |
 | `src/desktop/mac/` | macOS: 메뉴 막대·창(WKWebView)·로그인 시 실행·업데이트(Sparkle) 앱 (Swift) |
-| `scripts/` | 앱 서버(Node SEA), 프로그램·설치 파일·업데이트 목록 빌드 |
+| `scripts/` | 앱 서버(Node SEA), 프로그램·설치 파일·업데이트 목록·아이콘 빌드 |
+| `assets/brand/` | 로고와 아이콘 |
+| `docs/` | 0.3 작업 문서 (`CLAUDE.md`에 안내) |
 
 ## 다음 단계
 

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { api } from './gateway.ts';
-import { AccountUsageLines, type AccountUsage } from './usage.tsx';
+import { AccountUsageLines, EmptyState, type AccountUsage } from './usage.tsx';
 import { providers } from '../core/providers.ts';
 import type { Provider } from '../core/providers.ts';
 const schema = z.object({
@@ -98,7 +98,7 @@ function LoginPanel({
             : '브라우저에서 로그인하세요'}
         </strong>
         <small>{stopping ? '멈추는 중…' : `남은 시간 ${remaining(login.expiresAt)}`}</small>
-        <button type="button" className="link-button" disabled={stopping} onClick={cancel}>
+        <button type="button" className="text-button" disabled={stopping} onClick={cancel}>
           취소
         </button>
       </div>
@@ -151,7 +151,7 @@ function LoginPanel({
                     placeholder="승인 코드"
                     autoComplete="off"
                   />
-                  <button type="submit" disabled={!code.trim()}>
+                  <button type="submit" className="primary-button" disabled={!code.trim()}>
                     확인
                   </button>
                 </form>
@@ -179,6 +179,17 @@ function endingSoon(value?: string) {
   return `${two(date.getMonth() + 1)}.${two(date.getDate())} 로그인 만료`;
 }
 
+/** A service's section head: mark, name and, once known, how many accounts it has. */
+export function ServiceHead({ provider, count }: { provider: Provider; count?: number }) {
+  return (
+    <h2 className="service-head" id={`${provider}-title`}>
+      <span className="service-dot" />
+      {service[provider]}
+      {count === undefined ? null : <small className="service-count">계정 {count}개</small>}
+    </h2>
+  );
+}
+
 export function AccountSettings({
   provider,
   usage,
@@ -189,6 +200,7 @@ export function AccountSettings({
 }) {
   const [data, setData] = useState<z.infer<typeof schema>>();
   const [label, setLabel] = useState('');
+  const [adding, setAdding] = useState(false);
   const [message, setMessage] = useState('');
   const [messageFailed, setMessageFailed] = useState(false);
   const fail = (text: string) => {
@@ -338,259 +350,308 @@ export function AccountSettings({
     login?.state === 'failed' && login.id !== dismissed && login.operation === 'login'
       ? login
       : undefined;
+  // The list never loaded: the rows below would only be a guess. It keeps polling meanwhile.
+  if (!data && messageFailed)
+    return (
+      <div className="account-settings">
+        <ServiceHead provider={provider} />
+        <EmptyState
+          kind="error"
+          title="계정 목록을 불러오지 못했습니다"
+          detail="AccountSwitch가 켜져 있는지 확인하세요. 저절로 다시 시도합니다."
+        >
+          <button type="button" onClick={() => void refresh().catch(() => undefined)}>
+            다시 시도
+          </button>
+        </EmptyState>
+      </div>
+    );
   return (
     <div className="account-settings">
-      {rows.map((row) => {
-        const active = data?.active[provider] === row.id;
-        const signedIn = who[row.id]?.signedIn;
-        const current = usage?.find((account) => account.id === row.id);
-        const mine = login?.profileId === row.id;
-        const menu = (task: () => void) => (event: React.MouseEvent<HTMLButtonElement>) => {
-          event.currentTarget.closest('details')?.removeAttribute('open');
-          task();
-        };
-        return (
-          <div
-            key={row.id}
-            className="account-block"
-            draggable={rows.length > 1 && renaming !== row.id}
-            data-dragging={String(dragging === row.id)}
-            data-over={String(!!dragging && over === row.id && dragging !== row.id)}
-            onDragStart={(event) => {
-              event.dataTransfer.effectAllowed = 'move';
-              event.dataTransfer.setData('text/plain', row.id);
-              setDragging(row.id);
-            }}
-            onDragOver={(event) => {
-              if (!dragging) return;
-              event.preventDefault();
-              setOver(row.id);
-            }}
-            onDrop={(event) => {
-              event.preventDefault();
-              if (dragging) move(dragging, row.id);
-              setDragging(undefined);
-              setOver(undefined);
-            }}
-            onDragEnd={() => {
-              setDragging(undefined);
-              setOver(undefined);
-            }}
-          >
-            <div className="account-row" data-active={String(active)}>
-              {renaming === row.id ? (
-                <form
-                  className="account-rename"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void action(async () => {
-                      await api('/accounts/rename', 'POST', {
-                        provider,
-                        id: row.id,
-                        label: newName,
+      <ServiceHead provider={provider} count={data ? rows.length : undefined} />
+      <div className="account-list">
+        {rows.map((row) => {
+          const active = data?.active[provider] === row.id;
+          const signedIn = who[row.id]?.signedIn;
+          const current = usage?.find((account) => account.id === row.id);
+          const mine = login?.profileId === row.id;
+          const menu = (task: () => void) => (event: React.MouseEvent<HTMLButtonElement>) => {
+            event.currentTarget.closest('details')?.removeAttribute('open');
+            task();
+          };
+          return (
+            <div
+              key={row.id}
+              className="account-block"
+              draggable={rows.length > 1 && renaming !== row.id}
+              data-dragging={String(dragging === row.id)}
+              data-over={String(!!dragging && over === row.id && dragging !== row.id)}
+              onDragStart={(event) => {
+                event.dataTransfer.effectAllowed = 'move';
+                event.dataTransfer.setData('text/plain', row.id);
+                setDragging(row.id);
+              }}
+              onDragOver={(event) => {
+                if (!dragging) return;
+                event.preventDefault();
+                setOver(row.id);
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (dragging) move(dragging, row.id);
+                setDragging(undefined);
+                setOver(undefined);
+              }}
+              onDragEnd={() => {
+                setDragging(undefined);
+                setOver(undefined);
+              }}
+            >
+              <div className="account-row" data-active={String(active)}>
+                {renaming === row.id ? (
+                  <form
+                    className="account-rename"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void action(async () => {
+                        await api('/accounts/rename', 'POST', {
+                          provider,
+                          id: row.id,
+                          label: newName,
+                        });
+                        setRenaming(undefined);
                       });
-                      setRenaming(undefined);
-                    });
-                  }}
-                >
-                  <input
-                    aria-label={`${row.label} 새 이름`}
-                    value={newName}
-                    maxLength={80}
-                    autoFocus
-                    placeholder={row.id === 'default' ? '비우면 기본 계정' : '계정 이름'}
-                    onChange={(event) => setNewName(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Escape') setRenaming(undefined);
                     }}
-                  />
-                  <button
-                    type="submit"
-                    disabled={busy || (row.id !== 'default' && !newName.trim())}
                   >
-                    저장
-                  </button>
-                  <button type="button" onClick={() => setRenaming(undefined)}>
-                    취소
-                  </button>
-                </form>
-              ) : (
-                <span className="account-name">
-                  {row.label}
-                  {active ? <span className="account-badge">사용 중</span> : null}
-                  {current?.limitReached ? (
-                    <span className="account-badge" data-limit="true">
-                      한도
+                    <input
+                      aria-label={`${row.label} 새 이름`}
+                      value={newName}
+                      maxLength={80}
+                      autoFocus
+                      placeholder={row.id === 'default' ? '비우면 기본 계정' : '계정 이름'}
+                      onChange={(event) => setNewName(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Escape') setRenaming(undefined);
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      disabled={busy || (row.id !== 'default' && !newName.trim())}
+                    >
+                      저장
+                    </button>
+                    <button type="button" onClick={() => setRenaming(undefined)}>
+                      취소
+                    </button>
+                  </form>
+                ) : (
+                  <span className="account-name">
+                    <span className="account-title">
+                      {row.label}
+                      {active ? <span className="account-marker">사용 중</span> : null}
+                      {current?.limitReached ? (
+                        <span className="account-marker" data-limit="true">
+                          한도
+                        </span>
+                      ) : null}
                     </span>
-                  ) : null}
-                  {who[row.id] ? <small>{who[row.id].text}</small> : null}
-                </span>
-              )}
-              {renaming !== row.id && (
-                <span className="account-actions">
-                  {signedIn === false && !(mine && loggingIn) ? (
-                    <button
-                      className="primary-button"
-                      disabled={busy || loggingIn}
-                      onClick={() => startLogin(row.id, 'login')}
-                    >
-                      로그인
-                    </button>
-                  ) : null}
-                  {!active && signedIn !== false ? (
-                    <button
-                      title="터미널·VS Code의 기본 로그인을 이 계정으로 바꿉니다"
-                      disabled={busy || loggingIn}
-                      onClick={() =>
-                        void action(async () => {
-                          await api('/accounts/select', 'POST', { provider, id: row.id });
-                          notify(
-                            provider === 'claude-cli'
-                              ? navigator.userAgent.includes('Mac OS X')
-                                ? '바꿨습니다. 켜져 있는 Claude Code도 30초쯤 뒤부터 이 계정을 씁니다.'
-                                : '바꿨습니다. 켜져 있는 Claude Code도 다음 메시지부터 이 계정을 씁니다.'
-                              : '바꿨습니다. 켜져 있는 Codex는 다시 시작하면 이 계정을 씁니다.',
-                          );
-                        })
-                      }
-                    >
-                      사용
-                    </button>
-                  ) : null}
-                  <details className="account-more">
-                    <summary aria-label={`${row.label} 더보기`}>⋯</summary>
-                    <div className="account-menu">
+                    {who[row.id] ? (
+                      <small className="account-meta">{who[row.id].text}</small>
+                    ) : null}
+                  </span>
+                )}
+                {renaming !== row.id && (
+                  <span className="account-actions">
+                    {signedIn === false && !(mine && loggingIn) ? (
                       <button
-                        onClick={menu(() => {
-                          setRenaming(row.id);
-                          setNewName(
-                            row.id === 'default'
-                              ? (data?.defaultLabels?.[provider] ?? '')
-                              : row.label,
-                          );
-                        })}
+                        disabled={busy || loggingIn}
+                        onClick={() => startLogin(row.id, 'login')}
                       >
-                        이름 변경
+                        로그인
                       </button>
-                      {(() => {
-                        // The same items on every account; the ones that do not apply here are
-                        // greyed out. Any account can sign in again (the one in use in place);
-                        // the one in use cannot be signed out, nor the CLI's own login removed.
-                        const off = busy || loggingIn;
-                        const inUse = off || active;
-                        const kept = inUse || row.id === 'default';
-                        return (
-                          <>
-                            <button
-                              disabled={off}
-                              onClick={menu(() => startLogin(row.id, 'login'))}
-                            >
-                              {signedIn !== false ? '다시 로그인' : '로그인'}
-                            </button>
-                            <button
-                              disabled={off}
-                              onClick={menu(() => startLogin(row.id, 'login', true))}
-                            >
-                              기본 브라우저로 로그인
-                            </button>
-                            <button
-                              disabled={off}
-                              onClick={menu(
-                                () =>
-                                  void action(async () => {
-                                    const result = z.object({ command: z.string() }).parse(
-                                      await api('/accounts/login-command', 'POST', {
-                                        provider,
-                                        id: row.id,
-                                      }),
-                                    );
-                                    setCommand(result.command);
-                                  }),
-                              )}
-                            >
-                              명령으로 로그인
-                            </button>
-                            <button
-                              disabled={inUse}
-                              onClick={menu(() => startLogin(row.id, 'logout'))}
-                            >
-                              로그아웃
-                            </button>
-                            <button
-                              className="danger"
-                              disabled={kept}
-                              onClick={menu(() => {
-                                if (
-                                  !window.confirm(
-                                    `${row.label} 계정을 목록에서 제거하고 이 프로필의 로컬 CLI 설정·이력을 삭제할까요? 먼저 로그아웃해야 합니다.`,
+                    ) : null}
+                    {!active && signedIn !== false ? (
+                      <button
+                        title="터미널·VS Code의 기본 로그인을 이 계정으로 바꿉니다"
+                        disabled={busy || loggingIn}
+                        onClick={() =>
+                          void action(async () => {
+                            await api('/accounts/select', 'POST', { provider, id: row.id });
+                            notify(
+                              provider === 'claude-cli'
+                                ? navigator.userAgent.includes('Mac OS X')
+                                  ? '바꿨습니다. 켜져 있는 Claude Code도 30초쯤 뒤부터 이 계정을 씁니다.'
+                                  : '바꿨습니다. 켜져 있는 Claude Code도 다음 메시지부터 이 계정을 씁니다.'
+                                : '바꿨습니다. 켜져 있는 Codex는 다시 시작하면 이 계정을 씁니다.',
+                            );
+                          })
+                        }
+                      >
+                        사용
+                      </button>
+                    ) : null}
+                    <details className="account-more">
+                      <summary aria-label={`${row.label} 더보기`}>⋯</summary>
+                      <div className="account-menu">
+                        <button
+                          onClick={menu(() => {
+                            setRenaming(row.id);
+                            setNewName(
+                              row.id === 'default'
+                                ? (data?.defaultLabels?.[provider] ?? '')
+                                : row.label,
+                            );
+                          })}
+                        >
+                          이름 변경
+                        </button>
+                        {(() => {
+                          // The same items on every account; the ones that do not apply here are
+                          // greyed out. Any account can sign in again (the one in use in place);
+                          // the one in use cannot be signed out, nor the CLI's own login removed.
+                          const off = busy || loggingIn;
+                          const inUse = off || active;
+                          const kept = inUse || row.id === 'default';
+                          return (
+                            <>
+                              <button
+                                disabled={off}
+                                onClick={menu(() => startLogin(row.id, 'login'))}
+                              >
+                                {signedIn !== false ? '다시 로그인' : '로그인'}
+                              </button>
+                              <button
+                                disabled={off}
+                                onClick={menu(() => startLogin(row.id, 'login', true))}
+                              >
+                                기본 브라우저로 로그인
+                              </button>
+                              <button
+                                disabled={off}
+                                onClick={menu(
+                                  () =>
+                                    void action(async () => {
+                                      const result = z.object({ command: z.string() }).parse(
+                                        await api('/accounts/login-command', 'POST', {
+                                          provider,
+                                          id: row.id,
+                                        }),
+                                      );
+                                      setCommand(result.command);
+                                    }),
+                                )}
+                              >
+                                명령으로 로그인
+                              </button>
+                              <button
+                                disabled={inUse}
+                                onClick={menu(() => startLogin(row.id, 'logout'))}
+                              >
+                                로그아웃
+                              </button>
+                              <button
+                                className="danger"
+                                disabled={kept}
+                                onClick={menu(() => {
+                                  if (
+                                    !window.confirm(
+                                      `${row.label} 계정을 목록에서 제거하고 이 프로필의 로컬 CLI 설정·이력을 삭제할까요? 먼저 로그아웃해야 합니다.`,
+                                    )
                                   )
-                                )
-                                  return;
-                                void action(async () => {
-                                  await api('/accounts/remove', 'POST', {
-                                    provider,
-                                    id: row.id,
-                                    deleteLocalData: true,
+                                    return;
+                                  void action(async () => {
+                                    await api('/accounts/remove', 'POST', {
+                                      provider,
+                                      id: row.id,
+                                      deleteLocalData: true,
+                                    });
+                                    setCommand('');
                                   });
-                                  setCommand('');
-                                });
-                              })}
-                            >
-                              제거
-                            </button>
-                          </>
-                        );
-                      })()}
-                    </div>
-                  </details>
-                </span>
-              )}
-            </div>
-            <AccountUsageLines account={current} />
-            {mine && loggingIn && login ? (
-              <LoginPanel login={login} provider={provider} cancel={cancelLogin} notify={notify} />
-            ) : null}
-            {mine && failed ? (
-              <div className="login-failed" role="alert">
-                <span>{failures[failed.reason ?? ''] ?? failures.LOGIN_FAILED}</span>
-                <button onClick={() => startLogin(row.id, 'login')}>다시 시도</button>
-                {failed.reason === 'DEVICE_LOGIN_DISABLED' ? (
-                  <button onClick={() => startLogin(row.id, 'login', true)}>
-                    기본 브라우저로 로그인
-                  </button>
-                ) : null}
-                <button
-                  className="link-button"
-                  aria-label="알림 닫기"
-                  onClick={() => setDismissed(failed.id)}
-                >
-                  ×
-                </button>
+                                })}
+                              >
+                                제거
+                              </button>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </details>
+                  </span>
+                )}
               </div>
-            ) : null}
-          </div>
-        );
-      })}
-      <div className="account-add">
-        <input
-          aria-label={`${provider} 계정 이름`}
-          value={label}
-          maxLength={80}
-          onChange={(e) => setLabel(e.target.value)}
-          placeholder={`새 계정 이름 (예: 회사 ${provider === 'codex-cli' ? 'ChatGPT' : 'Claude'})`}
-        />
-        <button
-          disabled={busy || !label.trim()}
-          onClick={() =>
+              <AccountUsageLines account={current} />
+              {mine && loggingIn && login ? (
+                <LoginPanel
+                  login={login}
+                  provider={provider}
+                  cancel={cancelLogin}
+                  notify={notify}
+                />
+              ) : null}
+              {mine && failed ? (
+                <div className="login-failed" role="alert">
+                  <span>{failures[failed.reason ?? ''] ?? failures.LOGIN_FAILED}</span>
+                  <button onClick={() => startLogin(row.id, 'login')}>다시 시도</button>
+                  {failed.reason === 'DEVICE_LOGIN_DISABLED' ? (
+                    <button onClick={() => startLogin(row.id, 'login', true)}>
+                      기본 브라우저로 로그인
+                    </button>
+                  ) : null}
+                  <button
+                    className="text-button"
+                    aria-label="알림 닫기"
+                    onClick={() => setDismissed(failed.id)}
+                  >
+                    ×
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+      {adding ? (
+        <form
+          className="account-add"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (busy || !label.trim()) return;
             void action(async () => {
               await api('/accounts', 'POST', { provider, label });
               setLabel('');
-            })
-          }
+              setAdding(false);
+            });
+          }}
         >
-          계정 추가
-        </button>
-      </div>
+          <input
+            aria-label={`${provider} 계정 이름`}
+            value={label}
+            maxLength={80}
+            autoFocus
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder={`새 계정 이름 (예: 회사 ${provider === 'codex-cli' ? 'ChatGPT' : 'Claude'})`}
+          />
+          <button type="submit" disabled={busy || !label.trim()}>
+            추가
+          </button>
+          <button
+            type="button"
+            className="text-button"
+            onClick={() => {
+              setAdding(false);
+              setLabel('');
+            }}
+          >
+            취소
+          </button>
+        </form>
+      ) : (
+        <div className="account-add">
+          <button type="button" className="text-button" onClick={() => setAdding(true)}>
+            + 계정 추가
+          </button>
+        </div>
+      )}
       {command && (
         <div className="login-command">
           <p>
@@ -600,7 +661,7 @@ export function AccountSettings({
           <textarea aria-label="공식 CLI 로그인 명령" readOnly value={command} />
           <span className="login-actions">
             <button onClick={() => copy(command, notify)}>명령 복사</button>
-            <button className="link-button" onClick={() => setCommand('')}>
+            <button className="text-button" onClick={() => setCommand('')}>
               명령 닫기
             </button>
           </span>

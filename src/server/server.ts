@@ -13,6 +13,10 @@ import { providers } from '../core/providers.ts';
 import { executable, status } from '../core/cli.ts';
 import { DefaultLogin } from '../core/default-login.ts';
 import { AutoSwitch } from '../core/auto-switch.ts';
+import { Launcher, type LauncherOptions } from '../core/launcher.ts';
+import { SetupService } from '../core/setup/service.ts';
+import type { CheckDeps } from '../core/setup/checks.ts';
+import type { InstallOverrides } from '../core/setup/install-deps.ts';
 
 // A local web app on 127.0.0.1 only. The page gets a session cookie from the one-time token in
 // its launch link (#token); every API call needs that cookie and, for writes, this origin.
@@ -81,9 +85,22 @@ export interface Options {
   /** Where account folders and settings live. */
   directory: string;
   port?: number;
+  /** Tests: start the terminal with this instead of a real process. */
+  launcherSpawn?: LauncherOptions['spawnProcess'];
+  /** Replaces parts of the setup checks, so tests start no real programs. */
+  setupChecks?: Partial<CheckDeps>;
+  /** Replaces the downloads and files of the installs; `setupChecks.run` starts their commands. */
+  setupInstall?: InstallOverrides;
 }
 
-export async function startServer({ directory, port = 0 }: Options) {
+export async function startServer({
+  directory,
+  port = 0,
+  launcherSpawn,
+  setupChecks,
+  setupInstall,
+}: Options) {
+  const launcher = new Launcher({ spawnProcess: launcherSpawn });
   const accountLogin = new AccountLogin();
   const profiles = new AccountProfiles(join(directory, 'profiles'), (p) => accountLogin.busy(p));
   const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
@@ -103,6 +120,12 @@ export async function startServer({ directory, port = 0 }: Options) {
         return defaultLogin.refresh(p, folder, globalThis.fetch);
       }),
   });
+  const setup = new SetupService(
+    directory,
+    (task) => defaultLogin.exclusive('claude-cli', task),
+    setupChecks,
+    setupInstall,
+  );
   const bootstrap = randomBytes(32).toString('base64url');
   const session = randomBytes(32).toString('base64url');
   let authority = '';
@@ -196,6 +219,19 @@ export async function startServer({ directory, port = 0 }: Options) {
         ?.split('=')[1];
       if (!equal(cookie, session)) throw new DomainError('UNAUTHORIZED');
 
+      // "Claude 열기" and "GPT 열기": whether each can open, and the browser fallback.
+      if (url.pathname === '/api/v1/launcher' && request.method === 'GET') {
+        send(200, launcher.status());
+        return;
+      }
+      if (url.pathname === '/api/v1/launcher/open' && request.method === 'POST') {
+        const input = z
+          .object({ provider, folder: z.string().max(4096) })
+          .strict()
+          .parse(await body(request));
+        send(200, await launcher.open(input.provider, input.folder));
+        return;
+      }
       if (url.pathname === '/api/v1/accounts' && request.method === 'GET') {
         send(200, profiles.list());
         return;
@@ -360,6 +396,56 @@ export async function startServer({ directory, port = 0 }: Options) {
         );
         return;
       }
+      if (url.pathname === '/api/v1/setup' && request.method === 'GET') {
+        send(200, await setup.overview());
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/check' && request.method === 'POST') {
+        // The body is optional: { record: true } when the user chose 점검만 (see SetupService.check).
+        const input = z
+          .object({ record: z.boolean().optional() })
+          .strict()
+          .parse(request.headers['content-type'] ? await body(request) : {});
+        send(200, await setup.check(input));
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/run' && request.method === 'GET') {
+        send(200, { run: setup.runProgress() });
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/run' && request.method === 'POST') {
+        // Item ids are checked against the catalog by the runner.
+        const input = z
+          .object({
+            items: z.array(z.string().min(1).max(100)).min(1).max(100),
+            mode: z.enum(['check', 'auto']),
+            replace: z.array(z.string().min(1).max(100)).max(100).optional(),
+          })
+          .strict()
+          .parse(await body(request));
+        send(200, { run: setup.startRun(input) });
+        return;
+      }
+      if (
+        ['/api/v1/setup/run/skip', '/api/v1/setup/run/retry'].includes(url.pathname) &&
+        request.method === 'POST'
+      ) {
+        const { item } = z
+          .object({ item: z.string().min(1).max(100) })
+          .strict()
+          .parse(await body(request));
+        const run = url.pathname.endsWith('/skip') ? setup.skipItem(item) : setup.retryItem(item);
+        send(200, { run });
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/cancel' && request.method === 'POST') {
+        send(200, { run: setup.cancelRun() });
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/log' && request.method === 'GET') {
+        send(200, { text: setup.log() });
+        return;
+      }
       throw new DomainError('NOT_FOUND');
     } catch (error) {
       if (error instanceof DomainError) send(STATUS[error.code] ?? 409, { code: error.code });
@@ -385,7 +471,8 @@ export async function startServer({ directory, port = 0 }: Options) {
     launchUrl: `http://${authority}/#${bootstrap}`,
     close: async () => {
       autoSwitch.stop();
-      await accountLogin.close().catch(() => {});
+      // Together, not in turn: their waits added up would outlast what the PC program allows (SPEC 3.4).
+      await Promise.allSettled([setup.close(), accountLogin.close()]);
       await new Promise<void>((resolve) => server.close(() => resolve()));
     },
   };

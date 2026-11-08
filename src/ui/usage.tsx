@@ -1,10 +1,57 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { api, errors } from './gateway.ts';
+import { showsSession, windowLabel } from './usage-logic.ts';
 
-// Every account's sign-in and usage (5-hour or shorter window, 7 days, reset times), loaded once
+const tileIcons = {
+  install: 'M12 4v10M8 10.5l4 4 4-4M5 19.5h14',
+  terminal: 'M6 8l4 4-4 4M12.5 16.5H18',
+  error: 'M12 5.5v8.5M12 17.5v1',
+};
+
+/** An empty or error state (DESIGN 5.7); large where it fills the page, not a column. */
+export function EmptyState({
+  kind,
+  title,
+  detail,
+  size,
+  children,
+}: {
+  kind: keyof typeof tileIcons;
+  title: string;
+  detail?: string;
+  size?: 'large';
+  children?: ReactNode;
+}) {
+  return (
+    <div className="empty-state" data-size={size}>
+      <span className="empty-tile" aria-hidden="true">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+          <path
+            d={tileIcons[kind]}
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </svg>
+      </span>
+      <p className="empty-title">{title}</p>
+      {detail ? <p className="empty-detail">{detail}</p> : null}
+      {children ? <div className="empty-body">{children}</div> : null}
+    </div>
+  );
+}
+
+// Every account's sign-in and usage (the shorter window, 7 days, reset times), loaded once
 // for the page and shown inside each account's row; the usage lookup switch sits at the bottom.
-const windowSchema = z.object({ percent: z.number(), resetsAt: z.string().nullable() }).optional();
+const windowSchema = z
+  .object({
+    percent: z.number(),
+    resetsAt: z.string().nullable(),
+    windowSeconds: z.number().optional(),
+  })
+  .optional();
 const usageSchema = z.object({
   settings: z.object({ autoSwitch: z.boolean(), threshold: z.number() }),
   autoSwitch: z
@@ -81,14 +128,12 @@ export function useUsage() {
 function Line({ label, value }: { label: string; value: Window }) {
   const percent = Math.min(100, Math.max(0, value?.percent ?? 0));
   return (
-    <div className="usage-line">
-      <span className="usage-label">{label}</span>
+    <div className="usage-line" data-level={percent >= 100 ? 'limit' : 'ok'}>
+      <span className="usage-label" title={label}>
+        {label}
+      </span>
       <span className="usage-track">
-        <span
-          className="usage-fill"
-          data-level={percent >= 90 ? 'high' : 'ok'}
-          style={{ width: percent + '%' }}
-        />
+        <span className="usage-fill" style={{ width: percent + '%' }} />
       </span>
       <span className="usage-value">{value ? `${Math.round(value.percent)}%` : '—'}</span>
       <span className="usage-reset">{value?.resetsAt ? resetTime(value.resetsAt) : ''}</span>
@@ -101,23 +146,27 @@ export function AccountUsageLines({ account }: { account?: AccountUsage }) {
   if (!account?.signedIn || account.state === 'signed-out') return null;
   return (
     <div className="account-usage">
-      <Line
-        label={account.provider === 'claude-cli' ? '5시간' : '짧은 한도'}
-        value={account.session}
-      />
+      {showsSession(account) ? (
+        <Line
+          label={account.provider === 'claude-cli' ? '5시간' : windowLabel(account.session)}
+          value={account.session}
+        />
+      ) : null}
       <Line label="7일" value={account.weekly} />
       {account.models?.map((model) => (
         <Line key={model.name} label={model.name} value={model} />
       ))}
       {account.state === 'token-expired' ? (
-        <small className="usage-note">
+        <small className="usage-note" data-error={String(account.error === 'LOGIN_EXPIRED')}>
           {account.error === 'LOGIN_EXPIRED'
             ? '로그인이 만료됐습니다 · 이 계정에 다시 로그인하세요'
             : '로그인을 갱신하지 못해 마지막 값입니다 · 잠시 뒤 다시 시도합니다'}
         </small>
       ) : null}
       {account.state === 'error' ? (
-        <small className="usage-note">조회 실패 ({account.error ?? '알 수 없음'})</small>
+        <small className="usage-note" data-error="true">
+          조회 실패 ({account.error ?? '알 수 없음'})
+        </small>
       ) : null}
     </div>
   );
@@ -128,10 +177,13 @@ export function UsageToolbar({
   usage,
   failure,
   load,
+  children,
 }: {
   usage?: Usage;
   failure: string;
   load: (refresh?: boolean) => Promise<void>;
+  /** Shown left of 새로고침: the launch buttons. */
+  children?: ReactNode;
 }) {
   const [saving, setSaving] = useState(false);
   const checked = usage?.accounts
@@ -159,7 +211,7 @@ export function UsageToolbar({
   return (
     <footer className="usage-toolbar">
       <label
-        className="remote-toggle"
+        className="auto-switch"
         title="쓰고 있는 계정이 기준을 넘으면 여유가 가장 많은 계정으로 바꿉니다"
       >
         <input
@@ -186,22 +238,28 @@ export function UsageToolbar({
           </select>
         ) : null}
       </label>
-      {checked ? <small>{when(checked)} 확인</small> : null}
-      {settings?.autoSwitch && last ? (
-        <small>
-          자동 전환 · {service(last.provider)} → {lastTo?.email ?? '다른 계정'} ({when(last.at)})
-        </small>
-      ) : null}
-      {settings?.autoSwitch && autoFailure ? (
-        <small className="remote-error">
-          자동 전환 실패 · {service(autoFailure.provider)}:{' '}
-          {errors[autoFailure.code] ?? autoFailure.code}
-        </small>
-      ) : null}
-      {failure ? <small className="remote-error">{failure}</small> : null}
-      <button type="button" disabled={!usage} onClick={() => void load(true)}>
-        새로고침
-      </button>
+      <div className="toolbar-actions">
+        {children}
+        <button type="button" disabled={!usage} onClick={() => void load(true)}>
+          새로고침
+        </button>
+      </div>
+      {/* Its own line under the buttons: 자동 전환 growing must not push any of this (DESIGN 5.3). */}
+      <div className="toolbar-notes">
+        {settings?.autoSwitch && last ? (
+          <small>
+            자동 전환 · {service(last.provider)} → {lastTo?.email ?? '다른 계정'} ({when(last.at)})
+          </small>
+        ) : null}
+        {settings?.autoSwitch && autoFailure ? (
+          <small className="remote-error">
+            자동 전환 실패 · {service(autoFailure.provider)}:{' '}
+            {errors[autoFailure.code] ?? autoFailure.code}
+          </small>
+        ) : null}
+        {failure ? <small className="remote-error">{failure}</small> : null}
+        {checked ? <small className="toolbar-checked">{when(checked)} 확인</small> : null}
+      </div>
     </footer>
   );
 }
