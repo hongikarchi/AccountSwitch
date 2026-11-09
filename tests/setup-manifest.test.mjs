@@ -10,6 +10,7 @@ test('the catalog has every item of the spec, once, in the spec order', () => {
     catalog.items.map((item) => item.id),
     [
       'git',
+      'gh',
       'node',
       'uv',
       'python',
@@ -93,6 +94,11 @@ test('the pins of the spec are what checks and installs use', () => {
   assert.equal(step('rhinomcp-plugin').version, '0.4.1.1');
   assert.equal(step('cordyceps-plugin').version, '1.5.0');
   assert.deepEqual(step('blender').args.slice(-2), ['--version', '5.2.3']);
+  assert.equal(step('gh').id, 'GitHub.cli');
+  assert.equal(
+    step('gh', 1).url,
+    'https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_windows_amd64.msi',
+  );
 });
 
 test('what the pip check looks for is what its install installs', () => {
@@ -146,7 +152,7 @@ test("GPT's connections run the same servers, with telemetry off and the same pi
 test('every winget step has the standard flags and the declined exit code', () => {
   const steps = catalog.items.flatMap((item) => item.install.steps);
   const wingets = steps.filter((step) => step.kind === 'winget');
-  assert.equal(wingets.length, 4);
+  assert.equal(wingets.length, 5);
   for (const step of wingets) {
     assert.deepEqual(step.args.slice(0, 9), [
       'install',

@@ -22,6 +22,11 @@ export const PINS = {
     file: 'Git-2.56.0.4-64-bit.exe',
     sha256: '4961a4a8cc778d8b6e00a5819e5fe4d078b754555aff7aedc2d77a5d74c2de80',
   },
+  /** Only the fallback installer; winget installs the latest GitHub CLI. The hash: its checksums file. */
+  ghInstaller: {
+    version: '2.103.3',
+    sha256: '5073112b7abb5ffbba24b76aee7e89269af531218c0a42751f5f0bfb6440c2cc',
+  },
   rhino: '8',
   rhinomcp: '0.4.1.1',
   cordyceps: '1.5.0',
@@ -52,6 +57,7 @@ const PY_FOLDERS = [
   '%LOCALAPPDATA%\\Programs\\Python\\Python313',
 ];
 const GIT_FOLDERS = [`${PROGRAM_FILES}\\Git\\cmd`, '%LOCALAPPDATA%\\Programs\\Git\\cmd'];
+const GH_FOLDERS = [`${PROGRAM_FILES}\\GitHub CLI`, '%LOCALAPPDATA%\\Programs\\GitHub CLI'];
 const RHINO_PACKAGES = '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0';
 const YAK = `${PROGRAM_FILES}\\Rhino 8\\System\\Yak.exe`;
 const BLENDER_VERSIONS = '%APPDATA%\\Blender Foundation\\Blender';
@@ -216,6 +222,34 @@ const items: SetupItem[] = [
     },
     pinnedVersion: 'latest',
     // An account in Administrators gets the prompt; a standard account installs per user without.
+    mayElevate: true,
+  },
+  {
+    id: 'gh',
+    label: 'GitHub CLI',
+    description: '작업을 GitHub에 올리고 받는 프로그램이에요. 처음 한 번은 로그인해야 해요.',
+    group: 'base',
+    dependsOn: [],
+    check: {
+      kind: 'command',
+      commands: [{ program: 'gh', args: ['--version'], versionPattern: 'gh version (\\S+)' }],
+      knownFolders: GH_FOLDERS,
+      orFilesExist: GH_FOLDERS.map((folder) => `${folder}\\gh.exe`),
+    },
+    install: {
+      summary: 'winget으로 설치하고, 안 되면 공식 설치 파일을 받아요.',
+      automatic: true,
+      pathFolders: onPath('gh', GH_FOLDERS),
+      steps: [
+        winget('GitHub.cli'),
+        msiFallback(
+          `https://github.com/cli/cli/releases/download/v${PINS.ghInstaller.version}/gh_${PINS.ghInstaller.version}_windows_amd64.msi`,
+          PINS.ghInstaller.sha256,
+        ),
+      ],
+    },
+    pinnedVersion: 'latest',
+    // The MSI installs for all users.
     mayElevate: true,
   },
   {
