@@ -27,6 +27,8 @@ import {
   SETTINGS,
   statusOf,
   until,
+  RHINOMCP_PLUGIN,
+  RHINOMCP_VERSION,
   withRunner,
 } from './setup-install-helpers.mjs';
 
@@ -741,6 +743,7 @@ const noLeak = (runner, pc) => {
 test('a failed add restores the entry whole, custom env included, inside the lock', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: oldConfig() },
       on: claudeMcp(),
@@ -769,6 +772,7 @@ test('a failed add restores the entry whole, custom env included, inside the loc
 test('only that one server travels: nothing else of ~/.claude.json reaches the command', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: oldConfig() },
       on: claudeMcp(),
@@ -783,6 +787,7 @@ test('only that one server travels: nothing else of ~/.claude.json reaches the c
 test('when the restore fails too, it says so plainly, and no secret goes with it', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: oldConfig() },
       on: claudeMcp({ addJson: () => exit(1, SECRET) }),
@@ -805,6 +810,7 @@ test('an add that times out or is cancelled restores too, past the end of the it
   ])
     await withRunner(
       {
+        folders: RHINOMCP_PLUGIN,
         present: [CLAUDE, UV, UVX],
         files: { [CLAUDE_CONFIG]: oldConfig() },
         on: claudeMcp({ add: () => answer }),
@@ -828,11 +834,12 @@ test('an add that times out or is cancelled restores too, past the end of the it
 test('a successful re-registration does not restore anything', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: oldConfig() },
       on: claudeMcp({
         add: (pc, config) => {
-          config.mcpServers.rhino = { command: 'uvx', args: [`rhinomcp@${PINS.rhinomcp}`] };
+          config.mcpServers.rhino = { command: 'uvx', args: [`rhinomcp@${RHINOMCP_VERSION}`] };
           pc.files.write(CLAUDE_CONFIG, JSON.stringify(config));
           return ok();
         },
@@ -852,6 +859,7 @@ test('a successful re-registration does not restore anything', () =>
 test('a config that cannot be read at that moment: nothing is removed', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: oldConfig() },
       on: claudeMcp(),
@@ -874,6 +882,7 @@ test('a config that cannot be read at that moment: nothing is removed', () =>
 test('a failed remove keeps the entry and does not try to add', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: oldConfig() },
       on: (request, name) =>
@@ -1256,20 +1265,26 @@ test('a GPT connection registered differently needs the confirmation, and is the
     [CODEX_CONFIG]: '[mcp_servers.rhino]\ncommand = "uvx"\nargs = ["rhinomcp@0.3.0"]\n',
   };
   const on = (request, name) => (name === 'codex' && request.args[0] === 'mcp' ? ok() : undefined);
-  await withRunner({ present: [CODEX, UV, UVX], files, on }, async ({ runner, pc }) => {
-    runner.start({ items: ['rhinomcp-codex'], mode: 'auto' });
-    await until(() => itemOf(runner.progress(), 'rhinomcp-codex').status === 'needs-user');
-    assert.equal(itemOf(runner.progress(), 'rhinomcp-codex').reason, 'REPLACE_NOT_CONFIRMED');
-    assert.equal(codexCalls(pc).length, 0);
-  });
-  await withRunner({ present: [CODEX, UV, UVX], files, on }, async ({ runner, pc }) => {
-    runner.start({ items: ['rhinomcp-codex'], mode: 'auto', replace: ['rhinomcp-codex'] });
-    await until(() => codexCalls(pc).length > 0);
-    assert.deepEqual(
-      codexCalls(pc).map((call) => call.args[1]),
-      ['add'],
-    );
-  });
+  await withRunner(
+    { present: [CODEX, UV, UVX], folders: RHINOMCP_PLUGIN, files, on },
+    async ({ runner, pc }) => {
+      runner.start({ items: ['rhinomcp-codex'], mode: 'auto' });
+      await until(() => itemOf(runner.progress(), 'rhinomcp-codex').status === 'needs-user');
+      assert.equal(itemOf(runner.progress(), 'rhinomcp-codex').reason, 'REPLACE_NOT_CONFIRMED');
+      assert.equal(codexCalls(pc).length, 0);
+    },
+  );
+  await withRunner(
+    { present: [CODEX, UV, UVX], folders: RHINOMCP_PLUGIN, files, on },
+    async ({ runner, pc }) => {
+      runner.start({ items: ['rhinomcp-codex'], mode: 'auto', replace: ['rhinomcp-codex'] });
+      await until(() => codexCalls(pc).length > 0);
+      assert.deepEqual(
+        codexCalls(pc).map((call) => call.args[1]),
+        ['add'],
+      );
+    },
+  );
 });
 
 test('a failed GPT connection says so, in the words of Codex CLI', () =>

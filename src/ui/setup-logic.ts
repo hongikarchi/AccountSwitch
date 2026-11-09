@@ -273,9 +273,11 @@ export function confirmationsFor(
     const action = actionFor(item, results.get(item.id), mode);
     if (action.kind === 'register-again') {
       const version =
-        item.pinnedVersion && item.pinnedVersion !== 'latest'
-          ? `${item.pinnedVersion} 버전으로 `
-          : '';
+        item.check.kind === 'mcp' && item.check.versionFrom
+          ? 'Rhino 플러그인과 같은 버전으로 '
+          : item.pinnedVersion && item.pinnedVersion !== 'latest'
+            ? `${item.pinnedVersion} 버전으로 `
+            : '';
       const text =
         item.check.kind === 'mcp' && item.check.client === 'codex'
           ? `Codex CLI에 등록된 내용을 ${version}다시 등록해요.`

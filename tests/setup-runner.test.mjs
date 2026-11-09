@@ -38,6 +38,9 @@ import {
   statusOf,
   until,
   WINGET,
+  RHINOMCP_PLUGIN,
+  RHINOMCP_ROOT,
+  RHINOMCP_VERSION,
   withRunner,
 } from './setup-install-helpers.mjs';
 
@@ -616,6 +619,7 @@ test('a dependency outside the run is checked instead', () =>
 test('a check that cannot answer is failed, and nothing installs over the unknown', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: '{ broken' },
     },
@@ -1125,7 +1129,7 @@ function registers(request, name, pc) {
 
 test('every MCP write runs inside the lock, without CLAUDE_CONFIG_DIR, and is not logged raw', () =>
   withRunner(
-    { present: [CLAUDE, UV, UVX, RHINO, BLENDER], on: registers },
+    { present: [CLAUDE, UV, UVX, RHINO, BLENDER], folders: RHINOMCP_PLUGIN, on: registers },
     async ({ runner, pc }) => {
       runner.start(auto('rhinomcp-mcp', 'cordyceps-mcp', 'blender-mcp'));
       await runner.settled();
@@ -1149,7 +1153,7 @@ test('every MCP write runs inside the lock, without CLAUDE_CONFIG_DIR, and is no
         'RHINO_MCP_HOST=127.0.0.1',
         '--',
         'uvx',
-        `rhinomcp@${PINS.rhinomcp}`,
+        `rhinomcp@${RHINOMCP_VERSION}`,
       ]);
       assert.deepEqual(writes[1].args.slice(4), [
         '--transport',
@@ -1175,12 +1179,15 @@ test('every MCP write runs inside the lock, without CLAUDE_CONFIG_DIR, and is no
   ));
 
 test('nothing in a run ever writes ~/.claude.json outside the lock', () =>
-  withRunner({ present: [CLAUDE, UV, UVX], on: registers }, async ({ runner, pc }) => {
-    runner.start(auto('rhinomcp-mcp'));
-    await runner.settled();
-    assert.equal(mcpWrites(pc).length, 1);
-    assert.ok(pc.insideLock.includes(mcpWrites(pc)[0]));
-  }));
+  withRunner(
+    { present: [CLAUDE, UV, UVX], folders: RHINOMCP_PLUGIN, on: registers },
+    async ({ runner, pc }) => {
+      runner.start(auto('rhinomcp-mcp'));
+      await runner.settled();
+      assert.equal(mcpWrites(pc).length, 1);
+      assert.ok(pc.insideLock.includes(mcpWrites(pc)[0]));
+    },
+  ));
 
 const oldRhino = {
   mcpServers: { rhino: { command: 'uvx', args: ['rhinomcp@0.1.0'], env: { TOKEN: SECRET } } },
@@ -1189,6 +1196,7 @@ const oldRhino = {
 test('registered differently: left alone until the user confirms', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: JSON.stringify(oldRhino) },
       on: registers,
@@ -1214,6 +1222,7 @@ test('named in replace: removed and added again, inside one lock', () => {
   const pcHolder = {};
   return withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: { [CLAUDE_CONFIG]: JSON.stringify(oldRhino) },
       on: (request, name, pc) => {
@@ -1235,7 +1244,7 @@ test('named in replace: removed and added again, inside one lock', () => {
       runner.start({ items: ['rhinomcp-mcp'], mode: 'auto', replace: ['rhinomcp-mcp'] });
       await runner.settled();
       assert.equal(statusOf(runner.progress(), 'rhinomcp-mcp'), 'done');
-      assert.equal(itemOf(runner.progress(), 'rhinomcp-mcp').foundVersion, PINS.rhinomcp);
+      assert.equal(itemOf(runner.progress(), 'rhinomcp-mcp').foundVersion, RHINOMCP_VERSION);
       const writes = mcpWrites(pc);
       assert.deepEqual(writes[0].args, ['mcp', 'remove', '-s', 'user', 'rhino']);
       assert.equal(writes[1].args[1], 'add');
@@ -1247,10 +1256,11 @@ test('named in replace: removed and added again, inside one lock', () => {
 test('replace does nothing to a registration that is already right', () =>
   withRunner(
     {
+      folders: RHINOMCP_PLUGIN,
       present: [CLAUDE, UV, UVX],
       files: {
         [CLAUDE_CONFIG]: JSON.stringify({
-          mcpServers: { rhino: { command: 'uvx', args: [`rhinomcp@${PINS.rhinomcp}`] } },
+          mcpServers: { rhino: { command: 'uvx', args: [`rhinomcp@${RHINOMCP_VERSION}`] } },
         }),
       },
       on: registers,
@@ -1332,11 +1342,18 @@ test('cancel while waiting for the lock ends the wait, and nothing runs when the
 
 // --- Rhino plugins
 
-test('Yak installs the pinned plugin versions by full path', () =>
+const yakFolders = {};
+
+test('Yak installs the newest rhinomcp and the pinned Cordyceps, by full path', () =>
   withRunner(
     {
       present: [RHINO, YAK],
+      folders: yakFolders,
       on: (request, name, pc) => {
+        if (name === 'yak' && request.args[1] === 'rhinomcp') {
+          yakFolders[RHINOMCP_ROOT] = ['0.5.1'];
+          return ok();
+        }
         if (name === 'yak') {
           const [, package_, version] = request.args;
           pc.add(`${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\${package_}\\${version}`);
@@ -1356,36 +1373,47 @@ test('Yak installs the pinned plugin versions by full path', () =>
       assert.equal(statusOf(run, 'cordyceps-plugin'), 'done');
       const calls = pc.named('yak');
       assert.equal(calls[0].program, YAK);
-      assert.deepEqual(calls[0].args, ['install', 'rhinomcp', PINS.rhinomcp]);
+      assert.deepEqual(calls[0].args, ['install', 'rhinomcp']);
+      assert.equal(itemOf(run, 'rhinomcp-plugin').foundVersion, '0.5.1');
       assert.deepEqual(calls[1].args, ['install', 'cordyceps', PINS.cordyceps]);
     },
   ));
 
-test('another plugin version: auto mode keeps it; the item button installs next to it', () =>
+test('any rhinomcp plugin already there is kept, and its servers pair with it', () =>
   withRunner(
     {
-      present: [RHINO, YAK],
-      folders: { [`${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp`]: ['0.3.0'] },
-      on: (request, name, pc) => {
-        if (name === 'yak') {
-          pc.add(`${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp\\${PINS.rhinomcp}`);
-          return ok();
-        }
-      },
+      present: [RHINO, YAK, CLAUDE, UV, UVX],
+      folders: { [RHINOMCP_ROOT]: ['0.3.0'] },
+      on: registers,
     },
     async ({ runner, pc }) => {
-      runner.start(auto('rhinomcp-plugin'));
+      runner.start(auto('rhinomcp-plugin', 'rhinomcp-mcp'));
       await runner.settled();
       const item = itemOf(runner.progress(), 'rhinomcp-plugin');
-      assert.equal(item.status, 'skipped');
-      assert.equal(item.reason, 'OTHER_VERSION_KEPT');
+      assert.equal(item.status, 'done');
       assert.equal(item.foundVersion, '0.3.0');
       assert.equal(pc.named('yak').length, 0);
+      assert.equal(mcpWrites(pc)[0].args.at(-1), 'rhinomcp@0.3.0');
+    },
+  ));
 
-      runner.start({ items: ['rhinomcp-plugin'], mode: 'check' });
+test('with no rhinomcp plugin on disk, a server at any exact version is left alone', () =>
+  withRunner(
+    {
+      present: [CLAUDE, UV, UVX],
+      files: { [CLAUDE_CONFIG]: JSON.stringify(oldRhino) },
+      on: registers,
+    },
+    async ({ runner, pc }) => {
+      // Nothing to pair with, so nothing is replaced, even when asked.
+      runner.start({ items: ['rhinomcp-mcp'], mode: 'check', replace: ['rhinomcp-mcp'] });
       await runner.settled();
-      assert.equal(statusOf(runner.progress(), 'rhinomcp-plugin'), 'done');
-      assert.equal(pc.named('yak').length, 1);
+      assert.equal(statusOf(runner.progress(), 'rhinomcp-mcp'), 'done');
+      assert.equal(mcpWrites(pc).length, 0);
+      assert.equal(
+        JSON.parse(pc.files.read(CLAUDE_CONFIG)).mcpServers.rhino.args[0],
+        'rhinomcp@0.1.0',
+      );
     },
   ));
 

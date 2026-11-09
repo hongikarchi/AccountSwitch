@@ -124,6 +124,13 @@ const packageKey = (name: string) =>
 /** Newest first, comparing the numbers in version names. */
 const newestFirst = (a: string, b: string) => b.localeCompare(a, 'en', { numeric: true });
 
+/** The newest version folder under `root`, the folders a Yak package installs into. */
+export function newestVersionFolder(listFolders: (path: string) => string[], root: string) {
+  return listFolders(root)
+    .filter((name) => /^\d/.test(name))
+    .sort(newestFirst)[0];
+}
+
 /**
  * One server of `mcpServers` in ~/.claude.json, whole, secrets included. Only for putting it back
  * after a failed re-registration (SPEC 3.7): it stays in memory and is never logged. Undefined: not
@@ -370,6 +377,10 @@ function checkVersionedFolder(
   spec: Extract<CheckSpec, { kind: 'versioned-folder' }>,
 ): Outcome {
   const root = context.path(spec.root);
+  if (!spec.version) {
+    const newest = newestVersionFolder(context.deps.listFolders, root);
+    return newest ? { status: 'installed', foundVersion: newest } : { status: 'missing' };
+  }
   const wanted = win32.join(root, spec.version, ...(spec.marker ? [spec.marker] : []));
   if (context.deps.exists(wanted)) return { status: 'installed', foundVersion: spec.version };
   const others = context.deps
@@ -407,7 +418,7 @@ async function checkMcp(
     if (!context.deps.executable('codex-cli')) return { status: 'missing' };
     const config = context.deps.readFile(win32.join(context.deps.home, '.codex', 'config.toml'));
     const server = config && codexMcpServer(config, spec.name);
-    return server ? mcpOutcome(spec, server) : { status: 'missing' };
+    return server ? mcpOutcome(expected(context, spec), server) : { status: 'missing' };
   }
   if (!context.deps.executable('claude-cli')) return { status: 'missing' };
   // Inside the lock so the read never meets an account switch rewriting the file (SPEC 3.7).
@@ -420,7 +431,14 @@ async function checkMcp(
   if (server === null)
     return { status: 'error', message: 'Claude Code 설정 파일을 읽지 못했어요.' };
   if (!server) return { status: 'missing' };
-  return mcpOutcome(spec, server);
+  return mcpOutcome(expected(context, spec), server);
+}
+
+/** The check with `versionFrom` turned into the version of the plugin on disk, if there is one. */
+function expected(context: Context, spec: Extract<CheckSpec, { kind: 'mcp' }>) {
+  if (!spec.versionFrom) return spec;
+  const version = newestVersionFolder(context.deps.listFolders, context.path(spec.versionFrom));
+  return { ...spec, ...(version ? { version } : {}) };
 }
 
 /** What a registered server is, against what the catalog expects of it. */
@@ -435,8 +453,14 @@ function mcpOutcome(
     if (!found) return { status: 'version-mismatch', message: '다른 방식으로 등록되어 있어요.' };
     if (!found.version)
       return { status: 'version-mismatch', message: '버전을 고정하지 않고 등록되어 있어요.' };
-    if (found.version !== spec.version)
-      return { status: 'version-mismatch', foundVersion: found.version };
+    if (spec.version && found.version !== spec.version)
+      return {
+        status: 'version-mismatch',
+        foundVersion: found.version,
+        ...(spec.versionFrom
+          ? { message: `Rhino 플러그인(${spec.version})과 버전이 달라요. 다시 등록해 주세요.` }
+          : {}),
+      };
     const words = server.command.split(/\s+/);
     const lacking = (spec.with ?? []).some(
       (extra) => !words.some((word, index) => word === extra && words[index - 1] === '--with'),

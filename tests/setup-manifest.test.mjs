@@ -60,7 +60,8 @@ test('dependencies follow the spec rules', () => {
   const dependsOn = (id) => byId.get(id).dependsOn;
   assert.deepEqual(dependsOn('codex'), ['node']);
   for (const id of ['py-base', 'py-gis', 'py-3d']) assert.deepEqual(dependsOn(id), ['python']);
-  assert.deepEqual(dependsOn('rhinomcp-mcp'), ['claude', 'uv']);
+  assert.deepEqual(dependsOn('rhinomcp-mcp'), ['claude', 'uv', 'rhinomcp-plugin']);
+  assert.deepEqual(dependsOn('rhinomcp-codex'), ['codex', 'uv', 'rhinomcp-plugin']);
   assert.deepEqual(dependsOn('blender-mcp'), ['claude', 'uv']);
   assert.deepEqual(dependsOn('cordyceps-mcp'), ['claude']);
   assert.deepEqual(dependsOn('rhinomcp-plugin'), ['rhino']);
@@ -75,23 +76,32 @@ test('only the base group is on by default', () => {
 test('the pins of the spec are what checks and installs use', () => {
   const step = (id, index = 0) => byId.get(id).install.steps[index];
   assert.deepEqual(
-    [PINS.node, PINS.python, PINS.rhinomcp, PINS.cordyceps, PINS.blender, PINS.blenderMcp],
-    ['24.22.1', '3.13', '0.4.1.1', '1.5.0', '5.2.3', '1.5.5'],
+    [PINS.node, PINS.python, PINS.cordyceps, PINS.blender, PINS.blenderMcp],
+    ['24.22.1', '3.13', '1.5.0', '5.2.3', '1.5.5'],
   );
   // Without --version this id installs Node 26; any Node 24 already there is left alone.
   assert.deepEqual(step('node').args.slice(-2), ['--version', '24.22.1']);
   assert.equal(step('node').id, 'OpenJS.NodeJS.LTS');
   assert.equal(byId.get('node').check.acceptVersion, '24.x');
-  assert.deepEqual(step('rhinomcp-mcp').args.slice(-2), ['uvx', 'rhinomcp@0.4.1.1']);
+  // rhinomcp is not pinned: the plugin installs the newest, its servers follow the plugin on disk.
+  const rhinomcpRoot = '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp';
+  assert.equal(PINS.rhinomcp, undefined);
+  assert.equal(step('rhinomcp-plugin').version, undefined);
+  assert.equal(byId.get('rhinomcp-plugin').check.version, undefined);
+  assert.equal(byId.get('rhinomcp-plugin').check.root, rhinomcpRoot);
+  for (const id of ['rhinomcp-mcp', 'rhinomcp-codex']) {
+    assert.deepEqual(step(id).args.slice(-2), ['uvx', 'rhinomcp'], id);
+    assert.deepEqual(step(id).pairWith, { package: 'rhinomcp', root: rhinomcpRoot }, id);
+    assert.equal(byId.get(id).check.version, undefined, id);
+    assert.equal(byId.get(id).check.versionFrom, rhinomcpRoot, id);
+  }
   assert.deepEqual(step('blender-mcp').args.slice(-4), [
     'uvx',
     '--with',
     'mcp==1.30.0',
     'blender-mcp@1.5.5',
   ]);
-  assert.equal(byId.get('rhinomcp-mcp').check.version, '0.4.1.1');
   assert.equal(byId.get('blender-mcp').check.version, '1.5.5');
-  assert.equal(step('rhinomcp-plugin').version, '0.4.1.1');
   assert.equal(step('cordyceps-plugin').version, '1.5.0');
   assert.deepEqual(step('blender').args.slice(-2), ['--version', '5.2.3']);
   assert.equal(step('gh').id, 'GitHub.cli');
@@ -112,16 +122,11 @@ test("GPT's connections run the same servers, with telemetry off and the same pi
   const step = (id) => byId.get(id).install.steps[0];
   assert.deepEqual(step('rhinomcp-codex'), {
     kind: 'codex-mcp-add',
-    args: [
-      'mcp',
-      'add',
-      'rhino',
-      '--env',
-      'RHINO_MCP_HOST=127.0.0.1',
-      '--',
-      'uvx',
-      'rhinomcp@0.4.1.1',
-    ],
+    args: ['mcp', 'add', 'rhino', '--env', 'RHINO_MCP_HOST=127.0.0.1', '--', 'uvx', 'rhinomcp'],
+    pairWith: {
+      package: 'rhinomcp',
+      root: '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp',
+    },
   });
   assert.deepEqual(step('cordyceps-codex').args, [
     'mcp',

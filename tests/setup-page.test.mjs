@@ -152,7 +152,7 @@ test('an MCP item with another version goes in replace only after being asked', 
       ['cordyceps-mcp', true],
     ],
   );
-  assert.match(asked[0].text, /0\.4\.1\.1 버전으로 다시 등록/);
+  assert.match(asked[0].text, /Rhino 플러그인과 같은 버전으로 다시 등록/);
   assert.doesNotMatch(asked[1].text, /버전으로/);
   assert.deepEqual(runRequest(['rhinomcp-mcp'], 'check', [asked[0]]), {
     items: ['rhinomcp-mcp'],

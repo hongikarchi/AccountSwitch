@@ -1,6 +1,6 @@
 import { join, win32 } from 'node:path';
 import { codexEnvironment, subscriptionEnvironment } from '../cli.ts';
-import { rawUserMcpServer } from './checks.ts';
+import { newestVersionFolder, rawUserMcpServer } from './checks.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, findProgram, powershellPath } from './environment.ts';
 import { installBlenderAddon, writeBlenderStartup } from './install-blender.ts';
@@ -9,7 +9,7 @@ import { downloadsFolder, fetchBytes, saveDownload } from './install-download.ts
 import { describeCommand, type SetupLog } from './install-log.ts';
 import { applyRhinoSettings } from './install-rhino.ts';
 import { applyEnvironment } from './install-windows.ts';
-import type { CheckResult, InstallStep, SetupItem } from './types.ts';
+import type { CheckResult, InstallStep, PluginPair, SetupItem } from './types.ts';
 
 // One install step of the manifest. Commands go through the runner, with no shell, and a program by
 // its full path whenever it can be known.
@@ -396,7 +396,19 @@ async function runYak(context: StepContext, step: Extract<InstallStep, { kind: '
       'YAK_MISSING',
       'Rhino 패키지 관리자를 찾지 못했어요. Rhino 8이 제대로 설치되어 있는지 확인해 주세요.',
     );
-  return judge(await context.exec({ program, args: ['install', step.package, step.version] }));
+  const version = step.version ? [step.version] : [];
+  return judge(await context.exec({ program, args: ['install', step.package, ...version] }));
+}
+
+const PLUGIN_MISSING = 'Rhino 플러그인을 찾지 못했어요. 플러그인을 먼저 설치해 주세요.';
+
+/** The step's arguments, the paired package given the version of the plugin on disk (SPEC 3.3). */
+function pairedArgs(context: StepContext, step: { args: string[]; pairWith?: PluginPair }) {
+  const pair = step.pairWith;
+  if (!pair) return step.args;
+  const version = newestVersionFolder(context.deps.check.listFolders, context.path(pair.root));
+  if (!version) throw new StepStop('failed', 'PLUGIN_MISSING', PLUGIN_MISSING);
+  return step.args.map((arg) => (arg === pair.package ? `${pair.package}@${version}` : arg));
 }
 
 const CLAUDE_MISSING = 'Claude Code를 찾지 못했어요. 먼저 설치해 주세요.';
@@ -449,6 +461,8 @@ async function runClaudeMcp(
   return context.claudeLock(async () => {
     const claude = check.executable('claude-cli');
     if (!claude) throw new StepStop('failed', 'CLAUDE_MISSING', CLAUDE_MISSING);
+    // Before anything is removed, so a missing plugin leaves the old entry alone.
+    const args = pairedArgs(context, step);
     const failure = { reason: 'MCP_FAILED', message: MCP_FAILED };
     const request = (args: string[]) => ({ program: claude, args, cwd: check.home });
     let previous: { name: string; entry: object } | undefined;
@@ -470,12 +484,11 @@ async function runClaudeMcp(
         previous = { name, entry };
       }
     }
-    if (!previous)
-      return judge(await context.exec(request(step.args), { quiet: true }), [], failure);
+    if (!previous) return judge(await context.exec(request(args), { quiet: true }), [], failure);
     const { name, entry } = previous;
     let added: CommandResult;
     try {
-      added = await context.exec(request(step.args), { quiet: true });
+      added = await context.exec(request(args), { quiet: true });
     } catch (error) {
       // A timeout or a cancel: the add was stopped, and the entry is still gone.
       if (!(error instanceof StepStop)) throw error;
@@ -511,7 +524,7 @@ async function runCodexMcp(
   const codex = check.executable('codex-cli');
   if (!codex) throw new StepStop('failed', 'CODEX_MISSING', CODEX_MISSING);
   const result = await context.exec(
-    { program: codex, args: step.args, cwd: check.home },
+    { program: codex, args: pairedArgs(context, step), cwd: check.home },
     { quiet: true },
   );
   return judge(result, [], { reason: 'MCP_FAILED', message: CODEX_MCP_FAILED });

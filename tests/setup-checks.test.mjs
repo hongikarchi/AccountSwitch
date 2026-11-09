@@ -99,7 +99,11 @@ test('nothing installed: everything is missing, and no command runs for what can
     assert.equal(result.status, 'missing', result.id);
   }
   assert.deepEqual(statusOf(report, 'codex').waitingFor, ['node']);
-  assert.deepEqual(statusOf(report, 'rhinomcp-mcp').waitingFor, ['claude', 'uv']);
+  assert.deepEqual(statusOf(report, 'rhinomcp-mcp').waitingFor, [
+    'claude',
+    'uv',
+    'rhinomcp-plugin',
+  ]);
   assert.deepEqual(statusOf(report, 'rhinomcp-plugin').waitingFor, ['rhino']);
   assert.equal(statusOf(report, 'py-gis').missingPackages.length, 4);
 });
@@ -290,15 +294,19 @@ test('a group policy that blocks scripts wins over CurrentUser, and the user is 
   assert.match(env.message, /정책/);
 });
 
-test('a plugin of another version is 버전 다름 with the newest found; files are ignored', async () => {
+test('a pinned plugin of another version is 버전 다름; rhinomcp takes any, newest first', async () => {
   const root = `${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0`;
   const { deps } = fakePc({
-    files: [`${root}\\rhinomcp\\0.4.1.1`],
-    folders: { [`${root}\\cordyceps`]: ['1.4.0', '1.10.0', 'notes'] },
+    folders: {
+      [`${root}\\rhinomcp`]: ['0.4.1.1', '0.10.0', 'notes'],
+      [`${root}\\cordyceps`]: ['1.4.0', '1.10.0', 'notes'],
+    },
   });
   const report = await runChecks(deps);
   assert.equal(statusOf(report, 'rhinomcp-plugin').status, 'installed');
-  assert.equal(statusOf(report, 'rhinomcp-plugin').foundVersion, '0.4.1.1');
+  assert.equal(statusOf(report, 'rhinomcp-plugin').foundVersion, '0.10.0');
+  const none = fakePc({ folders: { [`${root}\\rhinomcp`]: ['notes'] } });
+  assert.equal(statusOf(await runChecks(none.deps), 'rhinomcp-plugin').status, 'missing');
   assert.equal(statusOf(report, 'cordyceps-plugin').status, 'version-mismatch');
   assert.equal(statusOf(report, 'cordyceps-plugin').foundVersion, '1.10.0');
 });
@@ -319,8 +327,11 @@ test('the Rhino check only looks at a file and never starts Rhino', async () => 
   assert.ok(!calls.some((call) => /rhino|yak/i.test(call.program)));
 });
 
-function mcpPc(config) {
+const RHINOMCP = `${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp`;
+
+function mcpPc(config, folders = {}) {
   const pc = fakePc({
+    folders,
     contents: config === undefined ? {} : { [CLAUDE_CONFIG]: config },
     answers: { claude: () => ok('2.1.5') },
   });
@@ -365,11 +376,17 @@ test('MCP checks: the file is read inside the lock, no server starts, no secret 
 });
 
 test('MCP registrations that differ are 버전 다름 and say how', async () => {
-  const check = async (id, servers) =>
-    statusOf(await runChecks(mcpPc(mcpConfig(servers)).deps), id);
-  const old = await check('rhinomcp-mcp', { rhino: uvx('rhinomcp@0.4.0') });
+  const check = async (id, servers, folders) =>
+    statusOf(await runChecks(mcpPc(mcpConfig(servers), folders).deps), id);
+  const plugin = { [RHINOMCP]: ['0.5.1'] };
+  const old = await check('rhinomcp-mcp', { rhino: uvx('rhinomcp@0.4.0') }, plugin);
   assert.equal(old.status, 'version-mismatch');
   assert.equal(old.foundVersion, '0.4.0');
+  assert.match(old.message, /플러그인\(0\.5\.1\)/);
+  const paired = await check('rhinomcp-mcp', { rhino: uvx('rhinomcp@0.5.1') }, plugin);
+  assert.equal(paired.status, 'installed');
+  // No plugin to pair with: any exact version is left alone.
+  assert.equal((await check('rhinomcp-mcp', { rhino: uvx('rhinomcp@0.4.0') })).status, 'installed');
   const unpinned = await check('blender-mcp', { blender: uvx('blender-mcp') });
   assert.equal(unpinned.status, 'version-mismatch');
   assert.match(unpinned.message, /고정/);
