@@ -15,6 +15,7 @@ import {
 } from '../src/core/setup/install-deps.ts';
 import { readLogTail } from '../src/core/setup/install-log.ts';
 import { roleNote } from '../src/core/setup/role-note.ts';
+import { blenderStartupScript } from '../src/core/setup/blender-startup.ts';
 import { readSetupState } from '../src/core/setup/state.ts';
 import { catalog, PINS } from '../src/core/setup/manifest.ts';
 import { SetupService } from '../src/core/setup/service.ts';
@@ -1518,6 +1519,47 @@ test('Blender open: the add-on waits, and Blender is only looked at', () =>
     },
   ));
 
+const BLENDER_USER = `${APPDATA}\\Blender Foundation\\Blender\\5.2`;
+const START_FILE = `${BLENDER_USER}\\scripts\\startup\\accountswitch_blender_mcp.py`;
+const START_ADDON = `${BLENDER_USER}\\scripts\\addons\\blender_mcp_addon.py`;
+const START_PREFS = `${BLENDER_USER}\\config\\userpref.blend`;
+
+test('the blender start script is written whole, over an older one, even with Blender open', async () => {
+  for (const running of [[], ['blender.exe']])
+    await withRunner(
+      {
+        running,
+        present: [START_ADDON, START_PREFS],
+        files: {
+          [START_FILE]: '# an older script\n',
+          [START_PREFS]: 'BLENDER-v502\0blender_mcp_addon\0',
+        },
+      },
+      async ({ runner, pc }) => {
+        runner.start(auto('blender-mcp-start'));
+        await runner.settled();
+        const item = itemOf(runner.progress(), 'blender-mcp-start');
+        assert.equal(item.status, 'done');
+        assert.equal(
+          pc.files.store.get(START_FILE).toString(),
+          blenderStartupScript(PINS.blenderAddon.module),
+        );
+        if (running.length) assert.match(item.message, /다시 켜면/);
+        else assert.equal(item.message, undefined);
+        assert.equal(pc.calls.filter((call) => call.args.includes('--python-expr')).length, 0);
+      },
+    );
+});
+
+test('the start script does nothing under -b and starts the server only once', () => {
+  const script = blenderStartupScript('blender_mcp_addon');
+  assert.match(script, /def register\(\):\n {4}if not bpy\.app\.background:/);
+  assert.match(script, /ADDON = "blender_mcp_addon"/);
+  assert.match(script, /if getattr\(bpy\.types, "blendermcp_server", None\):\n {8}return None/);
+  assert.match(script, /bpy\.ops\.blendermcp\.start_server\(\)/);
+  assert.throws(() => blenderStartupScript('x"; import os'), /INVALID_MODULE_NAME/);
+});
+
 test('Blender 5.1 kept by auto mode: the add-on says what it needs instead of failing', () =>
   withRunner(
     {
@@ -1554,8 +1596,34 @@ test('Blender: the pinned winget version, then the MSI', () =>
 
 // --- Rhino settings
 
-const settingsXml = (value) =>
-  `\uFEFF<settings id="2.0">\r\n  <settings>\r\n    <child key="Options">\r\n      <child key="FileSettings">\r\n        <entry key="EnableFileLockingOpenWarning">${value}</entry>\r\n      </child>\r\n    </child>\r\n  </settings>\r\n</settings>\r\n`;
+/** `startup`: the start commands, in a `General` child where Rhino puts it. */
+const settingsXml = (value, startup) =>
+  `\uFEFF<settings id="2.0">\r\n  <settings>\r\n    <child key="Options">\r\n      <child key="FileSettings">\r\n        <entry key="EnableFileLockingOpenWarning">${value}</entry>\r\n      </child>\r\n${startup === undefined ? '' : `      <child key="General">\r\n        <entry key="StartupCommands">${startup}</entry>\r\n      </child>\r\n`}    </child>\r\n  </settings>\r\n</settings>\r\n`;
+
+/** What Rhino 8 saves: no warning entry, since on is its default. */
+const rhinoSaved = (startup) =>
+  `\uFEFF<settings id="2.0">\r\n  <settings>\r\n    <child key="Options">\r\n      <child key="General">\r\n        <entry key="StartupCommands">${startup}</entry>\r\n      </child>\r\n    </child>\r\n  </settings>\r\n</settings>\r\n`;
+
+test('a file as Rhino saves it counts as done; the user\u2019s own start commands are kept', () =>
+  withRunner(
+    {
+      present: [RHINO],
+      files: { [SETTINGS]: rhinoSaved('_SetDisplayMode') },
+    },
+    async ({ runner, pc }) => {
+      runner.start(auto('rhino', 'rhino-settings'));
+      await runner.settled();
+      assert.equal(statusOf(runner.progress(), 'rhino-settings'), 'done');
+      assert.equal(pc.files.read(SETTINGS).toString(), rhinoSaved('_SetDisplayMode _mcpstart'));
+      runner.start(auto('rhino', 'rhino-settings'));
+      await runner.settled();
+      assert.equal(
+        pc.files.read(SETTINGS).toString(),
+        rhinoSaved('_SetDisplayMode _mcpstart'),
+        'appended once',
+      );
+    },
+  ));
 
 test('Rhino open: nothing changes, and Rhino is only looked at', () =>
   withRunner(
@@ -1609,14 +1677,13 @@ test('Rhino closed: backup, warning on, note between markers, and the item is do
       await runner.settled();
       const item = itemOf(runner.progress(), 'rhino-settings');
       assert.equal(item.status, 'done');
-      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True'));
+      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', '_mcpstart'));
       assert.equal(pc.files.read(`${SETTINGS}.accountswitch-bak`).toString(), settingsXml('False'));
       const note = pc.files.read(NOTE).toString();
       assert.ok(note.startsWith('# Mine\nkeep this\n\n<!-- accountswitch:start -->\n'));
       assert.ok(note.endsWith('<!-- accountswitch:end -->\n'));
-      assert.ok(note.includes('type `mcpstart` in Rhino'));
-      // Parts 2 and 3 are not set (#3): no start-up command written, no starter file made.
-      assert.ok(!pc.files.read(SETTINGS).toString().includes('mcpstart'));
+      assert.ok(note.includes('rhinomcp starts with Rhino'));
+      // Part 3 is the agent's (the note says how): no starter file is made.
       assert.equal([...pc.files.store.keys()].filter((path) => path.endsWith('.gh')).length, 0);
       assert.equal(runner.progress().phase, 'finished');
     },
@@ -1635,7 +1702,7 @@ test('a second run keeps the first backup and does not touch what is already rig
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
       assert.equal(pc.files.read(`${SETTINGS}.accountswitch-bak`).toString(), settingsXml('False'));
-      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True'));
+      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', '_mcpstart'));
       assert.equal(pc.files.read(NOTE), firstNote, 'the very same bytes: not written again');
     },
   ));
@@ -1672,13 +1739,13 @@ test('broken markers in the note: the note file is left alone', () => {
       await runner.settled();
       assert.match(itemOf(runner.progress(), 'rhino-settings').message, /표시가 어긋나/);
       assert.equal(pc.files.read(NOTE).toString(), broken);
-      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True'));
+      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', '_mcpstart'));
     },
   );
 });
 
 test('everything in place by hand: done without changing a thing', () => {
-  const xml = settingsXml('True');
+  const xml = settingsXml('True', '_mcpstart');
   const note = `<!-- accountswitch:start -->\n${roleNote()}\n<!-- accountswitch:end -->\n`;
   return withRunner(
     {

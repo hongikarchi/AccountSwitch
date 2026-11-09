@@ -29,6 +29,7 @@ test('the catalog has every item of the spec, once, in the spec order', () => {
       'rhino-settings',
       'blender',
       'blender-mcp-addon',
+      'blender-mcp-start',
       'blender-mcp',
       'blender-mcp-codex',
     ],

@@ -92,12 +92,14 @@ export type CheckSpec =
     }
   /** A module file in the add-ons folder that is also listed in userpref.blend. */
   | { kind: 'blender-addon'; addonsFolder: string; userPrefs: string; module: string }
-  /** The parts of SPEC 3.8 the wizard sets: 1 and 4. */
+  /** `file` holds exactly `blenderStartupScript(module)` (src/core/setup/blender-startup.ts). */
+  | { kind: 'blender-startup'; file: string; module: string }
+  /** The parts of SPEC 3.8 the wizard sets: 1, 2 and 4. */
   | {
       kind: 'rhino-settings';
       settingsFile: string;
-      /** Regular expression: the read-only warning is on. */
-      readOnlyWarningPattern: string;
+      /** Part 2: appended to Rhino's start commands; rhinomcp's `mcpstart`. */
+      startupCommand: string;
       /** Part 4, one file for each terminal program; only for a program that is there. */
       roleNotes: {
         id: string;
@@ -163,6 +165,8 @@ export type InstallStep =
       versionsFolder: string;
       series: string;
     }
+  /** Write `blenderStartupScript(module)` to `file`, replacing what is there. */
+  | { kind: 'blender-startup'; file: string; module: string }
   | { kind: 'rhino-settings' }
   /** Nothing to run: tell the user what to do. */
   | { kind: 'manual'; message: string; url?: string };

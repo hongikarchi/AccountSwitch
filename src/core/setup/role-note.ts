@@ -8,8 +8,8 @@ export function roleNote() {
     '',
     '- Use `rhino` (rhinomcp) for scripts and measurements in the Rhino document.',
     '- Use `cordyceps` for Grasshopper and for how the viewport looks.',
-    '- rhinomcp listens only after its `mcpstart` command runs in Rhino. If `rhino` does not answer, ask the user to type `mcpstart` in Rhino.',
-    '- Cordyceps starts when its component is on a Grasshopper canvas. If `cordyceps` does not answer, ask the user to open Grasshopper and place the Cordyceps component.',
+    '- rhinomcp starts with Rhino. If `rhino` does not answer, ask the user to open Rhino, or to type `mcpstart` in a Rhino that was open before.',
+    '- Cordyceps starts when the user opens Grasshopper and places the Cordyceps component on the canvas. A session only connects to it if it was running when the session started. If `cordyceps` is not connected, ask the user to open Grasshopper, place the Cordyceps component, and then reconnect: in Claude Code type `/mcp` and reconnect `cordyceps`; in Codex start a new session. Until then use `rhino` for Grasshopper.',
     '- Never kill Rhino by process name. A killed Rhino leaves `.rhl` lock files that make files open read-only.',
   ].join('\n');
 }

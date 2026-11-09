@@ -13,6 +13,7 @@ import {
 } from '../src/core/setup/checks.ts';
 import { expandPath, pathHasFolder, rebuildPath } from '../src/core/setup/environment.ts';
 import { roleNote } from '../src/core/setup/role-note.ts';
+import { blenderStartupScript } from '../src/core/setup/blender-startup.ts';
 
 const HOME = 'C:\\Users\\tester';
 const APPDATA = `${HOME}\\AppData\\Roaming`;
@@ -494,15 +495,37 @@ test('the blender add-on needs the file and the module listed in user prefs', as
   assert.equal((await check([file], { [prefs]: '\x28\xb5\x2f\xfdcompressed' })).status, 'error');
 });
 
+test('the blender start script counts only with the current text, in any line endings', async () => {
+  const file = `${APPDATA}\\Blender Foundation\\Blender\\5.2\\scripts\\startup\\accountswitch_blender_mcp.py`;
+  const script = blenderStartupScript('blender_mcp_addon');
+  const check = async (contents) => {
+    const { deps, calls } = fakePc({ contents });
+    const result = statusOf(await runChecks(deps), 'blender-mcp-start');
+    assert.ok(!calls.some((call) => /blender/i.test(call.program)));
+    return result.status;
+  };
+  assert.equal(await check({ [file]: script }), 'installed');
+  assert.equal(await check({ [file]: script.replace(/\n/g, '\r\n') }), 'installed');
+  assert.equal(
+    await check({ [file]: script.replace('first_interval=1.0', 'first_interval=5.0') }),
+    'missing',
+  );
+  assert.equal(await check({}), 'missing');
+});
+
+const options = (inner) =>
+  `<settings><settings><child key="Options">${inner}</child></settings></settings>`;
+
 test('rhino-settings reports its parts, from files only', async () => {
   const settings = `${APPDATA}\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml`;
   const note = `${HOME}\\.claude\\CLAUDE.md`;
   const parts = (result) => Object.fromEntries(result.parts.map((part) => [part.id, part.ok]));
   const off = fakePc({
     contents: {
-      [settings]:
-        '<entry key="EnableFileLockingOpenWarning">False</entry>\n' +
-        '<child key="Command Use Counts"><entry key="f0b5b632.mcpstart">2</entry></child>',
+      [settings]: options(
+        '<child key="FileSettings"><entry key="EnableFileLockingOpenWarning">False</entry></child>' +
+          '<child key="Command Use Counts"><entry key="f0b5b632.mcpstart">2</entry></child>',
+      ),
     },
   });
   off.deps.executable = () => 'C:\\c\\cli.exe';
@@ -510,12 +533,16 @@ test('rhino-settings reports its parts, from files only', async () => {
   assert.equal(none.status, 'missing');
   assert.deepEqual(parts(none), {
     'read-only-warning': false,
+    'startup-command': false,
     'role-note': false,
     'codex-role-note': false,
   });
   const on = fakePc({
     contents: {
-      [settings]: '<entry key="EnableFileLockingOpenWarning">True</entry>\n',
+      // As Rhino saves it: no warning entry, since on is its default.
+      [settings]: options(
+        '<child key="General"><entry key="StartupCommands">_mcpstart</entry></child>',
+      ),
       // The current text counts with any line endings; an older text would be written again.
       [note]: `mine\r\n<!-- accountswitch:start -->\r\n${roleNote().replaceAll('\n', '\r\n')}\r\n<!-- accountswitch:end -->\r\n`,
     },

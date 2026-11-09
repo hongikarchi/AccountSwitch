@@ -14,7 +14,13 @@ import {
   sha256Hex,
 } from '../src/core/setup/install-download.ts';
 import { describeCommand, readLogTail, redactLog } from '../src/core/setup/install-log.ts';
-import { applyMarkedBlock, roleNote, setReadOnlyWarning } from '../src/core/setup/install-rhino.ts';
+import { applyMarkedBlock, roleNote } from '../src/core/setup/install-rhino.ts';
+import {
+  addStartupCommand,
+  hasStartupCommand,
+  readOnlyWarningOn,
+  setReadOnlyWarning,
+} from '../src/core/setup/rhino-xml.ts';
 import { installEnvironment } from '../src/core/setup/install-steps.ts';
 import {
   appendPathEntry,
@@ -303,17 +309,13 @@ const WARNING = (value) =>
     '      </child>',
   ].join('\r\n');
 
-const readOnlyPattern = new RegExp(
-  catalog.items.find((item) => item.id === 'rhino-settings').check.readOnlyWarningPattern,
-  'i',
-);
-
 test('the warning turns on and not one other byte changes', () => {
   const before = settingsFile(WARNING('False'));
   const result = setReadOnlyWarning(before);
   assert.equal(result.changed, true);
   assert.equal(result.xml, settingsFile(WARNING('True')));
-  assert.equal(readOnlyPattern.test(result.xml), true);
+  assert.equal(readOnlyWarningOn(result.xml), true);
+  assert.equal(readOnlyWarningOn(before), false);
 });
 
 test('a warning already on changes nothing', () => {
@@ -321,40 +323,24 @@ test('a warning already on changes nothing', () => {
   assert.deepEqual(setReadOnlyWarning(before), { xml: before, changed: false });
 });
 
-test('an entry or a FileSettings that is missing is added inside Options, in the same style', () => {
+test('a missing entry or FileSettings is Rhino’s default, on, and nothing is added', () => {
+  // Measured: Rhino 8 drops an entry that holds its default when it saves (2026-11-09).
   const noEntry = settingsFile(
     ['      <child key="FileSettings">', '        <entry key="z">1</entry>', '      </child>'].join(
       '\r\n',
     ),
   );
-  const added = setReadOnlyWarning(noEntry);
-  assert.equal(added.changed, true);
-  assert.ok(
-    added.xml.includes(
-      '<entry key="z">1</entry>\r\n        <entry key="EnableFileLockingOpenWarning">True</entry>\r\n      </child>',
-    ),
-  );
-  const noBlock = settingsFile('      <child key="Other" />');
-  const created = setReadOnlyWarning(noBlock);
-  assert.equal(created.changed, true);
-  assert.ok(
-    created.xml.includes(
-      '      <child key="FileSettings">\r\n        <entry key="EnableFileLockingOpenWarning">True</entry>\r\n      </child>\r\n    </child>',
-    ),
-  );
-  assert.equal(readOnlyPattern.test(created.xml), true);
-  // It went inside Options, before Options closes.
-  assert.ok(created.xml.indexOf('FileSettings') > created.xml.indexOf('"Options"'));
-  assert.ok(created.xml.indexOf('FileSettings') < created.xml.lastIndexOf('</child>'));
+  for (const xml of [
+    noEntry,
+    settingsFile('      <child key="Other" />'),
+    settingsFile('      <child key="FileSettings" />'),
+  ]) {
+    assert.equal(readOnlyWarningOn(xml), true);
+    assert.deepEqual(setReadOnlyWarning(xml), { xml, changed: false });
+  }
 });
 
-test('an empty self-closed FileSettings gets the entry', () => {
-  const result = setReadOnlyWarning(settingsFile('      <child key="FileSettings" />'));
-  assert.equal(result.changed, true);
-  assert.equal(readOnlyPattern.test(result.xml), true);
-});
-
-test('an entry of the same name outside FileSettings is not touched', () => {
+test('an entry of the same name outside FileSettings is not touched, nor read', () => {
   const stray = settingsFile(
     [
       '      <child key="FileSettings">',
@@ -364,26 +350,94 @@ test('an entry of the same name outside FileSettings is not touched', () => {
       '      </child>',
     ].join('\r\n'),
   );
-  const result = setReadOnlyWarning(stray);
-  assert.ok(
-    result.xml.includes(
-      '<child key="Elsewhere">\r\n        <entry key="EnableFileLockingOpenWarning">False</entry>',
+  assert.equal(readOnlyWarningOn(stray), true);
+  assert.deepEqual(setReadOnlyWarning(stray), { xml: stray, changed: false });
+  const nested = settingsFile(
+    [
+      '      <child key="FileSettings">',
+      '        <child key="Deeper">',
+      '          <entry key="EnableFileLockingOpenWarning">False</entry>',
+      '        </child>',
+      '      </child>',
+    ].join('\r\n'),
+  );
+  assert.equal(readOnlyWarningOn(nested), true);
+});
+
+test('a file without Options is left alone', () => {
+  for (const edit of [setReadOnlyWarning, (xml) => addStartupCommand(xml, '_mcpstart')]) {
+    assert.deepEqual(edit('<settings id="2.0"><settings /></settings>'), { problem: 'no-options' });
+    assert.deepEqual(edit('<child key="Options">never closed'), { problem: 'no-options' });
+  }
+});
+
+const GENERAL = (value) =>
+  [
+    '      <child key="General">',
+    `        <entry key="StartupCommands">${value}</entry>`,
+    '      </child>',
+  ].join('\r\n');
+
+test('the start command goes in a General at the end of Options, as Rhino writes it', () => {
+  const before = settingsFile(WARNING('True'));
+  const result = addStartupCommand(before, '_mcpstart');
+  assert.equal(result.changed, true);
+  assert.equal(
+    result.xml,
+    before.replace(
+      '        <entry key="y">1</entry>\r\n      </child>\r\n',
+      `        <entry key="y">1</entry>\r\n      </child>\r\n${GENERAL('_mcpstart')}\r\n`,
+    ),
+  );
+  assert.equal(hasStartupCommand(result.xml, '_mcpstart'), true);
+  assert.equal(hasStartupCommand(before, '_mcpstart'), false);
+  assert.deepEqual(addStartupCommand(result.xml, '_mcpstart'), {
+    xml: result.xml,
+    changed: false,
+  });
+});
+
+test('the user’s start commands stay, and mcpstart in any spelling counts once', () => {
+  const mine = settingsFile(GENERAL('_Grid _Enter'));
+  assert.equal(
+    addStartupCommand(mine, '_mcpstart').xml,
+    settingsFile(GENERAL('_Grid _Enter _mcpstart')),
+  );
+  for (const value of ['mcpstart', '-_McpStart', '_Grid\r\n_mcpstart'])
+    assert.equal(hasStartupCommand(settingsFile(GENERAL(value)), '_mcpstart'), true, value);
+  assert.equal(hasStartupCommand(settingsFile(GENERAL('_mcpstartx')), '_mcpstart'), false);
+  const empty = settingsFile(
+    [
+      '      <child key="General">',
+      '        <entry key="StartupCommands" />',
+      '      </child>',
+    ].join('\r\n'),
+  );
+  assert.equal(addStartupCommand(empty, '_mcpstart').xml, settingsFile(GENERAL('_mcpstart')));
+  const noEntry = settingsFile(
+    ['      <child key="General">', '        <entry key="q">1</entry>', '      </child>'].join(
+      '\r\n',
     ),
   );
   assert.ok(
-    result.xml.includes(
-      '<child key="FileSettings">\r\n        <entry key="EnableFileLockingOpenWarning">True</entry>',
+    addStartupCommand(noEntry, '_mcpstart').xml.includes(
+      '<entry key="q">1</entry>\r\n        <entry key="StartupCommands">_mcpstart</entry>\r\n      </child>',
     ),
   );
 });
 
-test('a file without Options is left alone', () => {
-  assert.deepEqual(setReadOnlyWarning('<settings id="2.0"><settings /></settings>'), {
-    problem: 'no-options',
-  });
-  assert.deepEqual(setReadOnlyWarning('<child key="Options">never closed'), {
-    problem: 'no-options',
-  });
+test('a General nested deeper is not Options’ own', () => {
+  const nested = settingsFile(
+    [
+      '      <child key="Deeper">',
+      GENERAL('_mcpstart').replace(/^/gm, '  '),
+      '      </child>',
+    ].join('\r\n'),
+  );
+  assert.equal(hasStartupCommand(nested, '_mcpstart'), false);
+  const result = addStartupCommand(nested, '_mcpstart');
+  assert.equal(hasStartupCommand(result.xml, '_mcpstart'), true);
+  assert.ok(result.xml.includes(`  ${GENERAL('_mcpstart').split('\r\n')[1]}`), 'left in place');
 });
 
 const START = '<!-- accountswitch:start -->';
@@ -435,9 +489,12 @@ test('the note says what SPEC 3.8 asks, and the check finds its markers', () => 
   assert.match(note, /`rhino`/);
   assert.match(note, /`cordyceps`/);
   assert.match(note, /Never kill Rhino by process name/);
-  // Parts 2 and 3 are not set (#3): the agent asks the user to start both.
-  assert.match(note, /type `mcpstart` in Rhino/);
+  // Part 2 starts rhinomcp with Rhino. Part 3 is the user's: place the component, then reconnect,
+  // since a session never picks up a server that was off when it started (SPEC 3.8).
+  assert.match(note, /rhinomcp starts with Rhino/);
   assert.match(note, /place the Cordyceps component/);
+  assert.match(note, /`\/mcp` and reconnect `cordyceps`/);
+  assert.match(note, /new session/);
   const { check } = catalog.items.find((item) => item.id === 'rhino-settings');
   assert.equal(check.roleNoteStart, START);
   assert.equal(check.roleNoteEnd, END);

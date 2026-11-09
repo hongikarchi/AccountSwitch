@@ -3,7 +3,7 @@ import { codexEnvironment, subscriptionEnvironment } from '../cli.ts';
 import { rawUserMcpServer } from './checks.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, findProgram, powershellPath } from './environment.ts';
-import { installBlenderAddon } from './install-blender.ts';
+import { installBlenderAddon, writeBlenderStartup } from './install-blender.ts';
 import { cleanUp, StepStop, type InstallDeps } from './install-deps.ts';
 import { downloadsFolder, fetchBytes, saveDownload } from './install-download.ts';
 import { describeCommand, type SetupLog } from './install-log.ts';
@@ -544,6 +544,8 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
       return applyEnvironment(context, step);
     case 'blender-addon':
       return installBlenderAddon(context, step);
+    case 'blender-startup':
+      return writeBlenderStartup(context, step);
     case 'rhino-settings':
       return applyRhinoSettings(context);
     case 'manual':
