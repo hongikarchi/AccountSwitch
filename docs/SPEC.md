@@ -64,6 +64,7 @@ The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-li
 | id | Check (installed when) | Install | Version | Elevates |
 |---|---|---|---|---|
 | `git` | `git --version` succeeds, or `C:\Program Files\Git\cmd\git.exe` or `%LOCALAPPDATA%\Programs\Git\cmd\git.exe` exists | winget `Git.Git`, fallback `https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.4/Git-2.56.0.4-64-bit.exe` with `/SP- /VERYSILENT /SUPPRESSMSGBOXES /NORESTART` | latest | yes for an account in Administrators; a standard account installs per user with no prompt |
+| `gh` | `gh --version` succeeds, or `C:\Program Files\GitHub CLI\gh.exe` or `%LOCALAPPDATA%\Programs\GitHub CLI\gh.exe` exists | winget `GitHub.cli`, fallback `https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_windows_amd64.msi` with `msiexec /i <file> /passive /norestart` | latest | yes |
 | `node` | `node -v` major is 24 | winget `OpenJS.NodeJS.LTS --version 24.22.1`, fallback `https://nodejs.org/dist/v24.22.1/node-v24.22.1-x64.msi` (pattern `dist/vX.Y.Z/node-vX.Y.Z-x64.msi`) with `msiexec /i <file> /passive /norestart` | 24.22.1 | yes |
 | `uv` | `uv --version` and `uvx --version` | official script `irm https://astral.sh/uv/install.ps1 \| iex` (user scope, `%USERPROFILE%\.local\bin`) | latest | no |
 | `python` | `py -3.13 --version` succeeds | winget `Python.Python.3.13` with `--scope user`, fallback `https://www.python.org/ftp/python/3.13.17/python-3.13.17-amd64.exe /passive /norestart InstallAllUsers=0 PrependPath=1`. Folders: `%LOCALAPPDATA%\Programs\Python\Python313`, `%LOCALAPPDATA%\Programs\Python\Launcher` | 3.13.x | no (an older all-users `py` launcher already on the PC can prompt, because the installer upgrades it in place) |
@@ -94,6 +95,7 @@ The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-li
 
 Rules:
 
+- `gh` (user, 2026-11-09: a new user asking Claude to put a project on GitHub found no `gh`). The wizard only installs it. It never runs `gh auth login` and never reads or writes its token: the user signs in once, in the browser, by typing `! gh auth login --web --git-protocol https` in Claude Code (README). **verify** on a fresh PC that this opens the browser sign-in (#17).
 - `python` reports missing, not 버전 다름, when only another Python exists, because 3.13 installs alongside it.
 - `blender-mcp-addon` "enabled" is a read-only search of `userpref.blend` for the module name followed by NUL, so a check never starts Blender (**verify** that disabling the add-on removes the name, #2).
 - `dependsOn` gates order: `codex` after `node`; `py-*` after `python`; `*-mcp` after `claude` and, for uvx servers, `uv`; Rhino plugins after `rhino`; Blender add-on after `blender`, its start script after the add-on.
@@ -110,6 +112,7 @@ Rules:
 | Installer | SHA-256 | Published at |
 |---|---|---|
 | `Git-2.56.0.4-64-bit.exe` | `4961a4a8cc778d8b6e00a5819e5fe4d078b754555aff7aedc2d77a5d74c2de80` | the SHA-256 table of the `v2.56.0.windows.4` release notes (the GitHub asset digest agrees) |
+| `gh_2.103.3_windows_amd64.msi` | `5073112b7abb5ffbba24b76aee7e89269af531218c0a42751f5f0bfb6440c2cc` | `https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_checksums.txt` (the GitHub asset digest agrees) |
 | `node-v24.22.1-x64.msi` | `3bda4baf1ee709b33cf920dd633106ddb23951e322bff9c03ec9f64ab8981b01` | `https://nodejs.org/dist/v24.22.1/SHASUMS256.txt` |
 | `python-3.13.17-amd64.exe` | `5da012101ba2e17113a9a1cd901e9ce1441086f2b7ecb5de06ec94163899a190` | the SHA-256 column of `https://www.python.org/downloads/release/python-31317/` (its API and SPDX file agree) |
 | `blender-5.2.3-windows-x64.msi` | `a103d4ece8d9acffd2a95c9d8860355b1f209977cc983b4a3d1e1cfb441c8605` | `https://download.blender.org/release/Blender5.2/blender-5.2.3.sha256` |

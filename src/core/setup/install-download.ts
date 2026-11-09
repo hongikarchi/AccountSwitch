@@ -17,7 +17,7 @@ const ADDON_PATH = `/ahujasid/mcp-for-blender/${PINS.blenderAddon.commit}/addon.
 const ALLOWED: Record<string, (path: string) => boolean> = {
   'nodejs.org': (path) => path.startsWith('/dist/'),
   'www.python.org': (path) => path.startsWith('/ftp/python/'),
-  'github.com': (path) => /^\/(git-for-windows\/git|astral-sh\/uv)\/releases\//.test(path),
+  'github.com': (path) => /^\/(git-for-windows\/git|cli\/cli|astral-sh\/uv)\/releases\//.test(path),
   'release-assets.githubusercontent.com': anyPath,
   'download.blender.org': (path) => path.startsWith('/release/'),
   'claude.ai': (path) => path === '/install.ps1',

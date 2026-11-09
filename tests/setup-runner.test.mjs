@@ -42,6 +42,7 @@ import {
 } from './setup-install-helpers.mjs';
 
 const GIT = `${PROGRAMS}\\Git\\cmd\\git.exe`;
+const GH = `${PROGRAMS}\\GitHub CLI\\gh.exe`;
 const NODE = `${PROGRAMS}\\nodejs\\node.exe`;
 const NPM_CLI = `${PROGRAMS}\\nodejs\\node_modules\\npm\\bin\\npm-cli.js`;
 const UV = `${BIN}\\uv.exe`;
@@ -1865,6 +1866,7 @@ test('a fresh PC in auto mode: base group, in order, nothing but the planned pro
         if (name === 'winget') {
           const id = request.args[2];
           if (id === 'Git.Git') pc.add(GIT);
+          if (id === 'GitHub.cli') pc.add(GH);
           if (id === 'OpenJS.NodeJS.LTS') {
             pc.add(NODE);
             pc.add(NPM_CLI);
@@ -1904,6 +1906,7 @@ test('a fresh PC in auto mode: base group, in order, nothing but the planned pro
         'node',
         'py',
         'git',
+        'gh',
         'uv',
         'uvx',
         'claude',

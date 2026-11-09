@@ -237,7 +237,7 @@ test('GET /api/v1/setup gives the catalog, the state, and whether the wizard ope
       stateFileExists: false,
       claudeInstalled: false,
     });
-    assert.equal(setup.catalog.items.length, 23);
+    assert.equal(setup.catalog.items.length, 24);
     assert.equal(setup.catalog.groups.length, 5);
     assert.equal(setup.catalog.items[0].id, 'git');
     // Asking must not create the file that decides the rule.
@@ -291,13 +291,13 @@ test('POST /api/v1/setup/check runs the checks, with or without a body, and writ
       const report = await response.json();
       assert.equal(report.supported, true);
       assert.equal(report.pathSource, 'registry');
-      assert.equal(report.results.length, 23);
+      assert.equal(report.results.length, 24);
       assert.equal(report.results.find((result) => result.id === 'git').status, 'missing');
     }
     assert.ok(server.calls.length >= 2);
     assert.equal(existsSync(join(server.directory, 'setup-state.json')), false);
     const setup = await (await server.get()).json();
-    assert.equal(setup.lastCheck.results.length, 23);
+    assert.equal(setup.lastCheck.results.length, 24);
   } finally {
     await server.close();
   }

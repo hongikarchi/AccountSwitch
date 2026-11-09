@@ -326,7 +326,7 @@ test('a run item the catalog does not know still gets a row', () => {
 
 test('counts', () => {
   const state = report({ git: missing, node: missing });
-  assert.equal(checkSummary(catalog, state, none), '10개 중 8개 완료');
+  assert.equal(checkSummary(catalog, state, none), '11개 중 9개 완료');
   assert.equal(groupCount(catalog, report({ rhino: missing }), 'rhino'), '8개 중 7개 설치됨');
   assert.equal(groupCount(catalog, null, 'rhino'), '4개');
   const run = {

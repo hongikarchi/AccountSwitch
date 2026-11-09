@@ -21,7 +21,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 | 묶음 | 항목 |
 |---|---|
-| 기본 | Git, Node.js 24, uv, Python 3.13, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
+| 기본 | Git, GitHub CLI(gh), Node.js 24, uv, Python 3.13, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
 | Claude Code | Claude Code |
 | GPT | Codex CLI |
 | Rhino | Rhino 8은 직접 설치하고, 플러그인과 Claude Code·GPT 연결(rhinomcp, Cordyceps)을 설치합니다 |
@@ -31,6 +31,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - **로그인 정보를 읽거나 쓰지 않습니다.** `~/.claude.json`에 쓰는 일은 계정 전환과 겹치지 않게 하나씩 실행합니다.
 - **받는 곳**: winget, 각 프로젝트의 공식 주소, npm, PyPI만 씁니다. 버전을 고정한 설치 파일은 공개된 해시로 확인한 뒤 실행합니다.
 - **켜면 바로 연결됩니다.** Rhino를 켜면 `mcpstart`가 저절로 실행되고, Blender를 켜면 "Connect to Claude"를 누르지 않아도 연결이 시작됩니다. Grasshopper 연결(Cordyceps)은 Grasshopper를 열고 캔버스에 **Cordyceps 컴포넌트를 직접 놓아야** 켜집니다. **Rhino → Grasshopper·Cordyceps → Claude 열기** 순서로 하면 바로 연결됩니다. Claude를 먼저 열었다면 Claude Code에서 `/mcp`를 입력해 cordyceps를 다시 연결하세요(GPT는 새로 여세요). cordyceps 옆에 ✗가 없으면 연결된 것입니다. 설치할 때 이미 열려 있던 Rhino나 Blender는 한 번 닫았다 다시 켜면 됩니다.
+- **GitHub 로그인은 처음 한 번 직접 합니다.** 마법사는 GitHub CLI(`gh`)를 설치만 하고 로그인은 하지 않습니다. Claude 열기로 연 창에서 `! gh auth login --web --git-protocol https`를 입력하면 한 번만 쓰는 코드가 나오고 브라우저가 열립니다. 그 코드를 넣고 승인하면 끝이고, 그 뒤로는 Claude에게 "GitHub에 올려 줘"라고 부탁하면 됩니다.
 - **Blender 연결**은 자료를 개발사로 보내는 기능(텔레메트리)을 꺼 둔 채로 설치합니다. 켜 두면 프롬프트·코드·스크린샷이 전송될 수 있기 때문입니다.
 - 권한 확인 창이 뜨면 "예"를 누르세요. 실패한 항목은 다시 시도·건너뛰기·로그 보기를 할 수 있고, 로그는 데이터 폴더의 `logs\setup-날짜.log`에 있습니다. 설치 중에 프로그램을 끝내려 하면 먼저 물어봅니다.
 
