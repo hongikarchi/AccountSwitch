@@ -386,6 +386,7 @@ export function AccountSettings({
             <div
               key={row.id}
               className="account-block"
+              data-active={String(active)}
               draggable={rows.length > 1 && renaming !== row.id}
               data-dragging={String(dragging === row.id)}
               data-over={String(!!dragging && over === row.id && dragging !== row.id)}
