@@ -59,8 +59,11 @@ export type CheckSpec =
       packages: string[];
     }
   | { kind: 'file'; path: string }
-  /** `<root>\<version>[\<marker>]` must exist; another version folder means 버전 다름. */
-  | { kind: 'versioned-folder'; root: string; version: string; marker?: string }
+  /**
+   * `<root>\<version>[\<marker>]` must exist; another version folder means 버전 다름. Without a
+   * `version`, any version folder counts and the newest is the found version.
+   */
+  | { kind: 'versioned-folder'; root: string; version?: string; marker?: string }
   /**
    * A user-scope server in `~/.claude.json`, read inside DefaultLogin.exclusive, or with `client:
    * 'codex'` a server in `~/.codex/config.toml` (SPEC 3.7).
@@ -72,6 +75,11 @@ export type CheckSpec =
       /** Package and version expected in the registered command (uvx servers). */
       package?: string;
       version?: string;
+      /**
+       * In place of `version`: the newest version folder of this root, the plugin the server pairs
+       * with. With no folder there, any exact version is accepted.
+       */
+      versionFrom?: string;
       /** Packages the command must also carry as `--with <spec>`; without one it is re-added. */
       with?: string[];
       /** Address expected of an HTTP server. */
@@ -136,12 +144,12 @@ export type InstallStep =
     }
   | { kind: 'npm-global'; package: string }
   | { kind: 'pip'; launcher: string; python: string; packages: string[] }
-  /** `<program> install <package> <version>` */
-  | { kind: 'yak'; program: string; package: string; version: string }
+  /** `<program> install <package> [<version>]`; without a version, the newest on Yak. */
+  | { kind: 'yak'; program: string; package: string; version?: string }
   /** `claude <args>` inside DefaultLogin.exclusive (SPEC 3.7). */
-  | { kind: 'claude-mcp-add'; args: string[] }
+  | { kind: 'claude-mcp-add'; args: string[]; pairWith?: PluginPair }
   /** `codex <args>`; it replaces an entry of the same name in place (SPEC 3.7). */
-  | { kind: 'codex-mcp-add'; args: string[] }
+  | { kind: 'codex-mcp-add'; args: string[]; pairWith?: PluginPair }
   | {
       kind: 'environment';
       userPathFolder: string;
@@ -170,6 +178,15 @@ export type InstallStep =
   | { kind: 'rhino-settings' }
   /** Nothing to run: tell the user what to do. */
   | { kind: 'manual'; message: string; url?: string };
+
+/**
+ * The argument equal to `package` becomes `<package>@<version>`, the newest version folder of `root`,
+ * read when the step runs, so a server always matches the plugin on disk (SPEC 3.3).
+ */
+export interface PluginPair {
+  package: string;
+  root: string;
+}
 
 export interface InstallSpec {
   /** One Korean line on how this gets installed. */

@@ -19,6 +19,10 @@ export const CLAUDE_CONFIG = `${HOME}\\.claude.json`;
 export const SETTINGS = `${APPDATA}\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml`;
 export const NOTE = `${HOME}\\.claude\\CLAUDE.md`;
 export const WINGET = `${LOCAL}\\Microsoft\\WindowsApps\\winget.exe`;
+/** The rhinomcp plugin folder, and a plugin there that the servers pair with (SPEC 3.3). */
+export const RHINOMCP_ROOT = `${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp`;
+export const RHINOMCP_VERSION = '0.4.1.1';
+export const RHINOMCP_PLUGIN = { [RHINOMCP_ROOT]: [RHINOMCP_VERSION] };
 
 export const ok = (stdout = '') => ({ code: 0, stdout, stderr: '', timedOut: false });
 export const exit = (code, stderr = '') => ({ code, stdout: '', stderr, timedOut: false });

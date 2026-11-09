@@ -1,4 +1,4 @@
-import type { InstallStep, SetupCatalog, SetupGroup, SetupItem } from './types.ts';
+import type { InstallStep, PluginPair, SetupCatalog, SetupGroup, SetupItem } from './types.ts';
 
 // The setup catalog (SPEC 3.3): the one place for pinned versions, and pure data the page renders
 // from. Change this file and SPEC together (CLAUDE.md, ADR-002).
@@ -28,7 +28,6 @@ export const PINS = {
     sha256: '5073112b7abb5ffbba24b76aee7e89269af531218c0a42751f5f0bfb6440c2cc',
   },
   rhino: '8',
-  rhinomcp: '0.4.1.1',
   cordyceps: '1.5.0',
   blender: '5.2.3',
   /** blender-5.2.3-windows-x64.msi, from .../release/Blender5.2/blender-5.2.3.sha256 */
@@ -59,6 +58,9 @@ const PY_FOLDERS = [
 const GIT_FOLDERS = [`${PROGRAM_FILES}\\Git\\cmd`, '%LOCALAPPDATA%\\Programs\\Git\\cmd'];
 const GH_FOLDERS = [`${PROGRAM_FILES}\\GitHub CLI`, '%LOCALAPPDATA%\\Programs\\GitHub CLI'];
 const RHINO_PACKAGES = '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0';
+/** rhinomcp is not pinned: its servers follow the plugin on disk (SPEC 3.3). */
+const RHINOMCP_ROOT = `${RHINO_PACKAGES}\\rhinomcp`;
+const RHINOMCP_PAIR: PluginPair = { package: 'rhinomcp', root: RHINOMCP_ROOT };
 const YAK = `${PROGRAM_FILES}\\Rhino 8\\System\\Yak.exe`;
 const BLENDER_VERSIONS = '%APPDATA%\\Blender Foundation\\Blender';
 const BLENDER_USER = `${BLENDER_VERSIONS}\\${PINS.blenderSeries}`;
@@ -146,13 +148,21 @@ function pipItem(
 }
 
 /** A user-scope MCP registration; the arguments of `claude mcp add` live in one place. */
-function mcpInstall(summary: string, args: string[]) {
-  const step: InstallStep = { kind: 'claude-mcp-add', args: ['mcp', 'add', '-s', 'user', ...args] };
+function mcpInstall(summary: string, args: string[], pairWith?: PluginPair) {
+  const step: InstallStep = {
+    kind: 'claude-mcp-add',
+    args: ['mcp', 'add', '-s', 'user', ...args],
+    ...(pairWith ? { pairWith } : {}),
+  };
   return { summary, automatic: true, steps: [step] };
 }
 
-function codexMcpInstall(summary: string, args: string[]) {
-  const step: InstallStep = { kind: 'codex-mcp-add', args: ['mcp', 'add', ...args] };
+function codexMcpInstall(summary: string, args: string[], pairWith?: PluginPair) {
+  const step: InstallStep = {
+    kind: 'codex-mcp-add',
+    args: ['mcp', 'add', ...args],
+    ...(pairWith ? { pairWith } : {}),
+  };
   return { summary, automatic: true, steps: [step] };
 }
 
@@ -458,17 +468,13 @@ const items: SetupItem[] = [
     description: 'Claude Code나 GPT가 Rhino 안에서 스크립트를 실행하게 해 줘요.',
     group: 'rhino',
     dependsOn: ['rhino'],
-    check: {
-      kind: 'versioned-folder',
-      root: `${RHINO_PACKAGES}\\rhinomcp`,
-      version: PINS.rhinomcp,
-    },
+    check: { kind: 'versioned-folder', root: RHINOMCP_ROOT },
     install: {
-      summary: 'Rhino 패키지 관리자로 설치해요.',
+      summary: 'Rhino 패키지 관리자로 최신 버전을 설치해요.',
       automatic: true,
-      steps: [{ kind: 'yak', program: YAK, package: 'rhinomcp', version: PINS.rhinomcp }],
+      steps: [{ kind: 'yak', program: YAK, package: 'rhinomcp' }],
     },
-    pinnedVersion: PINS.rhinomcp,
+    pinnedVersion: 'latest',
     mayElevate: false,
   },
   {
@@ -476,17 +482,14 @@ const items: SetupItem[] = [
     label: 'rhinomcp 연결 (Claude Code)',
     description: 'Claude Code에 rhinomcp를 등록해요.',
     group: 'rhino',
-    dependsOn: ['claude', 'uv'],
-    check: { kind: 'mcp', name: 'rhino', package: 'rhinomcp', version: PINS.rhinomcp },
-    install: mcpInstall('Claude Code에 등록해요.', [
-      'rhino',
-      '-e',
-      'RHINO_MCP_HOST=127.0.0.1',
-      '--',
-      'uvx',
-      `rhinomcp@${PINS.rhinomcp}`,
-    ]),
-    pinnedVersion: PINS.rhinomcp,
+    dependsOn: ['claude', 'uv', 'rhinomcp-plugin'],
+    check: { kind: 'mcp', name: 'rhino', package: 'rhinomcp', versionFrom: RHINOMCP_ROOT },
+    install: mcpInstall(
+      'Rhino 플러그인과 같은 버전으로 Claude Code에 등록해요.',
+      ['rhino', '-e', 'RHINO_MCP_HOST=127.0.0.1', '--', 'uvx', 'rhinomcp'],
+      RHINOMCP_PAIR,
+    ),
+    pinnedVersion: null,
     mayElevate: false,
   },
   {
@@ -494,23 +497,20 @@ const items: SetupItem[] = [
     label: 'rhinomcp 연결 (GPT)',
     description: 'Codex CLI에 rhinomcp를 등록해요.',
     group: 'rhino',
-    dependsOn: ['codex', 'uv'],
+    dependsOn: ['codex', 'uv', 'rhinomcp-plugin'],
     check: {
       kind: 'mcp',
       client: 'codex',
       name: 'rhino',
       package: 'rhinomcp',
-      version: PINS.rhinomcp,
+      versionFrom: RHINOMCP_ROOT,
     },
-    install: codexMcpInstall('Codex CLI에 등록해요.', [
-      'rhino',
-      '--env',
-      'RHINO_MCP_HOST=127.0.0.1',
-      '--',
-      'uvx',
-      `rhinomcp@${PINS.rhinomcp}`,
-    ]),
-    pinnedVersion: PINS.rhinomcp,
+    install: codexMcpInstall(
+      'Rhino 플러그인과 같은 버전으로 Codex CLI에 등록해요.',
+      ['rhino', '--env', 'RHINO_MCP_HOST=127.0.0.1', '--', 'uvx', 'rhinomcp'],
+      RHINOMCP_PAIR,
+    ),
+    pinnedVersion: null,
     mayElevate: false,
   },
   {
