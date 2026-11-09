@@ -18,7 +18,9 @@ import {
   type Env,
   type WindowsSnapshot,
 } from './environment.ts';
+import { hasBlenderStartupScript } from './blender-startup.ts';
 import { catalog } from './manifest.ts';
+import { hasStartupCommand, readOnlyWarningOn } from './rhino-xml.ts';
 import { hasRoleNote } from './role-note.ts';
 import type { CheckPart, CheckReport, CheckResult, CheckSpec, SetupItem } from './types.ts';
 
@@ -548,7 +550,12 @@ function checkRhinoSettings(
     {
       id: 'read-only-warning',
       label: '읽기 전용 경고',
-      ok: new RegExp(spec.readOnlyWarningPattern, 'i').test(settings),
+      ok: readOnlyWarningOn(settings),
+    },
+    {
+      id: 'startup-command',
+      label: 'Rhino 켤 때 연결 시작',
+      ok: hasStartupCommand(settings, spec.startupCommand),
     },
     ...spec.roleNotes
       .filter((note) => context.deps.executable(note.provider))
@@ -585,6 +592,11 @@ function checkOne(context: Context, item: SetupItem): Outcome | Promise<Outcome>
       return checkBlender(context, check, item.pinnedVersion);
     case 'blender-addon':
       return checkBlenderAddon(context, check);
+    case 'blender-startup': {
+      const file = context.deps.readFile(context.path(check.file));
+      const ok = file !== undefined && hasBlenderStartupScript(file.toString('utf8'), check.module);
+      return { status: ok ? 'installed' : 'missing' };
+    }
     case 'rhino-settings':
       return checkRhinoSettings(context, check);
   }

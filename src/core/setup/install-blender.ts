@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { blenderStartupScript } from './blender-startup.ts';
 import { cleanUp, StepStop } from './install-deps.ts';
 import { downloadsFolder, fetchBytes, sha256Hex } from './install-download.ts';
 import type { StepContext, StepResult } from './install-steps.ts';
@@ -138,4 +139,18 @@ export async function installBlenderAddon(
   } finally {
     cleanUp(files, context.log, file);
   }
+}
+
+const RESTART_NOTE = '지금 열려 있는 Blender는 한 번 닫았다 다시 켜면 바로 연결돼요.';
+
+/** SPEC 3.3 `blender-mcp-start`: AccountSwitch's own file, so it is replaced whole. */
+export async function writeBlenderStartup(
+  context: StepContext,
+  step: Extract<InstallStep, { kind: 'blender-startup' }>,
+): Promise<StepResult> {
+  context.deps.files.write(context.path(step.file), blenderStartupScript(step.module));
+  context.log.line('Blender 시작 스크립트를 넣었어요.');
+  // A Blender already open read the startup folder before the file was there.
+  const running = await isProgramRunning(context, 'blender.exe');
+  return running === false ? { ran: true } : { ran: true, note: RESTART_NOTE };
 }

@@ -30,6 +30,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - **이미 있는 프로그램은 건드리지 않습니다.** 다른 버전이 있으면 "버전 다름"으로 알려 주고 그대로 둡니다. Claude Code 연결을 다시 등록하는 일과, 점검만 모드에서 다른 버전의 Blender 옆에 설치하는 일은 먼저 물어봅니다. winget으로 Blender를 설치하면 다른 버전이 지워질 수 있어 경고합니다.
 - **로그인 정보를 읽거나 쓰지 않습니다.** `~/.claude.json`에 쓰는 일은 계정 전환과 겹치지 않게 하나씩 실행합니다.
 - **받는 곳**: winget, 각 프로젝트의 공식 주소, npm, PyPI만 씁니다. 버전을 고정한 설치 파일은 공개된 해시로 확인한 뒤 실행합니다.
+- **켜면 바로 연결됩니다.** Rhino를 켜면 `mcpstart`가 저절로 실행되고, Blender를 켜면 "Connect to Claude"를 누르지 않아도 연결이 시작됩니다. Grasshopper 연결(Cordyceps)은 Grasshopper를 열고 캔버스에 **Cordyceps 컴포넌트를 직접 놓아야** 켜집니다. **Rhino → Grasshopper·Cordyceps → Claude 열기** 순서로 하면 바로 연결됩니다. Claude를 먼저 열었다면 Claude Code에서 `/mcp`를 입력해 cordyceps를 다시 연결하세요(GPT는 새로 여세요). cordyceps 옆에 ✗가 없으면 연결된 것입니다. 설치할 때 이미 열려 있던 Rhino나 Blender는 한 번 닫았다 다시 켜면 됩니다.
 - **Blender 연결**은 자료를 개발사로 보내는 기능(텔레메트리)을 꺼 둔 채로 설치합니다. 켜 두면 프롬프트·코드·스크린샷이 전송될 수 있기 때문입니다.
 - 권한 확인 창이 뜨면 "예"를 누르세요. 실패한 항목은 다시 시도·건너뛰기·로그 보기를 할 수 있고, 로그는 데이터 폴더의 `logs\setup-날짜.log`에 있습니다. 설치 중에 프로그램을 끝내려 하면 먼저 물어봅니다.
 

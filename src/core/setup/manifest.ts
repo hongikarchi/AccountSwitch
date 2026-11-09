@@ -58,6 +58,7 @@ const BLENDER_VERSIONS = '%APPDATA%\\Blender Foundation\\Blender';
 const BLENDER_USER = `${BLENDER_VERSIONS}\\${PINS.blenderSeries}`;
 const BLENDER_FOLDER = `Blender ${PINS.blenderSeries}`;
 const BLENDER_ROOT = `${PROGRAM_FILES}\\Blender Foundation`;
+const BLENDER_START_FILE = `${BLENDER_USER}\\scripts\\startup\\accountswitch_blender_mcp.py`;
 
 /** What goes on the user PATH if an install left it off (SPEC 3.5 step 4). */
 const onPath = (program: string, folders: string[]) =>
@@ -532,13 +533,14 @@ const items: SetupItem[] = [
   {
     id: 'rhino-settings',
     label: 'Rhino 설정',
-    description: '읽기 전용 경고를 켜고, Claude Code·GPT에 Rhino 도구 쓰는 법을 적어 둬요.',
+    description:
+      '읽기 전용 경고를 켜고, Rhino가 켜질 때 연결을 시작하게 하고, Claude Code·GPT에 Rhino 도구 쓰는 법을 적어 둬요.',
     group: 'rhino',
     dependsOn: ['rhino'],
     check: {
       kind: 'rhino-settings',
       settingsFile: '%APPDATA%\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml',
-      readOnlyWarningPattern: '<entry key="EnableFileLockingOpenWarning">\\s*True\\s*</entry>',
+      startupCommand: '_mcpstart',
       roleNotes: [
         {
           id: 'role-note',
@@ -625,6 +627,24 @@ const items: SetupItem[] = [
       ],
     },
     pinnedVersion: PINS.blenderMcp,
+    mayElevate: false,
+  },
+  {
+    id: 'blender-mcp-start',
+    label: 'Blender 켤 때 연결 시작',
+    description:
+      'Blender를 켜면 Claude Code·GPT와 바로 연결돼요. "Connect to Claude"를 누르지 않아도 돼요.',
+    group: 'blender',
+    dependsOn: ['blender-mcp-addon'],
+    check: { kind: 'blender-startup', file: BLENDER_START_FILE, module: PINS.blenderAddon.module },
+    install: {
+      summary: 'Blender가 켜질 때마다 읽는 시작 스크립트를 넣어요. 지우면 꺼져요.',
+      automatic: true,
+      steps: [
+        { kind: 'blender-startup', file: BLENDER_START_FILE, module: PINS.blenderAddon.module },
+      ],
+    },
+    pinnedVersion: null,
     mayElevate: false,
   },
   {
