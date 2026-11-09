@@ -113,7 +113,7 @@ Every button has one shape (user, 2026-11-09, #7): the theme toggle's pill. 28 p
 - Text button: no border, no shape, `--muted` in the size of the text around it; hover `--text`.
 - Disabled: 40 % opacity.
 - Not buttons in look, though `<button>` in code: the tabs (4), menu items (5.5), and the two choice rows of the setup start (5.6).
-- Text fields stay 36 px.
+- One-line text fields match: 28 px high, 12 px text, 6 px radius (user, 2026-11-09). A multi-line field keeps 36 px at least.
 
 ### 5.5 Menus and popovers
 

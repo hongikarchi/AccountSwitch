@@ -175,6 +175,14 @@ textarea {
   border-radius: var(--radius-control);
   background: transparent;
 }
+/* A one-line field sits next to the 28 px buttons, so it has their height and text (5.4). */
+input:not([type='checkbox']) {
+  height: 28px;
+  min-height: 0;
+  padding: 0 10px;
+  font-size: 12px;
+  line-height: 16px;
+}
 input::placeholder {
   color: var(--faint);
 }
