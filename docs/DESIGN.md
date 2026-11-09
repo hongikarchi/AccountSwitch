@@ -100,16 +100,20 @@ At the right end of the header, on both tabs. A pill 96 × 28 px. The track is `
 - Adding an account is folded into one text button "+ 계정 추가" under the list. Pressing it opens the name field with 추가 and 취소; it closes again once the account is added.
 - The window a line stands for is named by what the service reports: "5시간", "7일". A service that does not report a shorter window has no line for it, so a line never stands empty and "짧은 한도" is gone (user, 2026-11-07).
 - The bottom row of the tab: 자동 전환 on the left; **Claude 열기** and **GPT 열기** (both primary: they are peers, Windows only) then 새로고침 on the right. Pressing a launch button goes straight to the folder dialog, with no menu. Their disabled help and their failures sit on a line of their own under the buttons: Small, right-aligned, help in `--muted`, a failure in `--danger` with a 닫기 text button. A failure of the browser's path field shows inside the field's popover instead.
-- The bottom row is one family (user, 2026-11-07): Claude 열기, GPT 열기 and 새로고침 have the theme toggle's height, shape and text: a 28 px pill with 12 px 500 text. Each is as wide as its label plus 10 px a side, snug like the toggle's labels; a fixed width left too much room and pushed the row past one line (user, 2026-11-07). Fills stay as in 5.4: the launch buttons primary, 새로고침 secondary. 자동 전환 uses the same 12 px 500 text and its threshold select the same 28 px pill. Buttons elsewhere keep 5.4 for now.
+- The bottom row is one family (user, 2026-11-07): Claude 열기, GPT 열기 and 새로고침 have the theme toggle's height, shape and text: a 28 px pill with 12 px 500 text. Each is as wide as its label plus 10 px a side, snug like the toggle's labels; a fixed width left too much room and pushed the row past one line (user, 2026-11-07). Fills stay as in 5.4: the launch buttons primary, 새로고침 secondary. 자동 전환 uses the same 12 px 500 text and its threshold select the same 28 px pill. Since #7 every button has this shape (5.4).
 - Under the buttons, right-aligned: the time of the last check, so that turning on 자동 전환 pushes nothing (user, 2026-11-07). Notes about auto switch and failures take the same line from the left.
 - Drag to reorder keeps today's behavior; the dragged row lifts with the menu shadow.
 
 ### 5.4 Buttons
 
-- Primary: `--inverse-bg` fill, `--inverse-text`, 36 px high, 6 px radius.
+Every button has one shape (user, 2026-11-09, #7): the theme toggle's pill. 28 px high, 999 px radius, 12 px 500 text, 10 px each side of the label, as wide as its label. Only the fill tells them apart.
+
+- Primary: `--inverse-bg` fill, `--inverse-text`; hover 85 % opacity.
 - Secondary: transparent, 1 px `--line`, text `--text`; hover `--panel`.
-- Text button: no border, `--muted`, hover `--text`.
+- Text button: no border, no shape, `--muted` in the size of the text around it; hover `--text`.
 - Disabled: 40 % opacity.
+- Not buttons in look, though `<button>` in code: the tabs (4), menu items (5.5), and the two choice rows of the setup start (5.6).
+- Text fields stay 36 px.
 
 ### 5.5 Menus and popovers
 

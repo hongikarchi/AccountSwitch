@@ -45,6 +45,8 @@
   border: 0;
   border-radius: 0;
   background: transparent;
+  font-size: inherit;
+  line-height: inherit;
   font-weight: 400;
   text-align: left;
   white-space: normal;

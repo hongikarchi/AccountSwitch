@@ -121,13 +121,16 @@ a:focus-visible {
     transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1) !important;
 }
 
-/* Buttons (5.4). A plain <button> is the secondary one; :where keeps these overridable. */
+/* Buttons (5.4): every one is the theme toggle's pill, 28 px with 12 px text. A plain <button> is
+   the secondary one; :where keeps these overridable. */
 :where(button) {
-  min-height: 36px;
-  padding: 0 12px;
+  min-height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--line);
-  border-radius: var(--radius-control);
+  border-radius: 999px;
   background: transparent;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 500;
   white-space: nowrap;
 }
@@ -146,12 +149,16 @@ button:disabled {
 .primary-button:hover:not(:disabled) {
   opacity: 0.85;
 }
+/* A text button reads as text, in the size of the text around it. */
 .text-button {
   min-height: 0;
   padding: 2px 0;
   border: 0;
+  border-radius: 0;
   background: transparent;
   color: var(--muted);
+  font-size: inherit;
+  line-height: inherit;
   font-weight: 400;
 }
 .text-button:hover:not(:disabled) {
@@ -227,6 +234,8 @@ select {
   padding: 0 2px;
   border: 0;
   border-radius: 0;
+  font-size: inherit;
+  line-height: inherit;
   background: transparent;
   color: var(--muted);
 }
@@ -420,9 +429,6 @@ select {
   align-items: center;
   gap: 8px;
 }
-.account-actions > button {
-  min-height: 32px;
-}
 .account-add {
   display: flex;
   align-items: center;
@@ -525,17 +531,6 @@ select {
   gap: 8px;
   margin-left: auto;
 }
-/* The theme toggle's height, shape and text (5.2, 5.3). Not the buttons inside the path field's popover. */
-.toolbar-actions > button,
-.launcher > button {
-  height: 28px;
-  min-height: 0;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: 12px;
-  line-height: 16px;
-  font-weight: 500;
-}
 .auto-switch {
   display: flex;
   align-items: center;
@@ -596,12 +591,15 @@ select {
   background: var(--bg);
   box-shadow: var(--shadow-menu);
 }
+/* Menu items are rows of the menu (5.5), not buttons. */
 .account-menu button {
   min-height: 36px;
   padding: 0 8px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
+  font-size: inherit;
+  line-height: inherit;
   font-weight: 400;
   text-align: left;
 }
