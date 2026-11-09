@@ -376,6 +376,12 @@ select {
   border: 1px solid var(--line);
   border-radius: var(--radius-panel);
 }
+/* The account in use (5.3): its box in the service's color, 2 px. The inner shadow adds the
+   second pixel, so nothing inside moves. */
+.account-block[data-active='true'] {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
 .account-block[draggable='true'] .account-row {
   cursor: grab;
 }
