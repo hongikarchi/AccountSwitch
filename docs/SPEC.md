@@ -77,7 +77,7 @@ The catalog is data in `src/core/setup/manifest.ts`: id, Korean label and one-li
 
 | Group | id | Check | Install | Version |
 |---|---|---|---|---|
-| Claude Code | `claude` | `executable('claude-cli')` resolves (`src/core/cli.ts`) | `irm https://claude.ai/install.ps1 \| iex` (native installer, `%USERPROFILE%\.local\bin\claude.exe`) inside `DefaultLogin.exclusive` (3.7) | latest |
+| Claude Code | `claude` | `executable('claude-cli')` resolves (`src/core/cli.ts`); when it does not because an update stopped midway, the row says so (3.10) | first `claude-restore`, which acts only after an update stopped midway (3.10); then `irm https://claude.ai/install.ps1 \| iex` (native installer, `%USERPROFILE%\.local\bin\claude.exe`) inside `DefaultLogin.exclusive` (3.7) | latest |
 | GPT | `codex` | `executable('codex-cli')` resolves | `npm i -g @openai/codex` (after `node`; `%APPDATA%\npm`) | latest |
 | Rhino | `rhino` | `C:\Program Files\Rhino 8\System\Rhino.exe` exists | not installable: show "Rhino 8을 먼저 설치하세요" with a link; later Rhino items wait for it | 8 |
 | Rhino | `rhinomcp-plugin` | a version folder exists in `%APPDATA%\McNeel\Rhinoceros\packages\8.0\rhinomcp\` | `C:\Program Files\Rhino 8\System\Yak.exe install rhinomcp` (the newest on Yak) | latest, then the pair rule below |
@@ -223,6 +223,38 @@ The item is `done` when parts 1, 2 and 4 hold (0.3.2, #3). Measured on Rhino 8 (
 ### 3.9 `setup-state.json`
 
 In the data folder: `{ "version": 1, "mode": "check" | "auto", "finishedAt": ISO, "items": { "<id>": { "status": "...", "version": "...", "at": ISO } } }`. Written after each item, so a closed window resumes from the last state.
+
+### 3.10 A Claude Code update that stopped midway (#22)
+
+Measured on Windows (2026-11-24), and open upstream as anthropics/claude-code#105554. The native installer updates itself in four steps:
+
+1. It writes the new build to `%USERPROFILE%\.local\share\claude\versions\<version>`.
+2. It copies the build to `claude.exe.new.<pid>.<time>.<random>` next to `claude.exe`.
+3. It renames the running `claude.exe` to `claude.exe.old.<time>.<pid>`.
+4. It renames the `.new` file to `claude.exe`.
+
+A Claude Code that ends between steps 3 and 4 leaves no `claude.exe`. In the measured case its terminal closed about 0.1 s after the old file moved. Every terminal, VS Code and Paseo then report Claude Code missing. Before 0.3.6 the 계정 tab showed "Claude Code가 설치되어 있지 않습니다" in place of the accounts, which looked like being signed out. The logins are untouched.
+
+- **Stuck** applies on Windows only, when all three hold:
+  - `%USERPROFILE%\.local\bin\claude.exe` does not exist.
+  - That folder holds a file named `claude.exe.new.*` or `claude.exe.old.*`.
+  - The `versions` folder holds a file named only by a version (`2.1.331`).
+
+  The newest such file, in numeric order, is the build to restore. The detection lives in `src/core/setup/claude-update.ts` and only reads.
+- **Check.** While stuck, the `claude` item stays `missing` with the message "업데이트가 중간에 멈춰서 Claude Code가 빠졌어요. 받아 둔 새 버전(<version>)으로 고칠 수 있어요. 계정은 그대로예요."
+- **Install.** The first step, `claude-restore`, does nothing unless the PC is stuck. When it does nothing, the install script runs as before. When stuck, it:
+  1. copies the build to a temporary name in `.local\bin` and renames that to `claude.exe`. If a `claude.exe` appeared in the meantime, that one is kept and the copy removed;
+  2. runs `claude.exe --version`. A failure removes the file it placed and moves on to the install script;
+  3. on success, removes every `claude.exe.new.*` and `claude.exe.old.*` it can. A running Claude Code holds its own `.old` file, so that file cannot be removed; it stays and is only logged.
+
+  It downloads nothing and writes neither `~/.claude.json` nor any login, so it takes no lock.
+- **계정 tab.** While stuck and `executable('claude-cli')` finds no other Claude Code, `GET /api/v1/providers` (also with `?installed=1`) adds `stuck: true` to `claude-cli`.
+  - The Claude section keeps showing its accounts, since switching works without the CLI. Above them, a notice says "Claude Code 업데이트가 중간에 멈췄어요. 계정은 그대로예요." with a **고치기** button.
+  - 고치기 starts the same run the 설치 tab would, `POST /api/v1/setup/run { items: ['claude'], mode: 'auto' }`, and polls `GET /api/v1/setup/run` every second.
+  - When the item ends `done`, the notice goes and the page asks `?installed=1` again at once.
+  - Any other end shows "고치지 못했어요. 설치 탭에서 확인해 주세요." A failed item keeps the run waiting, so the 설치 tab shows it with 다시 시도 and 건너뛰기.
+  - A 409 `SETUP_RUN_ACTIVE` shows "설치 탭에서 설치가 진행 중이에요. 끝난 뒤 다시 눌러 주세요."
+  - This is the only run that starts outside the 설치 tab, and it too starts only from a press.
 
 ## 4. Launcher
 

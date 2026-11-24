@@ -19,6 +19,7 @@ import {
   type WindowsSnapshot,
 } from './environment.ts';
 import { hasBlenderStartupScript } from './blender-startup.ts';
+import { stuckClaudeUpdate, stuckMessage } from './claude-update.ts';
 import { catalog } from './manifest.ts';
 import { hasStartupCommand, readOnlyWarningOn } from './rhino-xml.ts';
 import { hasRoleNote } from './role-note.ts';
@@ -37,6 +38,8 @@ export interface CheckDeps {
   exists: (path: string) => boolean;
   /** Names of the folders directly inside a folder; empty when it cannot be read. */
   listFolders: (path: string) => string[];
+  /** Names of the files directly inside a folder; empty when it cannot be read. */
+  listFiles: (path: string) => string[];
   /** Undefined when the file cannot be read. */
   readFile: (path: string) => Buffer | undefined;
   executable: (provider: 'claude-cli' | 'codex-cli') => string | undefined;
@@ -67,6 +70,19 @@ export function pathExists(path: string) {
   }
 }
 
+function entriesOf(path: string, folders: boolean) {
+  try {
+    return readdirSync(path, { withFileTypes: true })
+      .filter((entry) => (folders ? entry.isDirectory() : entry.isFile()))
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+}
+
+/** Names of the files directly inside a folder; empty when it cannot be read. */
+export const listFiles = (path: string) => entriesOf(path, false);
+
 export function realCheckDeps(
   options: Pick<CheckDeps, 'exclusive'> & Partial<CheckDeps>,
 ): CheckDeps {
@@ -76,15 +92,8 @@ export function realCheckDeps(
     env: process.env,
     home: homedir(),
     exists: pathExists,
-    listFolders: (path) => {
-      try {
-        return readdirSync(path, { withFileTypes: true })
-          .filter((entry) => entry.isDirectory())
-          .map((entry) => entry.name);
-      } catch {
-        return [];
-      }
-    },
+    listFolders: (path) => entriesOf(path, true),
+    listFiles,
     readFile: (path) => {
       try {
         return readFileSync(path);
@@ -303,7 +312,15 @@ async function checkCli(
   spec: Extract<CheckSpec, { kind: 'cli' }>,
 ): Promise<Outcome> {
   const program = context.deps.executable(spec.provider);
-  if (!program) return { status: 'missing' };
+  if (!program) {
+    const stuck =
+      spec.provider === 'claude-cli' && context.deps.platform === 'win32'
+        ? stuckClaudeUpdate(context.deps.home, context.deps)
+        : undefined;
+    return stuck
+      ? { status: 'missing', message: stuckMessage(stuck.version) }
+      : { status: 'missing' };
+  }
   // Installed is decided by the file; the version is only reported when the CLI answers.
   const result = await context.run(
     commandOf(context, program, ['--version'], context.deps.timeouts.commandMs),

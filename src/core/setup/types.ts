@@ -130,6 +130,8 @@ export type InstallStep =
   | { kind: 'winget'; program: string; id: string; args: string[]; declinedExitCodes: number[] }
   /** `irm <url> | iex`. `insideClaudeLock`: inside DefaultLogin.exclusive (SPEC 3.7). */
   | { kind: 'powershell-script'; url: string; insideClaudeLock?: boolean }
+  /** Puts back the build a stopped Claude Code update left out; nothing otherwise (SPEC 3.10). */
+  | { kind: 'claude-restore' }
   /**
    * Download `url`, refuse it unless it hashes to `sha256`, the value the project publishes, then run
    * `<program> <args>`, where `<file>` stands for the download (SPEC 3.3).

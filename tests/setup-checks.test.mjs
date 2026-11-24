@@ -70,6 +70,10 @@ function fakePc({ files = [], folders = {}, contents = {}, answers = {}, snap = 
     timeouts: DEFAULT_TIMEOUTS,
     exists: (path) => fileSet.has(path),
     listFolders: (path) => folders[path] ?? [],
+    listFiles: (path) =>
+      [...fileSet]
+        .filter((file) => win32.dirname(file) === path)
+        .map((file) => win32.basename(file)),
     readFile: (path) => (contents[path] === undefined ? undefined : Buffer.from(contents[path])),
     executable: () => undefined,
     exclusive: (task) => task(),

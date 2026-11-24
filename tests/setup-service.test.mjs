@@ -24,6 +24,7 @@ async function withService(overrides, body) {
     home: 'C:\\Users\\tester',
     exists: () => false,
     listFolders: () => [],
+    listFiles: () => [],
     readFile: () => undefined,
     executable: () => undefined,
     run: async (request) => {

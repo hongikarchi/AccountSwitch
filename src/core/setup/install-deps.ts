@@ -40,6 +40,7 @@ export interface InstallFiles {
   /** Replaces the file in one step, creating folders. A symbolic link stays one. */
   write: (path: string, data: Buffer | string) => void;
   copy: (from: string, to: string) => void;
+  rename: (from: string, to: string) => void;
   /** Missing is fine. Can still throw, so a cleanup goes through `cleanUp`. */
   remove: (path: string) => void;
   /** SHA-256 in lower-case hex of the file as it is on disk now. Throws when it cannot be read. */
@@ -136,8 +137,10 @@ export const realInstallFiles: InstallFiles = {
     renameSync(temporary, target);
   },
   copy: (from, to) => copyFileSync(from, to),
+  rename: (from, to) => renameSync(from, to),
   // `maxRetries` is ignored without `recursive`. An installer that was just killed can hold its
-  // file a moment longer. Only ever given a file this code wrote.
+  // file a moment longer. Only ever given a file this code wrote, or what a stopped Claude Code
+  // update left behind (SPEC 3.10).
   remove: (path) => rmSync(path, { force: true, recursive: true, maxRetries: 3, retryDelay: 100 }),
   hash: async (path) => {
     const hash = createHash('sha256');

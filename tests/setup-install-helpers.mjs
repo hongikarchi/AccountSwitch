@@ -55,6 +55,11 @@ export function memoryFiles(initial = {}) {
     read: (path) => store.get(path),
     write: (path, data) => store.set(path, Buffer.from(data)),
     copy: (from, to) => store.set(to, store.get(from)),
+    rename: (from, to) => {
+      if (!store.has(from)) throw Object.assign(new Error('missing'), { code: 'ENOENT' });
+      store.set(to, store.get(from));
+      store.delete(from);
+    },
     remove: (path) => store.delete(path),
     // The pretend installer hashes as its pin says, since a test has no real installer. Any other
     // bytes get their real hash, so a test can serve a tampered file.
@@ -111,8 +116,23 @@ export function fakePc({
   // Short, so a test that ends with a command still going does not wait out the real 10 s.
   stopGraceMs = 5,
 } = {}) {
-  const files = memoryFiles(initialFiles);
+  const memory = memoryFiles(initialFiles);
   const paths = new Set(present.map(lower));
+  // As written, so a listing gives names a test can find again.
+  const named = new Map(present.map((path) => [lower(path), path]));
+  // A file moved into place or removed is there or gone for the checks too.
+  const files = {
+    ...memory,
+    rename: (from, to) => {
+      memory.rename(from, to);
+      pc.drop(from);
+      pc.add(to);
+    },
+    remove: (path) => {
+      memory.remove(path);
+      pc.drop(path);
+    },
+  };
   const pc = {
     calls: [],
     downloads: [],
@@ -129,8 +149,14 @@ export function fakePc({
     versions: { ...VERSION_ANSWERS },
     lockHolders: 0,
     insideLock: [],
-    add: (path) => paths.add(lower(path)),
-    drop: (path) => paths.delete(lower(path)),
+    add: (path) => {
+      paths.add(lower(path));
+      named.set(lower(path), path);
+    },
+    drop: (path) => {
+      paths.delete(lower(path));
+      named.delete(lower(path));
+    },
     has: (path) => paths.has(lower(path)),
     log() {
       const text = [...files.store.entries()].filter(([path]) => path.includes('setup-'));
@@ -222,6 +248,10 @@ export function fakePc({
     run,
     exists: (path) => paths.has(lower(path)),
     listFolders: (path) => folders[path] ?? [],
+    listFiles: (path) =>
+      [...named.values()]
+        .filter((file) => lower(win32.dirname(file)) === lower(path))
+        .map((file) => win32.basename(file)),
     // As the real one: a check takes a file it cannot read for one that is not there.
     readFile: (path) => {
       try {

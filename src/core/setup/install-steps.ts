@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { join, win32 } from 'node:path';
 import { codexEnvironment, subscriptionEnvironment } from '../cli.ts';
 import { newestVersionFolder, rawUserMcpServer } from './checks.ts';
+import { stuckClaudeUpdate } from './claude-update.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, findProgram, powershellPath } from './environment.ts';
 import { installBlenderAddon, writeBlenderStartup } from './install-blender.ts';
@@ -251,6 +253,47 @@ function judgeWinget(result: CommandResult, declined: number[]): StepResult {
   if (!known) return judged;
   const { note, ...stop } = known;
   return { ran: true, stop, ...(note ? { note } : {}) };
+}
+
+const RESTORE_FAILED: StepFailure = {
+  reason: 'RESTORE_FAILED',
+  message: '받아 둔 새 버전으로 고치지 못했어요. 로그를 확인해 보세요.',
+};
+
+/**
+ * SPEC 3.10: after an update stopped midway, put the build it was installing where claude.exe
+ * belongs. Not stuck: nothing ran, and the install script comes next as always.
+ */
+async function runClaudeRestore(context: StepContext): Promise<StepResult> {
+  const { check, files } = context.deps;
+  const stuck = check.platform === 'win32' ? stuckClaudeUpdate(check.home, check) : undefined;
+  if (!stuck) return { ran: false };
+  const { log } = context;
+  log.line(
+    `claude: 업데이트가 중간에 멈췄어요. 받아 둔 새 버전(${stuck.version})을 제자리에 넣어요.`,
+  );
+  const copy = `${stuck.target}.restore-${randomUUID().slice(0, 8)}`;
+  try {
+    files.copy(stuck.build, copy);
+    // Another updater or installer may have put one there meanwhile: that one stays.
+    if (check.exists(stuck.target)) {
+      cleanUp(files, log, copy);
+      return { ran: true };
+    }
+    files.rename(copy, stuck.target);
+  } catch (error) {
+    log.line(`claude: 넣지 못했어요 (${(error as NodeJS.ErrnoException).code ?? 'error'})`);
+    cleanUp(files, log, copy);
+    return { ran: false, failure: RESTORE_FAILED };
+  }
+  const answer = await context.exec({ program: stuck.target, args: ['--version'] });
+  if (answer.code !== 0) {
+    cleanUp(files, log, stuck.target);
+    return { ran: false, failure: RESTORE_FAILED };
+  }
+  // A running Claude Code holds its own .old file; that one cannot go and stays, logged.
+  for (const leftover of stuck.leftovers) cleanUp(files, log, leftover);
+  return { ran: true, note: `받아 둔 새 버전(${stuck.version})으로 고쳤어요.` };
 }
 
 /** Save the install script through the host list, then run what was saved (SPEC 3.3). */
@@ -541,6 +584,8 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
     }
     case 'powershell-script':
       return runScript(context, step);
+    case 'claude-restore':
+      return runClaudeRestore(context);
     case 'download-installer':
       return runInstaller(context, step);
     case 'npm-global':
