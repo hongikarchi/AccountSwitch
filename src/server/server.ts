@@ -391,11 +391,17 @@ export async function startServer({
         send(
           200,
           await Promise.all(
-            providers.map(async (p) => ({
-              id: p,
-              installed: !!executable(p),
-              ...(quick ? {} : await status(p, executable(p))),
-            })),
+            providers.map(async (p) => {
+              const installed = !!executable(p);
+              // SPEC 3.10: missing only because an update stopped midway; the 계정 tab offers 고치기.
+              const stuck = p === 'claude-cli' && setup.claudeUpdateStuck();
+              return {
+                id: p,
+                installed,
+                ...(stuck ? { stuck } : {}),
+                ...(quick ? {} : await status(p, executable(p))),
+              };
+            }),
           ),
         );
         return;

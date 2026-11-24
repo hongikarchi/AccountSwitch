@@ -1,5 +1,6 @@
 import { DomainError } from '../errors.ts';
 import { realCheckDeps, refreshEnginePath, runChecks, type CheckDeps } from './checks.ts';
+import { stuckClaudeUpdate } from './claude-update.ts';
 import {
   buildInstallDeps,
   realInstallFiles,
@@ -61,6 +62,19 @@ export class SetupService {
 
   runProgress() {
     return this.installer?.progress() ?? null;
+  }
+
+  /**
+   * SPEC 3.10: no Claude Code resolves only because an update stopped midway, so the 계정 tab
+   * offers 고치기.
+   */
+  claudeUpdateStuck() {
+    const { deps } = this;
+    return (
+      deps.platform === 'win32' &&
+      !deps.executable('claude-cli') &&
+      !!stuckClaudeUpdate(deps.home, deps)
+    );
   }
 
   /** The existing runner; before the first run there is nothing to skip, retry or cancel. */

@@ -1,8 +1,9 @@
 import './zod-config.ts';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { z } from 'zod';
 import { AccountSettings, ServiceHead } from './account-settings.tsx';
+import { ClaudeRepairNotice } from './claude-repair.tsx';
 import { EmptyState, UsageToolbar, useUsage } from './usage.tsx';
 import { LauncherButton, LauncherNotice, useLauncher } from './launcher.tsx';
 import { SetupTab, useSetupAutoOpen } from './setup.tsx';
@@ -96,7 +97,9 @@ const names: Record<Provider, { cli: string }> = {
   'claude-cli': { cli: 'Claude Code' },
   'codex-cli': { cli: 'Codex CLI' },
 };
-const installedSchema = z.array(z.object({ id: z.enum(providers), installed: z.boolean() }));
+const installedSchema = z.array(
+  z.object({ id: z.enum(providers), installed: z.boolean(), stuck: z.boolean().optional() }),
+);
 
 const mac = navigator.userAgent.includes('Mac OS X');
 
@@ -221,14 +224,22 @@ function Launcher() {
 function App() {
   const { usage, failure, load } = useUsage();
   const [installed, setInstalled] = useState<Record<string, boolean>>();
+  // SPEC 3.10: missing only because an update stopped midway; the accounts stay, with 고치기.
+  const [stuck, setStuck] = useState<Record<string, boolean>>({});
+  const recheck = useRef(() => {});
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout>;
-    const check = () =>
+    // Only the newest request answers, so an early look (after 고치기) starts no second loop.
+    let latest = 0;
+    const check = () => {
+      const mine = ++latest;
+      clearTimeout(timer);
       void api('/providers?installed=1')
         .then((value) => {
-          const next = Object.fromEntries(
-            installedSchema.parse(value).map((row) => [row.id, row.installed]),
-          );
+          if (mine !== latest) return;
+          const rows = installedSchema.parse(value);
+          const next = Object.fromEntries(rows.map((row) => [row.id, row.installed]));
+          setStuck(Object.fromEntries(rows.map((row) => [row.id, row.stuck === true])));
           setInstalled((before) => {
             // Just installed: load the accounts and usage of the new CLI.
             if (before && providers.some((p) => next[p] && !before[p]))
@@ -239,10 +250,16 @@ function App() {
           if (providers.some((p) => !next[p])) timer = setTimeout(check, 5000);
         })
         .catch(() => {
-          timer = setTimeout(check, 5000);
+          if (mine === latest) timer = setTimeout(check, 5000);
         });
+    };
+    recheck.current = check;
     check();
-    return () => clearTimeout(timer);
+    return () => {
+      latest++;
+      clearTimeout(timer);
+      recheck.current = () => {};
+    };
   }, []);
   const [tab, setTab] = useState(savedTab);
   // SPEC 3.1: only a new PC opens on 설치, and that does not become the saved tab.
@@ -277,7 +294,7 @@ function App() {
                 data-provider={provider}
                 aria-labelledby={`${provider}-title`}
               >
-                {installed && !installed[provider] ? (
+                {installed && !installed[provider] && !stuck[provider] ? (
                   <>
                     <ServiceHead provider={provider} />
                     <CliMissing provider={provider} />
@@ -286,6 +303,11 @@ function App() {
                   <AccountSettings
                     provider={provider}
                     usage={usage?.accounts.filter((account) => account.provider === provider)}
+                    notice={
+                      stuck[provider] ? (
+                        <ClaudeRepairNotice onFixed={() => recheck.current()} />
+                      ) : undefined
+                    }
                   />
                 )}
               </section>

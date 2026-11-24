@@ -171,6 +171,7 @@ async function setupServer(setupChecks) {
       home: 'C:\\Users\\tester',
       exists: () => false,
       listFolders: () => [],
+      listFiles: () => [],
       readFile: () => undefined,
       executable: () => undefined,
       run: async (request) => {
@@ -203,6 +204,7 @@ async function setupServer(setupChecks) {
     calls,
     origin,
     get: () => fetch(origin + '/api/v1/setup', { headers: { Cookie } }),
+    providers: () => fetch(origin + '/api/v1/providers?installed=1', { headers: { Cookie } }),
     check: (data) =>
       fetch(origin + '/api/v1/setup/check', {
         method: 'POST',
@@ -219,6 +221,24 @@ async function setupServer(setupChecks) {
     },
   };
 }
+
+test('the 계정 tab hears when Claude Code is missing only because its update stopped (SPEC 3.10)', async () => {
+  const bin = 'C:\\Users\\tester\\.local\\bin';
+  const versions = 'C:\\Users\\tester\\.local\\share\\claude\\versions';
+  const listings = { [bin]: ['claude.exe.old.1795485666570.6208'], [versions]: ['2.1.331'] };
+  const stuck = await setupServer({ listFiles: (path) => listings[path] ?? [] });
+  const plain = await setupServer();
+  try {
+    const rows = await (await stuck.providers()).json();
+    assert.equal(rows.find((row) => row.id === 'claude-cli').stuck, true);
+    assert.equal('stuck' in rows.find((row) => row.id === 'codex-cli'), false);
+    const plainRows = await (await plain.providers()).json();
+    assert.ok(plainRows.every((row) => !('stuck' in row)));
+  } finally {
+    await stuck.close();
+    await plain.close();
+  }
+});
 
 test('GET /api/v1/setup gives the catalog, the state, and whether the wizard opens', async () => {
   const server = await setupServer();

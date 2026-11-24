@@ -417,8 +417,10 @@ const items: SetupItem[] = [
       summary: '공식 설치 스크립트로 설치해요.',
       automatic: true,
       pathFolders: onPath('claude', [LOCAL_BIN]),
-      // It ends by running `claude.exe install`, which may write ~/.claude.json (SPEC 3.7).
       steps: [
+        // Only after an update stopped midway (SPEC 3.10); otherwise the script runs at once.
+        { kind: 'claude-restore' },
+        // It ends by running `claude.exe install`, which may write ~/.claude.json (SPEC 3.7).
         { kind: 'powershell-script', url: 'https://claude.ai/install.ps1', insideClaudeLock: true },
       ],
     },

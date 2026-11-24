@@ -208,9 +208,17 @@ test('blender telemetry stays off and its prefs are never reset', () => {
 });
 
 test('Claude config writes are marked for the account-switch lock', () => {
-  assert.equal(byId.get('claude').install.steps[0].insideClaudeLock, true);
+  const script = byId.get('claude').install.steps.find((step) => step.kind === 'powershell-script');
+  assert.equal(script.insideClaudeLock, true);
   for (const id of ['rhinomcp-mcp', 'cordyceps-mcp', 'blender-mcp'])
     assert.equal(byId.get(id).install.steps[0].kind, 'claude-mcp-add');
+});
+
+test('Claude Code tries the restore of a stopped update before the install script (SPEC 3.10)', () => {
+  assert.deepEqual(
+    byId.get('claude').install.steps.map((step) => step.kind),
+    ['claude-restore', 'powershell-script'],
+  );
 });
 
 test('the catalog holds no personal paths', () => {

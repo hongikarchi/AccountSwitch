@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { api } from './gateway.ts';
 import { AccountUsageLines, EmptyState, type AccountUsage } from './usage.tsx';
@@ -194,10 +194,13 @@ export function ServiceHead({ provider, count }: { provider: Provider; count?: n
 export function AccountSettings({
   provider,
   usage,
+  notice,
 }: {
   provider: Provider;
   /** This service's accounts from the page's usage view (who is signed in, usage). */
   usage?: AccountUsage[];
+  /** A line between the head and the accounts (SPEC 3.10). */
+  notice?: ReactNode;
 }) {
   const [data, setData] = useState<z.infer<typeof schema>>();
   const [label, setLabel] = useState('');
@@ -372,6 +375,7 @@ export function AccountSettings({
   return (
     <div className="account-settings">
       <ServiceHead provider={provider} count={data ? rows.length : undefined} />
+      {notice}
       <div className="account-list">
         {rows.map((row) => {
           const active = data?.active[provider] === row.id;
