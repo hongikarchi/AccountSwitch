@@ -58,6 +58,12 @@ When the Paseo tools (`mcp__paseo__*`) are available and the first request of a 
 - Then set it up in one go, and then do the request.
 - If the setup cannot run, say so in one line and still do the request.
 
+## Project folders
+Each project decides its own folder layout; there is no fixed template.
+- Code, scripts, and text docs go in git. Heavy or binary outputs (Rhino `.3dm`, `.dwg`, renders, large images, videos) stay out of git through `.gitignore`.
+- When asked to tidy a folder, propose a layout that fits this project, and show a table of what moves where before moving anything.
+- Never move, rename, or delete the user's files without approval.
+
 ## Work tracking (GitHub Issues)
 When a project tracks work in GitHub Issues:
 - Every request from the user, question owed to the user, and step only the user can do becomes an issue before the work starts. Make one issue per thing; no catch-all lists.
