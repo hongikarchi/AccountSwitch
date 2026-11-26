@@ -713,3 +713,88 @@ test('a server started with no fakes cannot start a real install under the test 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('the Paseo launcher routes (SPEC 4.1) need the session and origin; no real agent', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'accountswitch-server-'));
+  const project = join(directory, '내 프로젝트 & 2');
+  await mkdir(project);
+  const calls = [];
+  const shown = [];
+  const answers = {
+    'provider ls': '[{"provider":"claude","status":"available"}]',
+    'provider models': '[{"model":"Opus 5.5","id":"claude-opus-5-5"}]',
+    status: '{"serverId":"srv_A"}',
+    'workspace ls': '[]',
+    run: '{"agentId":"agent-1"}',
+  };
+  const run = async ({ args }) => {
+    const rest = args.slice(1);
+    calls.push(rest);
+    const stdout = answers[rest.slice(0, 2).join(' ')] ?? answers[rest[0]] ?? '';
+    return { code: 0, stdout, stderr: '', timedOut: false };
+  };
+  const app = await startServer({
+    directory,
+    launcherPaseo: {
+      run,
+      cli: () => (args) => ({ program: 'Paseo.exe', args: ['cli', ...args], env: {} }),
+      startDesktop: (program, args) => shown.push(args),
+    },
+  });
+  try {
+    const origin = new URL(app.url).origin;
+    const session = await fetch(origin + '/api/v1/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({ token: new URL(app.launchUrl).hash.slice(1) }),
+    });
+    const cookie = session.headers.get('set-cookie').split(';')[0];
+    const send = (method, path, data, headers = { Cookie: cookie, Origin: origin }) =>
+      fetch(origin + '/api/v1/launcher/' + path, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: data === undefined ? undefined : JSON.stringify(data),
+      });
+
+    assert.equal((await fetch(origin + '/api/v1/launcher/models')).status, 401);
+    const good = { provider: 'claude-cli', folder: project, model: 'claude-opus-5-5' };
+    assert.equal((await send('POST', 'paseo', good, { Origin: origin })).status, 401);
+    assert.equal((await send('POST', 'paseo', good, { Cookie: cookie })).status, 403);
+    assert.equal((await send('POST', 'paseo', { ...good, model: '-x' })).status, 400);
+    assert.equal((await send('POST', 'paseo', { ...good, extra: 1 })).status, 400);
+    assert.equal(
+      (await send('PUT', 'models', { provider: 'claude-cli', model: 'a b' })).status,
+      400,
+    );
+    assert.equal(calls.length, 0);
+
+    const status = await (
+      await fetch(origin + '/api/v1/launcher', { headers: { Cookie: cookie } })
+    ).json();
+    assert.equal(status.paseo, true);
+    const models = await (await send('GET', 'models')).json();
+    assert.deepEqual(models['claude-cli'], {
+      models: [{ id: 'claude-opus-5-5', label: 'Opus 5.5' }],
+      chosen: 'claude-opus-5-5',
+    });
+    const saved = await send('PUT', 'models', { provider: 'claude-cli', model: 'claude-opus-5-5' });
+    assert.equal(saved.status, 200);
+    assert.deepEqual(JSON.parse(readFileSync(join(directory, 'launcher.json'), 'utf8')).models, {
+      'claude-cli': 'claude-opus-5-5',
+    });
+
+    const opened = await send('POST', 'paseo', good);
+    if (process.platform === 'win32') {
+      assert.deepEqual(
+        [opened.status, await opened.json()],
+        [200, { folder: project, agentId: 'agent-1' }],
+      );
+      assert.deepEqual(shown, [['paseo://h/srv_A/agent/agent-1']]);
+    } else {
+      assert.deepEqual([opened.status, (await opened.json()).code], [409, 'UNSUPPORTED_PLATFORM']);
+    }
+  } finally {
+    await app.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
