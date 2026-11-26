@@ -20,7 +20,10 @@ import {
 } from './environment.ts';
 import { hasBlenderStartupScript } from './blender-startup.ts';
 import { stuckClaudeUpdate, stuckMessage } from './claude-update.ts';
-import { catalog } from './manifest.ts';
+import { aiReader, paseoHome, readPrefs } from './ai-settings-pc.ts';
+import { loadAiContent } from './ai-content.ts';
+import { pendingRows, planAiSettings, rowLabel } from './ai-settings.ts';
+import { catalogFor } from './manifest.ts';
 import { hasStartupCommand, readOnlyWarningOn } from './rhino-xml.ts';
 import { runsLauncher, rhinomcpLauncher } from './rhinomcp-launcher.ts';
 import { hasRoleNote } from './role-note.ts';
@@ -41,6 +44,8 @@ export interface CheckDeps {
   listFolders: (path: string) => string[];
   /** Names of the files directly inside a folder; empty when it cannot be read. */
   listFiles: (path: string) => string[];
+  /** AccountSwitch's data folder, where the AI work settings keep the user's choices (SPEC 3.11). */
+  dataDirectory?: string;
   /** Undefined when the file cannot be read. */
   readFile: (path: string) => Buffer | undefined;
   executable: (provider: 'claude-cli' | 'codex-cli') => string | undefined;
@@ -582,6 +587,38 @@ function checkBlenderAddon(
   return { status: present && listed === true ? 'installed' : 'missing', parts };
 }
 
+/**
+ * SPEC 3.11: installed when every row of the plan, with the saved prefix and mode, is 같음,
+ * 건너뜀 or 내 것 유지, or switched to 내 것 유지 by the user. Reads only; Paseo's config through
+ * Paseo's own CLI.
+ */
+async function checkAiSettings(context: Context): Promise<Outcome> {
+  const { deps } = context;
+  const prefs = readPrefs(deps);
+  if (!prefs.branchPrefix)
+    return { status: 'missing', message: '브랜치 접두어를 정하고 설치를 누르세요.' };
+  const reader = await aiReader(deps, (request) =>
+    context.run({
+      timeoutMs: deps.timeouts.commandMs,
+      ...request,
+      env: { ...context.childEnv, ...request.env },
+    }),
+  );
+  const rows = planAiSettings(
+    loadAiContent(),
+    reader,
+    { ...prefs, branchPrefix: prefs.branchPrefix },
+    paseoHome(deps),
+  );
+  const pending = new Set(pendingRows(rows, prefs.keep).map((row) => row.id));
+  const parts: CheckPart[] = rows.map((row) => ({
+    id: row.id,
+    label: rowLabel(row),
+    ok: !pending.has(row.id),
+  }));
+  return { status: pending.size ? 'missing' : 'installed', parts };
+}
+
 function checkRhinoSettings(
   context: Context,
   spec: Extract<CheckSpec, { kind: 'rhino-settings' }>,
@@ -638,6 +675,8 @@ function checkOne(context: Context, item: SetupItem): Outcome | Promise<Outcome>
       const ok = file !== undefined && hasBlenderStartupScript(file.toString('utf8'), check.module);
       return { status: ok ? 'installed' : 'missing' };
     }
+    case 'ai-settings':
+      return checkAiSettings(context);
     case 'launcher': {
       // Any other text, an older launcher among it, is written again (SPEC 3.3).
       const file = context.deps.readFile(context.path(check.file));
@@ -671,7 +710,7 @@ function limited(run: CommandRunner, limit: number): CommandRunner {
 /** Run every check: items whose dependency must answer first wait for it, the rest run at once. */
 export async function runChecks(
   deps: CheckDeps,
-  items: SetupItem[] = catalog.items,
+  items: SetupItem[] = catalogFor(deps.platform).items,
   { requireCommand = false }: { requireCommand?: boolean } = {},
 ): Promise<CheckReport> {
   const startedAt = new Date().toISOString();
@@ -687,7 +726,7 @@ export async function runChecks(
     pathSource,
     results,
   });
-  if (deps.platform !== 'win32')
+  if (deps.platform !== 'win32' && deps.platform !== 'darwin')
     return report(
       'none',
       items.map((item) => ({
@@ -698,7 +737,11 @@ export async function runChecks(
       false,
     );
 
-  const { snapshot, refreshed } = await refreshEnginePath(deps);
+  // The registry and PowerShell are Windows'; macOS keeps the PATH the app was given (SPEC 3.11).
+  const { snapshot, refreshed } =
+    deps.platform === 'win32'
+      ? await refreshEnginePath(deps)
+      : { snapshot: undefined, refreshed: false };
   const context: Context = {
     deps,
     snapshot,
@@ -751,5 +794,5 @@ export async function runChecks(
     return promise;
   };
   const results = await Promise.all(items.map(start));
-  return report(refreshed ? 'registry' : 'inherited', results);
+  return report(deps.platform !== 'win32' ? 'none' : refreshed ? 'registry' : 'inherited', results);
 }

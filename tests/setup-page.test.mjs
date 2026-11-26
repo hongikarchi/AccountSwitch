@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { catalog } from '../src/core/setup/manifest.ts';
 import {
+  cardGroups,
   ELEVATION_NOTE,
   actionFor,
   autoOpens,
@@ -430,8 +431,9 @@ test('a failure is told in Korean, never as a bare code', () => {
 });
 
 test('the cards are the optional groups in order, and the base group comes along', () => {
+  // The AI work settings are optional too, but a panel of their own, not a card (SPEC 3.11).
   assert.deepEqual(
-    catalog.groups.filter((group) => group.optional).map((group) => group.label),
+    cardGroups(catalog).map((group) => group.label),
     ['Claude Code', 'GPT', 'Rhino', 'Blender'],
   );
   for (const id of ['py-gis', 'py-3d'])

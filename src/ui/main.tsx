@@ -11,8 +11,8 @@ import { api, connect } from './gateway.ts';
 import { providers, type Provider } from '../core/providers.ts';
 
 // One page with two tabs. 계정: each service's accounts (add, sign in, rename, choose, remove) and
-// every account's usage. 설치: the setup wizard (not on macOS). Light or dark, as chosen (kept in
-// this browser); the system's until one is chosen.
+// every account's usage. 설치: the setup wizard; on macOS only what its catalog has there (SPEC 1).
+// Light or dark, as chosen (kept in this browser); the system's until one is chosen.
 type Theme = 'light' | 'dark';
 const THEME_KEY = 'accountswitch-theme';
 const dark = matchMedia('(prefers-color-scheme: dark)');
@@ -107,7 +107,7 @@ type Tab = 'accounts' | 'setup';
 const TAB_KEY = 'accountswitch-tab';
 const tabs: { id: Tab; label: string }[] = [
   { id: 'accounts', label: '계정' },
-  ...(mac ? [] : [{ id: 'setup' as const, label: '설치' }]),
+  { id: 'setup', label: '설치' },
 ];
 function savedTab(): Tab {
   try {
@@ -262,7 +262,8 @@ function App() {
     };
   }, []);
   const [tab, setTab] = useState(savedTab);
-  // SPEC 3.1: only a new PC opens on 설치, and that does not become the saved tab.
+  // SPEC 3.1: only a new PC opens on 설치, and that does not become the saved tab. Never on macOS,
+  // where the tab has no programs to install.
   useSetupAutoOpen(() => {
     if (!mac) setTab('setup');
   });
@@ -317,17 +318,15 @@ function App() {
             <Launcher />
           </UsageToolbar>
         </div>
-        {mac ? null : (
-          <div
-            className="tab-panel"
-            role="tabpanel"
-            id="panel-setup"
-            aria-labelledby="tab-setup"
-            hidden={tab !== 'setup'}
-          >
-            <SetupTab active={tab === 'setup'} />
-          </div>
-        )}
+        <div
+          className="tab-panel"
+          role="tabpanel"
+          id="panel-setup"
+          aria-labelledby="tab-setup"
+          hidden={tab !== 'setup'}
+        >
+          <SetupTab active={tab === 'setup'} />
+        </div>
       </main>
     </>
   );

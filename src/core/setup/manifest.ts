@@ -193,6 +193,12 @@ const groups: SetupGroup[] = [
     description: 'Blender를 설치하고 Claude Code나 GPT와 연결해요.',
     optional: true,
   },
+  {
+    id: 'ai',
+    label: 'AI 작업 설정',
+    description: 'Claude·GPT·Paseo로 일하는 규칙과 스킬을 넣어요.',
+    optional: true,
+  },
 ];
 
 const items: SetupItem[] = [
@@ -732,6 +738,32 @@ const items: SetupItem[] = [
     pinnedVersion: PINS.blenderMcp,
     mayElevate: false,
   },
+  {
+    // SPEC 3.11: the content of setup-content/, with the prefix and the mode the user chose.
+    id: 'ai-settings',
+    label: 'AI 작업 설정',
+    description: '전체 규칙, Claude 설정, 스킬, Paseo 설정을 넣어요.',
+    group: 'ai',
+    dependsOn: [],
+    check: { kind: 'ai-settings' },
+    install: {
+      summary: '브랜치 접두어와 방식을 고르고 계획을 본 뒤 넣어요. 바꾸는 파일은 먼저 백업해요.',
+      automatic: true,
+      steps: [{ kind: 'ai-settings' }],
+    },
+    pinnedVersion: null,
+    mayElevate: false,
+    platforms: ['win32', 'darwin'],
+  },
 ];
 
 export const catalog: SetupCatalog = { groups, items };
+
+/** The items of one platform, and the groups that hold them; Windows when an item names none. */
+export function catalogFor(platform: string): SetupCatalog {
+  const own = items.filter((item) => (item.platforms ?? ['win32']).some((p) => p === platform));
+  return {
+    groups: groups.filter((group) => own.some((item) => item.group === group.id)),
+    items: own,
+  };
+}

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { existsSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -205,6 +205,16 @@ async function setupServer(setupChecks) {
     origin,
     get: () => fetch(origin + '/api/v1/setup', { headers: { Cookie } }),
     providers: () => fetch(origin + '/api/v1/providers?installed=1', { headers: { Cookie } }),
+    api: (path, method = 'GET', data) =>
+      fetch(origin + '/api/v1' + path, {
+        method,
+        headers: {
+          Cookie,
+          Origin: origin,
+          ...(data === undefined ? {} : { 'Content-Type': 'application/json' }),
+        },
+        body: data === undefined ? undefined : JSON.stringify(data),
+      }),
     check: (data) =>
       fetch(origin + '/api/v1/setup/check', {
         method: 'POST',
@@ -240,6 +250,60 @@ test('the 계정 tab hears when Claude Code is missing only because its update s
   }
 });
 
+test('the AI work settings: a plan for a prefix, saved choices, and a refused prefix (SPEC 3.11)', async () => {
+  const server = await setupServer({
+    // Only the data folder is real here; everything of the pretend PC is absent.
+    readFile: (path) => {
+      try {
+        return readFileSync(path);
+      } catch {
+        return undefined;
+      }
+    },
+  });
+  try {
+    const empty = await (await server.api('/setup/ai-settings')).json();
+    assert.deepEqual(empty, { branchPrefix: null, mode: 'fill', rows: [] });
+    const bad = await server.api('/setup/ai-settings?prefix=Bad_Prefix');
+    assert.deepEqual([bad.status, (await bad.json()).code], [400, 'INVALID_INPUT']);
+    const plan = await (await server.api('/setup/ai-settings?prefix=team&mode=replace')).json();
+    assert.equal(plan.branchPrefix, null);
+    assert.deepEqual(
+      plan.rows.find((row) => row.id === 'rules:claude'),
+      {
+        id: 'rules:claude',
+        part: 'rules',
+        target: '~/.claude/CLAUDE.md',
+        action: 'add',
+        canKeep: true,
+      },
+    );
+    assert.ok(
+      plan.rows.every((row) => !('apply' in row)),
+      'what would be written stays in the engine',
+    );
+    const saved = await server.api('/setup/ai-settings', 'PUT', {
+      branchPrefix: 'team',
+      mode: 'replace',
+      keep: ['settings'],
+    });
+    assert.equal(saved.status, 200);
+    const file = JSON.parse(readFileSync(join(server.directory, 'ai-settings.json'), 'utf8'));
+    assert.deepEqual([file.branchPrefix, file.mode, file.keep], ['team', 'replace', ['settings']]);
+    const again = await (await server.api('/setup/ai-settings')).json();
+    assert.deepEqual([again.branchPrefix, again.mode], ['team', 'replace']);
+    assert.ok(again.rows.length > 0);
+    const refused = await server.api('/setup/ai-settings', 'PUT', {
+      branchPrefix: 'Team',
+      mode: 'fill',
+      keep: [],
+    });
+    assert.deepEqual([refused.status, (await refused.json()).code], [400, 'INVALID_INPUT']);
+  } finally {
+    await server.close();
+  }
+});
+
 test('GET /api/v1/setup gives the catalog, the state, and whether the wizard opens', async () => {
   const server = await setupServer();
   try {
@@ -257,8 +321,8 @@ test('GET /api/v1/setup gives the catalog, the state, and whether the wizard ope
       stateFileExists: false,
       claudeInstalled: false,
     });
-    assert.equal(setup.catalog.items.length, 25);
-    assert.equal(setup.catalog.groups.length, 5);
+    assert.equal(setup.catalog.items.length, 26);
+    assert.equal(setup.catalog.groups.length, 6);
     assert.equal(setup.catalog.items[0].id, 'git');
     // Asking must not create the file that decides the rule.
     assert.equal(existsSync(join(server.directory, 'setup-state.json')), false);
@@ -311,13 +375,13 @@ test('POST /api/v1/setup/check runs the checks, with or without a body, and writ
       const report = await response.json();
       assert.equal(report.supported, true);
       assert.equal(report.pathSource, 'registry');
-      assert.equal(report.results.length, 25);
+      assert.equal(report.results.length, 26);
       assert.equal(report.results.find((result) => result.id === 'git').status, 'missing');
     }
     assert.ok(server.calls.length >= 2);
     assert.equal(existsSync(join(server.directory, 'setup-state.json')), false);
     const setup = await (await server.get()).json();
-    assert.equal(setup.lastCheck.results.length, 25);
+    assert.equal(setup.lastCheck.results.length, 26);
   } finally {
     await server.close();
   }
@@ -345,11 +409,39 @@ test('the setup API needs the session and this origin', async () => {
   }
 });
 
-test('elsewhere than Windows the setup API answers, starts nothing and never opens', async () => {
-  const server = await setupServer({ platform: 'darwin' });
+test('on macOS the setup API offers only its own items, starts nothing and never opens', async () => {
+  const server = await setupServer({ platform: 'darwin', home: '/Users/tester' });
   try {
     const setup = await (await server.get()).json();
     assert.equal(setup.platform, 'darwin');
+    assert.equal(setup.supported, true);
+    assert.equal(setup.autoOpen.open, false);
+    assert.deepEqual(
+      setup.catalog.items.map((item) => item.id),
+      ['ai-settings'],
+    );
+    assert.deepEqual(
+      setup.catalog.groups.map((group) => group.id),
+      ['ai'],
+    );
+    const report = await (await server.check()).json();
+    assert.equal(report.supported, true);
+    assert.equal(report.pathSource, 'none');
+    assert.deepEqual(
+      report.results.map((result) => [result.id, result.status]),
+      [['ai-settings', 'missing']],
+    );
+    // No PowerShell and no registry on macOS.
+    assert.equal(server.calls.length, 0);
+  } finally {
+    await server.close();
+  }
+});
+
+test('elsewhere than Windows and macOS the setup API answers, starts nothing and never opens', async () => {
+  const server = await setupServer({ platform: 'linux' });
+  try {
+    const setup = await (await server.get()).json();
     assert.equal(setup.supported, false);
     assert.equal(setup.autoOpen.open, false);
     const report = await (await server.check({ record: true })).json();
@@ -574,12 +666,12 @@ test('the install routes need the session and this origin', async () => {
   }
 });
 
-test('elsewhere than Windows a run is refused and nothing starts', async () => {
+test('elsewhere than Windows and macOS a run is refused and nothing starts', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'accountswitch-server-run-mac-'));
   const pc = fakePc();
   const app = await startServer({
     directory,
-    setupChecks: { ...pc.check, platform: 'darwin' },
+    setupChecks: { ...pc.check, platform: 'linux' },
     setupInstall: pc.overrides,
   });
   try {

@@ -332,6 +332,163 @@
   margin-top: 20px;
 }
 
+/* AI 작업 설정 (5.6): the panel unfolded under its row, inside the step's text column. */
+.ai-panel {
+  display: grid;
+  gap: 24px;
+  min-width: 0;
+  margin-top: 12px;
+}
+.ai-part {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+/* The Label role, like the group label above a list of steps. */
+.ai-label {
+  margin: 0;
+  padding: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  text-align: left;
+}
+.ai-prefix {
+  width: 100%;
+  max-width: 280px;
+  font-family: ui-monospace, monospace;
+}
+.ai-preview {
+  display: grid;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+.ai-preview code {
+  color: var(--text);
+  font-family: ui-monospace, monospace;
+}
+.ai-preview [data-tone='danger'] {
+  color: var(--danger);
+}
+/* Two choice rows, the setup start's in a smaller size. */
+.ai-choices {
+  display: grid;
+}
+.ai-choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 8px;
+  cursor: pointer;
+}
+.ai-choice + .ai-choice {
+  border-top: 1px solid var(--line);
+}
+.ai-choice:hover {
+  background: var(--panel);
+}
+.ai-part:disabled .ai-choice {
+  cursor: default;
+}
+.ai-part:disabled .ai-choice:hover {
+  background: transparent;
+}
+.ai-choice:has(input:focus-visible) {
+  outline: 2px solid var(--line-strong);
+  outline-offset: -2px;
+}
+.ai-choice input[type='radio'] {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin: 3px 0 0;
+  padding: 0;
+  border: 0;
+  accent-color: var(--text);
+}
+.ai-choice .choice-text {
+  gap: 0;
+}
+.ai-choice .choice-title {
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+}
+.ai-choice .choice-detail {
+  font-size: 12px;
+  line-height: 18px;
+}
+/* The plan: Small text, a hairline between two rows only. */
+.ai-plan {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 18px;
+}
+.ai-plan caption {
+  padding-bottom: 8px;
+}
+.ai-plan th {
+  padding: 0 0 4px;
+  color: var(--muted);
+  font-weight: 500;
+  text-align: left;
+}
+.ai-plan td {
+  padding: 8px 0;
+  vertical-align: top;
+}
+.ai-plan :is(th, td) + :is(th, td) {
+  padding-left: 16px;
+}
+.ai-plan tbody tr + tr > td {
+  border-top: 1px solid var(--line);
+}
+.ai-target {
+  width: 38%;
+}
+.ai-target code {
+  font-family: ui-monospace, monospace;
+}
+.ai-action {
+  font-weight: 500;
+  white-space: nowrap;
+}
+.ai-detail {
+  color: var(--muted);
+}
+.ai-keep {
+  text-align: right;
+  white-space: nowrap;
+}
+.ai-keep .text-button {
+  padding: 0;
+}
+.ai-note {
+  color: var(--muted);
+}
+.ai-error {
+  color: var(--danger);
+}
+.ai-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.ai-foot .ai-note {
+  flex: 1;
+  min-width: 160px;
+}
+.ai-foot .primary-button {
+  min-width: 88px;
+}
+
 /* The program screen (5.6). */
 .program-cards {
   display: grid;

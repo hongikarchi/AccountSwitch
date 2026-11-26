@@ -5,6 +5,7 @@ import { rawUserMcpServer } from './checks.ts';
 import { stuckClaudeUpdate } from './claude-update.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, findProgram, powershellPath } from './environment.ts';
+import { applyAiSettingsStep } from './install-ai-settings.ts';
 import { installBlenderAddon, writeBlenderStartup } from './install-blender.ts';
 import { cleanUp, StepStop, type InstallDeps } from './install-deps.ts';
 import { downloadsFolder, fetchBytes, saveDownload } from './install-download.ts';
@@ -626,6 +627,8 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
       return installBlenderAddon(context, step);
     case 'blender-startup':
       return writeBlenderStartup(context, step);
+    case 'ai-settings':
+      return applyAiSettingsStep(context);
     case 'launcher':
       context.deps.files.write(context.path(step.file), rhinomcpLauncher());
       context.log.line('rhinomcp 실행기를 넣었어요.');

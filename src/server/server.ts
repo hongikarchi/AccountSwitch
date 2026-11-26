@@ -456,6 +456,28 @@ export async function startServer({
         send(200, { text: setup.log() });
         return;
       }
+      // SPEC 3.11: the AI work settings' plan (read only) and the choices for the next run.
+      if (url.pathname === '/api/v1/setup/ai-settings' && request.method === 'GET') {
+        const prefix = url.searchParams.get('prefix') ?? undefined;
+        const mode = z
+          .enum(['fill', 'replace'])
+          .optional()
+          .parse(url.searchParams.get('mode') ?? undefined);
+        send(200, await setup.aiSettingsPlan(prefix, mode));
+        return;
+      }
+      if (url.pathname === '/api/v1/setup/ai-settings' && request.method === 'PUT') {
+        const input = z
+          .object({
+            branchPrefix: z.string().max(40),
+            mode: z.enum(['fill', 'replace']),
+            keep: z.array(z.string().min(1).max(200)).max(200),
+          })
+          .strict()
+          .parse(await body(request));
+        send(200, setup.saveAiSettings(input));
+        return;
+      }
       throw new DomainError('NOT_FOUND');
     } catch (error) {
       if (error instanceof DomainError) send(STATUS[error.code] ?? 409, { code: error.code });

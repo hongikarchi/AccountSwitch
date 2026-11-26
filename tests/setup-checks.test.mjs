@@ -640,12 +640,26 @@ test('commands run at the same time, but no more than the limit', async () => {
   assert.equal(most, 2);
 });
 
-test('elsewhere than Windows nothing runs and every item says unsupported', async () => {
+test('on macOS only its own items are checked, and nothing of Windows runs', async () => {
   const { deps, calls } = fakePc();
   deps.platform = 'darwin';
   const report = await runChecks(deps);
+  assert.equal(report.supported, true);
+  assert.equal(report.pathSource, 'none');
+  assert.deepEqual(
+    report.results.map((result) => result.id),
+    ['ai-settings'],
+  );
+  assert.equal(calls.length, 0);
+  assert.equal(deps.env.PATH, 'C:\\stale');
+});
+
+test('elsewhere than Windows and macOS nothing runs and every item says unsupported', async () => {
+  const { deps, calls } = fakePc();
+  deps.platform = 'linux';
+  const report = await runChecks(deps);
   assert.equal(report.supported, false);
-  assert.equal(report.platform, 'darwin');
+  assert.equal(report.platform, 'linux');
   assert.equal(report.pathSource, 'none');
   assert.equal(calls.length, 0);
   assert.equal(deps.env.PATH, 'C:\\stale');

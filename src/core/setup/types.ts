@@ -1,7 +1,47 @@
 // The shapes of the setup catalog and of /api/v1/setup. Types only and no Node imports, so the page
 // can `import type` from here. Everything in the catalog is plain data that survives JSON.
 
-export type SetupGroupId = 'base' | 'claude' | 'codex' | 'rhino' | 'blender';
+export type SetupGroupId = 'base' | 'claude' | 'codex' | 'rhino' | 'blender' | 'ai';
+
+/** Where an item applies; without `platforms`, Windows only (SPEC 1, 3.11). */
+export type SetupPlatform = 'win32' | 'darwin';
+
+/** SPEC 3.11: how the AI work settings meet what the PC already has. */
+export type AiSettingsMode = 'fill' | 'replace';
+
+/** One row of the AI work settings plan (SPEC 3.11). */
+export type AiSettingsAction = 'add' | 'same' | 'fill' | 'update' | 'keep' | 'replace' | 'skip';
+
+export interface AiSettingsRow {
+  /** Stable: `rules:claude`, `rules:codex`, `settings`, `skill:<name>`, `agents-skill:<name>`, `paseo`. */
+  id: string;
+  part: 'rules' | 'settings' | 'skill' | 'paseo';
+  /** The place on this PC, with `~` for the home folder. */
+  target: string;
+  action: AiSettingsAction;
+  /** A plain Korean line: what gets added, or why the row is skipped. */
+  detail?: string;
+  /** Whether the row can be switched to 내 것 유지 (`keep`) before the run. */
+  canKeep: boolean;
+}
+
+/** GET /api/v1/setup/ai-settings */
+export interface AiSettingsPlan {
+  /** The saved prefix; null before the first save. */
+  branchPrefix: string | null;
+  /** The saved mode; `fill` before the first save. */
+  mode: AiSettingsMode;
+  /** The plan for the asked prefix and mode. */
+  rows: AiSettingsRow[];
+}
+
+/** PUT /api/v1/setup/ai-settings */
+export interface AiSettingsSave {
+  branchPrefix: string;
+  mode: AiSettingsMode;
+  /** Row ids switched to 내 것 유지 for the next run. */
+  keep: string[];
+}
 
 export interface SetupGroup {
   id: SetupGroupId;
@@ -101,6 +141,8 @@ export type CheckSpec =
   | { kind: 'blender-startup'; file: string; module: string }
   /** `file` holds exactly `rhinomcpLauncher()` (src/core/setup/rhinomcp-launcher.ts). */
   | { kind: 'launcher'; file: string }
+  /** Every row of the AI work settings plan is 같음 or 건너뜀 (SPEC 3.11). */
+  | { kind: 'ai-settings' }
   /** The parts of SPEC 3.8 the wizard sets: 1, 2 and 4. */
   | {
       kind: 'rhino-settings';
@@ -189,6 +231,8 @@ export type InstallStep =
   | { kind: 'blender-startup'; file: string; module: string }
   /** Write `rhinomcpLauncher()` to `file`, replacing what is there. */
   | { kind: 'launcher'; file: string }
+  /** Apply the AI work settings with the saved prefix, mode and kept rows (SPEC 3.11). */
+  | { kind: 'ai-settings' }
   | { kind: 'rhino-settings' }
   /** Nothing to run: tell the user what to do. */
   | { kind: 'manual'; message: string; url?: string };
@@ -223,6 +267,8 @@ export interface SetupItem {
   /** `latest`, a series such as `24.x`, an exact version, or null when versions do not apply. */
   pinnedVersion: string | null;
   mayElevate: boolean;
+  /** Without it, Windows only. The engine sends the page only the items of its own platform. */
+  platforms?: SetupPlatform[];
 }
 
 export interface SetupCatalog {
@@ -273,7 +319,7 @@ export interface CheckResult {
 
 export interface CheckReport {
   platform: string;
-  /** False where the setup feature does not exist (macOS). */
+  /** False where the setup feature does not exist (outside Windows and macOS; macOS has its own items). */
   supported: boolean;
   startedAt: string;
   finishedAt: string;

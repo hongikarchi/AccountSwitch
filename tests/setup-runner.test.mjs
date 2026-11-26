@@ -202,19 +202,29 @@ test('one run at a time; after it ends another may start', async () => {
   );
 });
 
-test('elsewhere than Windows no run starts', async () => {
+test('elsewhere than Windows and macOS no run starts, and macOS has only its own items', async () => {
   const pc = fakePc();
   const directory = await mkdtemp(join(tmpdir(), 'accountswitch-setup-mac-'));
   try {
     const service = new SetupService(
       directory,
       (task) => task(),
-      { ...pc.check, platform: 'darwin' },
+      { ...pc.check, platform: 'linux' },
       pc.overrides,
     );
     assert.throws(
       () => service.startRun(auto('git')),
       (error) => error.code === 'UNSUPPORTED_PLATFORM',
+    );
+    const mac = new SetupService(
+      directory,
+      (task) => task(),
+      { ...pc.check, platform: 'darwin' },
+      pc.overrides,
+    );
+    assert.throws(
+      () => mac.startRun(auto('git')),
+      (error) => error.code === 'INVALID_INPUT',
     );
     assert.equal(pc.calls.length, 0);
   } finally {
