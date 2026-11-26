@@ -21,6 +21,7 @@ import {
   readOnlyWarningOn,
   setReadOnlyWarning,
 } from '../src/core/setup/rhino-xml.ts';
+import { CLOSE_TRAY_COMMAND, TRAY_PROCESS } from '../src/core/setup/rhinomcp-tray.ts';
 import { installEnvironment } from '../src/core/setup/install-steps.ts';
 import {
   appendPathEntry,
@@ -448,6 +449,45 @@ test('the user’s start commands stay, and mcpstart in any spelling counts once
       '<entry key="q">1</entry>\r\n        <entry key="StartupCommands">_mcpstart</entry>\r\n      </child>',
     ),
   );
+});
+
+test('the tray-closing command is one fixed line Rhino and its settings file take as is', () => {
+  // ADR-013: no XML escapes needed, nothing Rhino's macro reader would cut, and only the tray.
+  assert.doesNotMatch(CLOSE_TRAY_COMMAND, /[<>&"\r\n]/);
+  assert.match(CLOSE_TRAY_COMMAND, /^_-RunPythonScript \(.*\)$/);
+  assert.ok(CLOSE_TRAY_COMMAND.includes(`GetProcessesByName('${TRAY_PROCESS}')`));
+  assert.ok(CLOSE_TRAY_COMMAND.includes('p.SessionId==s'), 'only this Windows session');
+  assert.doesNotMatch(CLOSE_TRAY_COMMAND, /'Rhino'|Rhino\.exe/i, 'never Rhino itself');
+  assert.equal(
+    [...CLOSE_TRAY_COMMAND].filter((c) => c === '(').length,
+    [...CLOSE_TRAY_COMMAND].filter((c) => c === ')').length,
+  );
+});
+
+test('the tray is closed after mcpstart, once, after the user’s own commands', () => {
+  const close = (xml) => addStartupCommand(xml, CLOSE_TRAY_COMMAND, '_mcpstart');
+  const has = (xml) => hasStartupCommand(xml, CLOSE_TRAY_COMMAND, '_mcpstart');
+  const mine = settingsFile(GENERAL('_mcpstart _Grid'));
+  assert.equal(has(mine), false);
+  const result = close(mine);
+  assert.equal(result.xml, settingsFile(GENERAL(`_mcpstart _Grid ${CLOSE_TRAY_COMMAND}`)));
+  assert.equal(has(result.xml), true);
+  assert.deepEqual(close(result.xml), { xml: result.xml, changed: false });
+  // Before mcpstart it would close nothing, so it does not count and goes in again at the end.
+  const early = settingsFile(GENERAL(`${CLOSE_TRAY_COMMAND} _mcpstart`));
+  assert.equal(has(early), false);
+  assert.equal(
+    close(early).xml,
+    settingsFile(GENERAL(`${CLOSE_TRAY_COMMAND} _mcpstart ${CLOSE_TRAY_COMMAND}`)),
+  );
+  // Without mcpstart it does not count either; the install adds mcpstart first.
+  assert.equal(has(settingsFile(GENERAL(CLOSE_TRAY_COMMAND))), false);
+  // Rhino may write the script's quotes as entities.
+  const saved = CLOSE_TRAY_COMMAND.replaceAll("'", '&apos;');
+  assert.equal(has(settingsFile(GENERAL(`_mcpstart ${saved}`))), true);
+  // A changed script is not this one; mcpstart's own check is unaffected by the script's words.
+  assert.equal(has(settingsFile(GENERAL(`_mcpstart ${CLOSE_TRAY_COMMAND.slice(0, -1)}`))), false);
+  assert.equal(hasStartupCommand(settingsFile(GENERAL(CLOSE_TRAY_COMMAND)), '_mcpstart'), false);
 });
 
 test('a General nested deeper is not Options’ own', () => {

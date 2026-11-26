@@ -10,7 +10,7 @@ Investigation (decompiled rhinomcp 0.4.1.1 and Cordyceps 1.5.0, read both reposi
 
 - rhinomcp listens on TCP `127.0.0.1:1999` after the Rhino command `mcpstart`. Its tools cover the Rhino document: run Python or C# code in the open document, object queries, measurements and analysis, selection, viewport capture, undo and redo, and basic Grasshopper tools.
 - Cordyceps listens on HTTP `:26929` once its component is on a Grasshopper canvas. Its tools are Grasshopper-first (canvas, wires, script components, inspection), plus Rhino scene (objects, layers, selection, visibility, command macros) and render/view settings, and viewport capture.
-- Neither opens, writes, or locks `.3dm` files, hooks save events, or shares a port or state with the other. No read-only or save failure reports in either repository.
+- Neither opens, writes, or locks `.3dm` files (true of rhinomcp 0.4.1.1; the tray program of 0.5.x holds them, see ADR-013), hooks save events, or shares a port or state with the other. No read-only or save failure reports in either repository.
 - The likely cause of the save problem was Rhino's own lock files (`<file>.3dm.rhl`) left by Rhino processes that were killed, combined with the read-only warning being turned off in Rhino options, so locked files opened read-only silently. Files on a shared drive opened by a colleague behave the same.
 
 ## Decision
