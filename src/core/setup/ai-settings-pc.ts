@@ -1,4 +1,4 @@
-import { posix, win32 } from 'node:path';
+import { join, posix, win32 } from 'node:path';
 import type { CheckDeps } from './checks.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, getEnv } from './environment.ts';
@@ -87,12 +87,13 @@ export async function readPaseo(
 export const paseoHome = (deps: Pick<CheckDeps, 'env'>) =>
   getEnv(deps.env, 'PASEO_HOME') || undefined;
 
-export function readPrefs(
-  deps: Pick<CheckDeps, 'readFile' | 'dataDirectory' | 'platform'>,
-): AiPrefs {
+/**
+ * The data folder is a folder of the computer the engine runs on, so its path is joined the way
+ * that computer joins paths, as the step and the save do (`node:path`'s own `join`).
+ */
+export function readPrefs(deps: Pick<CheckDeps, 'readFile' | 'dataDirectory'>): AiPrefs {
   if (!deps.dataDirectory) return { ...DEFAULT_PREFS };
-  const path = deps.platform === 'win32' ? win32 : posix;
-  return parsePrefs(deps.readFile(path.join(deps.dataDirectory, PREFS_FILE)));
+  return parsePrefs(deps.readFile(join(deps.dataDirectory, PREFS_FILE)));
 }
 
 /** The plan's view of this PC. */
