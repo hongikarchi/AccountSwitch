@@ -11,6 +11,7 @@
 }
 
 :root {
+  --font-mono: ui-monospace, 'Cascadia Mono', Consolas, 'SF Mono', Menlo, monospace;
   --bg: #ffffff;
   --panel: #f6f6f6;
   --line: #e5e5e5;
@@ -700,7 +701,7 @@ select {
 .login-actions input {
   flex: 1;
   min-width: 160px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 .login-actions input::placeholder {
   font-family: 'Pretendard', 'Malgun Gothic', system-ui, sans-serif;
@@ -748,7 +749,7 @@ select {
 .login-command textarea {
   width: 100%;
   min-height: 64px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 18px;
 }
@@ -803,7 +804,7 @@ select {
   padding: 8px 12px;
   border-radius: var(--radius-control);
   background: var(--panel);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 18px;
   overflow-x: auto;
