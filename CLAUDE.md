@@ -35,11 +35,9 @@ AccountSwitch is a desktop app for Windows (C# WinForms + WebView2 shell, `src/d
 
 ## Workspaces (Paseo)
 
-This project spells the branch prefix `lifethigns_`, not `lifethings_`. This overrides the global rule.
-
-- Branches: the integration branch is `lifethigns_develop`. Task branches are `lifethigns_<task>` (lowercase letters, digits, hyphens). `main` is for releases: `lifethigns_develop` reaches `main` through a PR, and tags are pushed from `main`.
-- The coordinator tab works in the main checkout, which stays on `lifethigns_develop`. It talks with the user, writes issues, and merges. It changes no code there, and never stashes, resets, or switches branches there; it updates only with a fast-forward pull when clean.
-- Each task gets its own Paseo workspace on a new worktree, branched off `origin/lifethigns_develop`, on a branch `lifethigns_<task>`, with its own agent. Its PR targets `lifethigns_develop`.
+- Branches: the integration branch is `lifethings_develop`. Task branches are `lifethings_<task>` (lowercase letters, digits, hyphens). `main` is for releases: `lifethings_develop` reaches `main` through a PR, and tags are pushed from `main`.
+- The coordinator tab works in the main checkout, which stays on `lifethings_develop`. It talks with the user, writes issues, and merges. It changes no code there, and never stashes, resets, or switches branches there; it updates only with a fast-forward pull when clean.
+- Each task gets its own Paseo workspace on a new worktree, branched off `origin/lifethings_develop`, on a branch `lifethings_<task>`, with its own agent. Its PR targets `lifethings_develop`.
 - An agent that is already in a worktree works in place and opens its PR from it. It does not make another worktree and does not touch the main checkout.
 - `paseo.json` holds the worktree install command. `.worktreeinclude` lists gitignored local files to copy into new worktrees; copy them by hand as well, since it has not been reliable.
 - Backup folder for outputs git does not keep: `%USERPROFILE%\Desktop\AccountSwitch-backup`. After a task's PR is merged, copy the worktree's untracked and ignored files (except `node_modules`, `dist`, `release`, `.build`, and other rebuildable folders) to `<backup folder>\<task branch>\<YYYY-MM-DD>\`, check the sizes, and only then archive the workspace.
