@@ -135,6 +135,7 @@ Vertical, after the reference stepper, in black and white:
 - 버전 다름: `--text` ring with `≠`. Unknown (no answer from a check): `--faint` ring with `?`. Skipped: `--faint` ring with `–`.
 - Each step: meta line (Small, muted: found version or time), title (H2), one-line description (Body, muted), group label above the first step of a group (Label).
 - Rhino and Blender are steps too, one row each with a node and no checkbox: meta "6개 중 4개 설치됨", title, one line, and a secondary 설치 at the right that installs what is missing. 항목 보기 (text) unfolds their items as a smaller stepper inside the step; a group with something to look at stays unfolded. Claude Code and Codex CLI are ordinary rows under the base items.
+- Installed rows fold (SPEC 3.2, #35) into one step at the end of their list: a done node, meta "모두 설치됨", title "설치된 항목 N개" (H2), the names on one line (Body, muted, comma-separated), and 펼치기 (text), which becomes 접기. Unfolded, the rows sit inside it as a sublist, the same as 항목 보기.
 - Each group is its own list, so connectors break between groups. 32 px between steps, 40 px between groups.
 - Summary bar at the bottom, sticking to the window's bottom edge: "8개 중 5개 완료" and the primary 시작 / 계속 button. A confirmation (Blender warning, MCP 다시 등록) is one inline panel above the bar, not a modal.
 - 처음으로 is a text button at the right of the checklist title, back to the first screen.

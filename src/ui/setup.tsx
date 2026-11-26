@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type {
   AiSettingsSave,
   CheckReport,
@@ -42,6 +42,9 @@ import {
   stepFromGroup,
   stepFromRun,
   usingGroups,
+  foldSettled,
+  foldView,
+  isSettled,
   type Confirmation,
 } from './setup-logic.ts';
 import {
@@ -215,6 +218,8 @@ export function SetupTab({ active }: { active: boolean }) {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [warning, setWarning] = useState(false);
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
+  // The "설치된 항목 N개" rows the user unfolded, by list (SPEC 3.2, #35).
+  const [folds, setFolds] = useState<ReadonlySet<string>>(new Set());
   // Items whose own panel is unfolded (SPEC 3.11). On macOS it always is.
   const [panels, setPanels] = useState<ReadonlySet<string>>(new Set());
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
@@ -766,6 +771,109 @@ export function SetupTab({ active }: { active: boolean }) {
     const programs = cardGroups(catalog).filter((group) => !group.cli);
     const lastByItem = new Map((lastRun?.items ?? []).map((entry) => [entry.id, entry]));
 
+    // Rows with nothing left to say fold into one row per list (SPEC 3.2, #35). Rows of the run
+    // and of the last run stay where they are, so a run never moves a row.
+    const itemSettled = (item: SetupItem) =>
+      !inRun.has(item.id) &&
+      !lastItems.has(item.id) &&
+      !hasPanel(item) &&
+      isSettled(stepFromCheck(catalog, item, results.get(item.id), auto ? { checked } : {}));
+    const groupStep = (group: (typeof programs)[number]) =>
+      stepFromGroup(catalog, group, report, lastByItem, listMode, openGroups);
+    const groupSettled = (group: (typeof programs)[number]) => {
+      const step = groupStep(group);
+      return (
+        !step.attention &&
+        !step.install.length &&
+        step.items.every((item) => !inRun.has(item.id) && !lastItems.has(item.id)) &&
+        isSettled(step.view)
+      );
+    };
+    const foldRow = (id: string, names: string[], rows: ReactNode[]) => {
+      const open = folds.has(id);
+      return (
+        <StepRow
+          key={id}
+          view={foldView(id, names)}
+          actions={
+            <button
+              type="button"
+              className="text-button"
+              aria-expanded={open}
+              onClick={() => {
+                const next = new Set(folds);
+                if (open) next.delete(id);
+                else next.add(id);
+                setFolds(next);
+              }}
+            >
+              {open ? '접기' : '펼치기'}
+            </button>
+          }
+        >
+          {open ? <ol className="step-list step-sublist">{rows}</ol> : null}
+        </StepRow>
+      );
+    };
+    const programRow = (group: (typeof programs)[number]) => {
+      const step = groupStep(group);
+      // Its items in the run: unfolded, and the row's own node follows them.
+      const runs = step.items
+        .map((item) => inRun.get(item.id)?.status)
+        .filter((status) => status !== undefined);
+      const view = !runs.length
+        ? step.view
+        : runs.includes('failed')
+          ? { ...step.view, node: 'failed' as const }
+          : runs.some((status) => status === 'running' || status === 'pending')
+            ? { ...step.view, node: 'running' as const, meta: '설치하는 중' }
+            : step.view;
+      const open = step.attention || unfolded.has(group.id) || runs.length > 0;
+      return (
+        <StepRow
+          key={group.id}
+          view={view}
+          control={
+            step.install.length ? (
+              <button
+                type="button"
+                aria-label={`${group.label} 설치`}
+                disabled={busy || checking || !!run}
+                onClick={() => requestRun(step.install, listMode)}
+              >
+                설치
+              </button>
+            ) : undefined
+          }
+          actions={
+            step.attention || runs.length ? undefined : (
+              <button
+                type="button"
+                className="text-button"
+                aria-expanded={open}
+                onClick={() => {
+                  const next = new Set(unfolded);
+                  if (open) next.delete(group.id);
+                  else next.add(group.id);
+                  setUnfolded(next);
+                }}
+              >
+                {open ? '접기' : '항목 보기'}
+              </button>
+            )
+          }
+        >
+          {open ? (
+            <ol className="step-list step-sublist">
+              {groupItems(catalog, group.id, usingGroups(catalog, report, openGroups)).map(row)}
+            </ol>
+          ) : null}
+        </StepRow>
+      );
+    };
+    const baseFold = foldSettled(listed, itemSettled);
+    const programFold = foldSettled(programs, groupSettled);
+
     return (
       <>
         <PageHead
@@ -800,7 +908,16 @@ export function SetupTab({ active }: { active: boolean }) {
                 label={catalog.groups.find((group) => !group.optional)?.label ?? ''}
                 count={listed.length}
               />
-              <ol className="step-list">{listed.map(row)}</ol>
+              <ol className="step-list">
+                {baseFold.shown.map(row)}
+                {baseFold.folded.length
+                  ? foldRow(
+                      'installed-base',
+                      baseFold.folded.map((item) => item.label),
+                      baseFold.folded.map(row),
+                    )
+                  : null}
+              </ol>
             </section>
           ) : null}
           {programs.length || panelled.length ? (
@@ -810,74 +927,15 @@ export function SetupTab({ active }: { active: boolean }) {
                 count={programs.length + panelled.length}
               />
               <ol className="step-list">
-                {programs.map((group) => {
-                  const step = stepFromGroup(
-                    catalog,
-                    group,
-                    report,
-                    lastByItem,
-                    listMode,
-                    openGroups,
-                  );
-                  // Its items in the run: unfolded, and the row's own node follows them.
-                  const runs = step.items
-                    .map((item) => inRun.get(item.id)?.status)
-                    .filter((status) => status !== undefined);
-                  const view = !runs.length
-                    ? step.view
-                    : runs.includes('failed')
-                      ? { ...step.view, node: 'failed' as const }
-                      : runs.some((status) => status === 'running' || status === 'pending')
-                        ? { ...step.view, node: 'running' as const, meta: '설치하는 중' }
-                        : step.view;
-                  const open = step.attention || unfolded.has(group.id) || runs.length > 0;
-                  return (
-                    <StepRow
-                      key={group.id}
-                      view={view}
-                      control={
-                        step.install.length ? (
-                          <button
-                            type="button"
-                            aria-label={`${group.label} 설치`}
-                            disabled={busy || checking || !!run}
-                            onClick={() => requestRun(step.install, listMode)}
-                          >
-                            설치
-                          </button>
-                        ) : undefined
-                      }
-                      actions={
-                        step.attention || runs.length ? undefined : (
-                          <button
-                            type="button"
-                            className="text-button"
-                            aria-expanded={open}
-                            onClick={() => {
-                              const next = new Set(unfolded);
-                              if (open) next.delete(group.id);
-                              else next.add(group.id);
-                              setUnfolded(next);
-                            }}
-                          >
-                            {open ? '접기' : '항목 보기'}
-                          </button>
-                        )
-                      }
-                    >
-                      {open ? (
-                        <ol className="step-list step-sublist">
-                          {groupItems(
-                            catalog,
-                            group.id,
-                            usingGroups(catalog, report, openGroups),
-                          ).map(row)}
-                        </ol>
-                      ) : null}
-                    </StepRow>
-                  );
-                })}
+                {programFold.shown.map(programRow)}
                 {panelled.map(row)}
+                {programFold.folded.length
+                  ? foldRow(
+                      'installed-programs',
+                      programFold.folded.map((group) => group.label),
+                      programFold.folded.map(programRow),
+                    )
+                  : null}
               </ol>
             </section>
           ) : null}
