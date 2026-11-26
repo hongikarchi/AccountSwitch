@@ -256,7 +256,7 @@ export async function startServer({
       }
       if (url.pathname === '/api/v1/launcher/paseo' && request.method === 'POST') {
         const input = z
-          .object({ provider, folder: z.string().max(4096), model: modelId })
+          .object({ provider, folder: z.string().max(4096), model: modelId.optional() })
           .strict()
           .parse(await body(request));
         send(200, await paseoLauncher.open(input.provider, input.folder, input.model));

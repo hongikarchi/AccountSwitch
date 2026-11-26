@@ -64,9 +64,12 @@ export function desktopEnvironment(source: NodeJS.ProcessEnv) {
   return env;
 }
 
-/** The JSON a Paseo command printed, from its first `{` or `[`; undefined when there is none. */
+/**
+ * The JSON a Paseo command printed, from the first line starting with `{` or `[`: lines before it,
+ * such as "Created workspace <id> - <folder name>", may hold brackets of a folder's name.
+ */
 export function paseoJson(stdout: string): unknown {
-  const start = stdout.search(/[[{]/);
+  const start = stdout.search(/^[[{]/m);
   if (start < 0) return undefined;
   try {
     return JSON.parse(stdout.slice(start));
@@ -76,7 +79,11 @@ export function paseoJson(stdout: string): unknown {
 }
 
 const modelList = z.array(z.object({ id: z.string(), model: z.string().optional() }).loose());
-const providerList = z.array(z.object({ provider: z.string(), status: z.string() }).loose());
+const providerList = z.array(
+  z
+    .object({ provider: z.string(), status: z.string(), defaultMode: z.string().optional() })
+    .loose(),
+);
 const workspaceList = z.array(
   z
     .object({
@@ -90,16 +97,23 @@ const workspaceList = z.array(
 const runAnswer = z.object({ agentId: z.string().min(1) }).loose();
 const statusAnswer = z.object({ serverId: z.string().min(1) }).loose();
 
+const modelSchema = z.object({ id: modelId, label: z.string() });
+/** `launcher.json`: the choice, and the last good lookup for while Paseo is closed. */
 const savedSchema = z.object({
   version: z.literal(1),
-  models: z.record(z.string(), z.string()).default({}),
+  models: z.record(z.string(), z.string()).catch({}).default({}),
+  lists: z.record(z.string(), z.array(modelSchema)).catch({}).default({}),
+  modes: z.record(z.string(), modelId).catch({}).default({}),
 });
+type Saved = z.infer<typeof savedSchema>;
 
-export interface Model {
-  id: string;
-  label: string;
-}
+export type Model = z.infer<typeof modelSchema>;
 export type Models = Record<Provider, { models: Model[]; chosen: string | null }>;
+
+interface Lookup {
+  lists: Partial<Record<Provider, Model[]>>;
+  modes: Partial<Record<Provider, string>>;
+}
 
 export interface PaseoLauncherOptions {
   /** `launcher.json` in the data folder. */
@@ -128,7 +142,7 @@ function startDetached(program: string, args: string[], env: NodeJS.ProcessEnv) 
 
 export class PaseoLauncher {
   private options: Required<PaseoLauncherOptions>;
-  private kept?: { until: number; lists: Record<Provider, Model[]> };
+  private keptUntil = 0;
 
   constructor(options: PaseoLauncherOptions) {
     this.options = {
@@ -165,50 +179,68 @@ export class PaseoLauncher {
     return paseoJson(result.stdout);
   }
 
-  private async lists(): Promise<Record<Provider, Model[]>> {
-    const empty = { 'claude-cli': [], 'codex-cli': [] } as Record<Provider, Model[]>;
-    if (this.kept && this.kept.until > this.options.now()) return this.kept.lists;
-    const cli = this.options.cli();
-    if (!cli) return empty;
+  private saved(): Saved {
+    try {
+      return savedSchema.parse(JSON.parse(readFileSync(this.options.file, 'utf8')));
+    } catch {
+      return { version: 1, models: {}, lists: {}, modes: {} };
+    }
+  }
+
+  private save(change: (saved: Saved) => Saved) {
+    const temporary = `${this.options.file}.${randomUUID()}.tmp`;
+    writeFileSync(temporary, JSON.stringify(change(this.saved())), { mode: 0o600 });
+    renameSync(temporary, this.options.file);
+  }
+
+  /** Ask Paseo for its models and modes; undefined when its daemon does not answer. */
+  private async lookup(cli: PaseoCli): Promise<Lookup | undefined> {
     const known = providerList.safeParse(await this.paseo(cli, ['provider', 'ls', '--json'])).data;
-    if (!known) return empty;
-    const lists = { ...empty };
-    let failed = false;
+    if (!known) return undefined;
+    const found: Lookup = { lists: {}, modes: {} };
     for (const service of providers) {
-      const name = paseoProvider[service];
-      if (!known.some((p) => p.provider === name && p.status === 'available')) continue;
-      const models = modelList.safeParse(
-        await this.paseo(cli, ['provider', 'models', name, '--json']),
-      ).data;
-      if (!models) {
-        failed = true;
+      const entry = known.find((p) => p.provider === paseoProvider[service]);
+      if (entry?.status !== 'available') {
+        found.lists[service] = [];
         continue;
       }
-      lists[service] = models
+      const mode = modelId.safeParse(entry.defaultMode).data;
+      if (mode) found.modes[service] = mode;
+      const models = modelList.safeParse(
+        await this.paseo(cli, ['provider', 'models', paseoProvider[service], '--json']),
+      ).data;
+      if (!models) return undefined;
+      found.lists[service] = models
         .filter((m) => modelId.safeParse(m.id).success)
         .map((m) => ({ id: m.id, label: m.model || m.id }));
     }
-    // A failed lookup is asked again next time.
-    if (!failed) this.kept = { until: this.options.now() + MODELS_KEPT_MS, lists };
-    return lists;
+    return found;
   }
 
-  private saved(): Record<string, string> {
-    try {
-      return savedSchema.parse(JSON.parse(readFileSync(this.options.file, 'utf8'))).models;
-    } catch {
-      return {};
-    }
+  /** Refresh the saved lookup when it is older than 10 minutes and Paseo answers. */
+  private async refresh() {
+    if (this.keptUntil > this.options.now()) return;
+    const cli = this.options.cli();
+    const found = cli && (await this.lookup(cli));
+    // A failed lookup is asked again next time; the saved one stands in meanwhile.
+    if (!found) return;
+    this.keptUntil = this.options.now() + MODELS_KEPT_MS;
+    this.save((saved) => ({
+      ...saved,
+      lists: { ...saved.lists, ...found.lists },
+      modes: { ...saved.modes, ...found.modes },
+    }));
   }
 
-  /** Paseo's models per service, with the one to show selected. */
+  /** The models per service, live or the last saved, with the one to show selected. */
   async models(): Promise<Models> {
-    const lists = await this.lists();
+    if (this.available()) await this.refresh();
     const saved = this.saved();
     const result = {} as Models;
     for (const service of providers) {
-      const models = lists[service];
-      const chosen = models.find((m) => m.id === saved[service])?.id ?? models[0]?.id ?? null;
+      const models = saved.lists[service] ?? [];
+      const chosen =
+        models.find((m) => m.id === saved.models[service])?.id ?? models[0]?.id ?? null;
       result[service] = { models, chosen };
     }
     return result;
@@ -216,10 +248,8 @@ export class PaseoLauncher {
 
   /** Remember the model chosen for a service. */
   choose(service: Provider, model: string) {
-    const value = { version: 1, models: { ...this.saved(), [service]: modelId.parse(model) } };
-    const temporary = `${this.options.file}.${randomUUID()}.tmp`;
-    writeFileSync(temporary, JSON.stringify(value), { mode: 0o600 });
-    renameSync(temporary, this.options.file);
+    const id = modelId.parse(model);
+    this.save((saved) => ({ ...saved, models: { ...saved.models, [service]: id } }));
   }
 
   /** The daemon's server id; starts the desktop app and waits when the daemon does not answer. */
@@ -228,8 +258,7 @@ export class PaseoLauncher {
       statusAnswer.safeParse(await this.paseo(cli, ['status', '--json'])).data?.serverId;
     let id = await ask();
     if (id) return id;
-    const program = cli([]).program;
-    this.options.startDesktop(program, [], desktopEnvironment(this.options.env));
+    this.options.startDesktop(cli([]).program, [], desktopEnvironment(this.options.env));
     const until = this.options.now() + DAEMON_WAIT_MS;
     while (!id && this.options.now() < until) {
       await this.options.sleep(1000);
@@ -246,28 +275,29 @@ export class PaseoLauncher {
     return list?.find((w) => w.isolation === 'local' && !w.background && same(w.cwd))?.workspaceId;
   }
 
-  /** Make the coordinator agent in the folder and show it in the Paseo window. */
-  async open(service: Provider, folder: string, model: string) {
+  /**
+   * Make the coordinator agent in the folder and show it in the Paseo window. Without a model,
+   * Paseo uses its default (no list yet on this PC).
+   */
+  async open(service: Provider, folder: string, model?: string) {
     if (this.options.platform !== 'win32') throw new DomainError('UNSUPPORTED_PLATFORM');
     const problem = folderProblem(folder);
     if (problem) throw new DomainError(problem);
-    const id = modelId.parse(model);
+    const id = model === undefined ? undefined : modelId.parse(model);
     const cli = this.options.cli();
     if (!cli) throw new DomainError('PASEO_UNAVAILABLE');
     const directory = resolve(folder);
     const server = await this.serverId(cli);
+    // The daemon answers now: a first lookup on this PC gives the mode to start in.
+    await this.refresh();
+    const mode = this.saved().modes[service];
     const workspace = await this.workspace(cli, directory);
+    const name = paseoProvider[service];
     const args = ['run', '--cwd', directory];
     if (workspace) args.push('--workspace', workspace);
-    args.push(
-      '--provider',
-      `${paseoProvider[service]}/${id}`,
-      '--title',
-      agentTitle(directory),
-      '--no-wait',
-      '--json',
-      FIRST_MESSAGE,
-    );
+    args.push('--provider', id ? `${name}/${id}` : name);
+    if (mode) args.push('--mode', mode);
+    args.push('--title', agentTitle(directory), '--no-wait', '--json', FIRST_MESSAGE);
     const agent = runAnswer.safeParse(await this.paseo(cli, args)).data?.agentId;
     if (!agent) throw new DomainError('PASEO_FAILED');
     this.options.startDesktop(

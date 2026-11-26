@@ -4,6 +4,7 @@ import {
   failureMessage,
   modelsSchema,
   paseoModel,
+  viaPaseo,
   shellReplySchema,
   statusSchema,
   typedFolder,
@@ -105,4 +106,12 @@ test('a button opens Paseo only when Paseo is there and lists the chosen model (
   assert.equal(paseoModel({ ...status, paseo: true }, undefined, 'claude-cli'), undefined);
   const stale = { ...models, 'claude-cli': { ...models['claude-cli'], chosen: 'gone' } };
   assert.equal(paseoModel({ ...status, paseo: true }, stale, 'claude-cli'), undefined);
+});
+
+test('with Paseo found, both buttons go to Paseo even before a model list (SPEC 4.1)', () => {
+  const status = { platform: 'win32', installed: { 'claude-cli': true, 'codex-cli': true } };
+  assert.equal(viaPaseo({ ...status, paseo: true }), true);
+  assert.equal(viaPaseo({ ...status, paseo: false }), false);
+  assert.equal(viaPaseo(status), false);
+  assert.equal(viaPaseo(undefined), false);
 });

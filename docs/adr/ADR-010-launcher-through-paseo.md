@@ -13,7 +13,8 @@ The user wants one install of AccountSwitch to leave a PC ready to work the Pase
 - **The Paseo window is opened with its deep link** `paseo://h/<serverId>/agent/<agentId>` passed to `Paseo.exe`, the way Paseo's own `open` command does. `paseo agent open` itself only looks under `%LOCALAPPDATA%` on Windows and failed here. No `paseo:` URL handler is registered on Windows, so the link cannot go through the shell's "open URL".
 - **An existing local workspace for the folder is reused.** `paseo run --cwd` alone made a new workspace on every press.
 - **One first message, and the agent decides.** The engine does not try to tell whether a folder is already set up the Paseo way; the `paseo-workflow` skill knows how, and the message asks the agent to use it only when needed.
-- **Fallback is per button.** A service opens through Paseo only when Paseo lists models for it; otherwise its button keeps the terminal, so a PC without Paseo, or without one of the two services in Paseo, still works.
+- **Paseo whenever it is installed; the terminal only without it** (user, 2026-11-26). The model list needs Paseo's daemon, which runs only with the Paseo app, so the last good list is saved and a press with Paseo closed still goes to Paseo, which the engine then starts. Gating on a live list would have sent every press after a reboot to the terminal.
+- **The agent starts in the provider's default mode** (`--mode` from `provider ls`), as in the Paseo app. `paseo run` alone starts in `default`, which would ask before every git command of the setup.
 
 ## Consequences
 

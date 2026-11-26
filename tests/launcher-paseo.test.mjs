@@ -47,8 +47,8 @@ function fakePaseo(answers) {
 }
 
 const PROVIDERS = JSON.stringify([
-  { provider: 'claude', status: 'available' },
-  { provider: 'codex', status: 'unavailable' },
+  { provider: 'claude', status: 'available', defaultMode: 'auto' },
+  { provider: 'codex', status: 'unavailable', defaultMode: 'auto-review' },
 ]);
 const CLAUDE_MODELS = JSON.stringify([
   { model: 'Opus 5.5', id: 'claude-opus-5-5' },
@@ -85,6 +85,10 @@ test('answers are read from their first JSON, past the lines Paseo prints before
     agentId: 'a',
   });
   assert.deepEqual(paseoJson('[1]'), [1]);
+  // A folder name with brackets on the line before is not where the answer starts.
+  assert.deepEqual(paseoJson('Created workspace w - [최종] {x}\n{"agentId":"a"}'), {
+    agentId: 'a',
+  });
   assert.equal(paseoJson('no json'), undefined);
   assert.equal(paseoJson('{broken'), undefined);
 });
@@ -121,6 +125,8 @@ test('models: from Paseo, only available services, kept a while, choice saved', 
   assert.deepEqual(JSON.parse(readFileSync(file, 'utf8')), {
     version: 1,
     models: { 'claude-cli': 'claude-haiku-5-5' },
+    lists: { 'claude-cli': first['claude-cli'].models, 'codex-cli': [] },
+    modes: { 'claude-cli': 'auto' },
   });
   assert.equal((await launcher.models())['claude-cli'].chosen, 'claude-haiku-5-5');
   assert.equal(paseo.calls.length, 2, 'kept for 10 minutes');
@@ -131,8 +137,28 @@ test('models: from Paseo, only available services, kept a while, choice saved', 
   assert.equal(paseo.calls.length, 4);
 
   // A saved model Paseo no longer lists falls back to the first.
-  writeFileSync(file, JSON.stringify({ version: 1, models: { 'claude-cli': 'gone' } }));
+  const saved = JSON.parse(readFileSync(file, 'utf8'));
+  writeFileSync(file, JSON.stringify({ ...saved, models: { 'claude-cli': 'gone' } }));
   assert.equal((await launcher.models())['claude-cli'].chosen, 'claude-opus-5-5');
+});
+
+test('models: the last good list stands in while Paseo is closed', async (t) => {
+  const root = scratch(t);
+  const file = join(root, 'launcher.json');
+  let up = true;
+  let now = 0;
+  const paseo = fakePaseo({
+    'provider ls': () => (up ? PROVIDERS : '{"error":{"code":"DAEMON_UNREACHABLE"}}'),
+    'provider models': CLAUDE_MODELS,
+  });
+  const make = () =>
+    new PaseoLauncher({ file, run: paseo.run, cli: () => fakeCli, now: () => now });
+  const live = await make().models();
+  up = false;
+  now = 60 * 60_000;
+  // A new engine, after a reboot with Paseo not started yet.
+  assert.deepEqual(await make().models(), live);
+  assert.equal(live['claude-cli'].models.length, 2);
 });
 
 test('models: none without Paseo, and a failed lookup is asked again', async (t) => {
@@ -166,6 +192,8 @@ test('open: makes the agent in the folder and shows it in Paseo', windowsOnly, a
       { workspaceId: 'w-hidden', isolation: 'local', cwd: folder, background: true },
       { workspaceId: 'w-other', isolation: 'local', cwd: root, background: false },
     ]),
+    'provider ls': PROVIDERS,
+    'provider models': CLAUDE_MODELS,
     run: 'Created workspace w\n{"agentId":"agent-1","status":"running"}',
   });
   const launcher = new PaseoLauncher({
@@ -192,6 +220,8 @@ test('open: makes the agent in the folder and shows it in Paseo', windowsOnly, a
     folder,
     '--provider',
     'claude/claude-opus-5-5',
+    '--mode',
+    'auto',
     '--title',
     agentTitle(folder),
     '--no-wait',
@@ -325,3 +355,31 @@ test('open: no agent in the answer is a failure, and nothing is shown', windowsO
     code: 'PASEO_FAILED',
   });
 });
+
+test(
+  'open: with no list yet, Paseo picks the model; Paseo is started first',
+  windowsOnly,
+  async (t) => {
+    const root = scratch(t);
+    let up = false;
+    const started = [];
+    const paseo = fakePaseo({
+      status: () => (up ? '{"serverId":"srv_C"}' : '{"error":{"code":"DAEMON_UNREACHABLE"}}'),
+      'provider ls': () => (up ? PROVIDERS : ''),
+      'provider models': CLAUDE_MODELS,
+      'workspace ls': '[]',
+      run: '{"agentId":"agent-4"}',
+    });
+    const launcher = new PaseoLauncher({
+      file: join(root, 'launcher.json'),
+      run: paseo.run,
+      cli: () => fakeCli,
+      sleep: async () => void (up = true),
+      startDesktop: (program, args) => started.push(args),
+    });
+    await launcher.open('claude-cli', root);
+    const run = paseo.calls.find((c) => c.args[0] === 'run');
+    assert.deepEqual(run.args.slice(3, 7), ['--provider', 'claude', '--mode', 'auto']);
+    assert.deepEqual(started, [[], ['paseo://h/srv_C/agent/agent-4']]);
+  },
+);

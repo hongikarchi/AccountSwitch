@@ -23,13 +23,17 @@ export const modelsSchema = z.record(
 );
 export type Models = z.infer<typeof modelsSchema>;
 
-/** The model a button opens Paseo with, or undefined when it opens the terminal (SPEC 4.1). */
+/** Paseo whenever it is found; the terminal only without it (SPEC 4.1). */
+export const viaPaseo = (status: z.infer<typeof statusSchema> | undefined) =>
+  status?.paseo === true;
+
+/** The model a button opens Paseo with; undefined: Paseo's default, or no Paseo (SPEC 4.1). */
 export function paseoModel(
   status: z.infer<typeof statusSchema> | undefined,
   models: Models | undefined,
   service: Provider,
 ) {
-  if (!status?.paseo) return undefined;
+  if (!viaPaseo(status)) return undefined;
   const list = models?.[service];
   if (!list?.chosen || !list.models.some((m) => m.id === list.chosen)) return undefined;
   return list.chosen;

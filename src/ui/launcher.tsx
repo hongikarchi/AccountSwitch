@@ -8,6 +8,7 @@ import {
   modelsSchema,
   paseoModel,
   shellReplySchema,
+  viaPaseo,
   type Models,
   statusSchema,
   typedFolder,
@@ -54,7 +55,7 @@ export function useLauncher() {
   const [failure, setFailure] = useState<string>();
   const [models, setModels] = useState<Models>();
   const [opening, setOpening] = useState<Partial<Record<Provider, boolean>>>({});
-  const paseo = status?.paseo === true;
+  const paseo = viaPaseo(status);
 
   const recheck = useCallback(() => {
     void api('/launcher')
@@ -103,13 +104,13 @@ export function useLauncher() {
     void api('/launcher/models', 'PUT', { provider, model }).catch(() => undefined);
   }, []);
 
-  /** The engine opens the folder: in Paseo when a model is chosen, else a terminal. */
+  /** The engine opens the folder: in Paseo when Paseo is there, else a terminal. */
   const openInEngine = useCallback(
     async (provider: Provider, folder: string) => {
       const model = modelFor(provider);
       setOpening((now) => ({ ...now, [provider]: true }));
       try {
-        if (model) await api('/launcher/paseo', 'POST', { provider, folder, model });
+        if (paseo) await api('/launcher/paseo', 'POST', { provider, folder, model });
         else await api('/launcher/open', 'POST', { provider, folder });
         return undefined;
       } catch (error) {
@@ -120,7 +121,7 @@ export function useLauncher() {
         setOpening((now) => ({ ...now, [provider]: false }));
       }
     },
-    [recheck, modelFor],
+    [recheck, modelFor, paseo],
   );
 
   useEffect(() => {
@@ -145,11 +146,11 @@ export function useLauncher() {
     (provider: Provider) => {
       setFailure(undefined);
       shell?.postMessage({
-        type: modelFor(provider) ? 'launcher.pick' : 'launcher.open',
+        type: paseo ? 'launcher.pick' : 'launcher.open',
         provider,
       });
     },
-    [modelFor],
+    [paseo],
   );
 
   const dismiss = useCallback(() => setFailure(undefined), []);
