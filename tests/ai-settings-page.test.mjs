@@ -92,7 +92,7 @@ const row = (id, action, extra = {}) => ({
 test('the AI group is no program card, and its group is known by its item', () => {
   assert.deepEqual(
     cardGroups(windows).map((group) => group.label),
-    ['Claude Code', 'GPT', 'Rhino', 'Blender'],
+    ['Claude Code', 'GPT', 'Paseo', 'Rhino', 'Blender'],
   );
   assert.equal(isPanelGroup(windows, panelItem.group), true);
   assert.equal(isPanelGroup(windows, 'rhino'), false);

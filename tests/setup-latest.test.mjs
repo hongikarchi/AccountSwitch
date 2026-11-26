@@ -51,6 +51,12 @@ test('Git and GitHub CLI: the asset by name, with the digest GitHub publishes', 
   assert.match(gh.sha256, /^[0-9a-f]{64}$/);
 });
 
+test('Paseo: the x64 installer by name, not the one for every architecture', async () => {
+  const paseo = await findLatest('paseo', reader());
+  assert.deepEqual([paseo.version, paseo.url], [LATEST.paseo, LATEST_URLS.paseo]);
+  assert.notEqual(paseo.sha256, '0'.repeat(64));
+});
+
 test('anything not of the expected shape is LATEST_UNKNOWN, never a guess', async () => {
   const index = 'https://nodejs.org/dist/index.json';
   const sums = `https://nodejs.org/dist/v${LATEST.node}/SHASUMS256.txt`;

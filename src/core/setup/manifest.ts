@@ -44,6 +44,18 @@ const PY_FOLDERS = [
 ];
 const GIT_FOLDERS = [`${PROGRAM_FILES}\\Git\\cmd`, '%LOCALAPPDATA%\\Programs\\Git\\cmd'];
 const GH_FOLDERS = [`${PROGRAM_FILES}\\GitHub CLI`, '%LOCALAPPDATA%\\Programs\\GitHub CLI'];
+/**
+ * Where Paseo installs: for the current user (what the wizard installs), or for every user. Paseo's
+ * CLI runs from the same folders (SPEC 3.11).
+ */
+export const PASEO_FOLDERS = ['%LOCALAPPDATA%\\Programs\\Paseo', `${PROGRAM_FILES}\\Paseo`];
+const PASEO_EXE = PASEO_FOLDERS.map((folder) => `${folder}\\Paseo.exe`);
+/** Paseo on Windows keeps the PATH it started with (SPEC 3.3). */
+const PASEO_RESTART = {
+  image: 'Paseo.exe',
+  message:
+    'Paseo가 켜져 있어요. Paseo가 새로 설치한 프로그램을 찾으려면 Paseo를 완전히 끄고 다시 켜야 해요. PC를 다시 시작하면 가장 확실해요.',
+};
 const RHINO_PACKAGES = '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0';
 const RHINOMCP_ROOT = `${RHINO_PACKAGES}\\rhinomcp`;
 /**
@@ -180,6 +192,13 @@ const groups: SetupGroup[] = [
     description: '터미널에서 ChatGPT 계정으로 작업하는 프로그램이에요.',
     optional: true,
     cli: true,
+  },
+  {
+    id: 'paseo',
+    label: 'Paseo',
+    description: 'Claude Code와 GPT를 한 화면에서 여러 개 띄워 쓰는 프로그램이에요.',
+    optional: true,
+    defaultPicked: true,
   },
   {
     id: 'rhino',
@@ -405,6 +424,7 @@ const items: SetupItem[] = [
       summary: '공식 설치 스크립트로 설치해요.',
       automatic: true,
       pathFolders: onPath('claude', [LOCAL_BIN]),
+      noteIfRunning: PASEO_RESTART,
       steps: [
         // Only after an update stopped midway (SPEC 3.10); otherwise the script runs at once.
         { kind: 'claude-restore' },
@@ -426,9 +446,50 @@ const items: SetupItem[] = [
       summary: 'npm으로 설치해요. Node.js가 먼저 필요해요.',
       automatic: true,
       pathFolders: onPath('codex', ['%APPDATA%\\npm']),
+      noteIfRunning: PASEO_RESTART,
       steps: [{ kind: 'npm-global', package: '@openai/codex' }],
     },
     pinnedVersion: 'latest',
+    mayElevate: false,
+  },
+  {
+    id: 'paseo',
+    label: 'Paseo',
+    description: 'Claude Code와 GPT 대화를 한 화면에서 여러 개 열어 두고 쓰게 해 줘요.',
+    group: 'paseo',
+    dependsOn: [],
+    check: { kind: 'file', path: PASEO_EXE[0], orPaths: PASEO_EXE.slice(1) },
+    install: {
+      summary: 'winget으로 내 계정에만 설치하고, 안 되면 공식 설치 파일을 받아요.',
+      automatic: true,
+      steps: [
+        winget('Paseo.Paseo', '--scope', 'user'),
+        {
+          kind: 'download-latest',
+          source: 'paseo',
+          program: FILE,
+          // The scope its winget manifest calls `user` (SPEC 3.3).
+          args: ['/S', '/currentuser'],
+          declinedExitCodes: [],
+        },
+      ],
+    },
+    pinnedVersion: 'latest',
+    mayElevate: false,
+  },
+  {
+    id: 'paseo-settings',
+    label: 'Paseo 창을 닫아도 계속 실행',
+    description: 'Paseo 창을 닫아도 에이전트가 멈추지 않고 하던 일을 계속해요.',
+    group: 'paseo',
+    dependsOn: ['paseo'],
+    check: { kind: 'paseo-settings', file: '%APPDATA%\\Paseo\\desktop-settings.json' },
+    install: {
+      summary: 'Paseo가 꺼져 있을 때 그 설정 하나만 켜요. 먼저 백업해요.',
+      automatic: true,
+      steps: [{ kind: 'paseo-settings' }],
+    },
+    pinnedVersion: null,
     mayElevate: false,
   },
   {

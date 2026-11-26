@@ -2,6 +2,7 @@ import { join, posix, win32 } from 'node:path';
 import type { CheckDeps } from './checks.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, getEnv } from './environment.ts';
+import { PASEO_FOLDERS } from './manifest.ts';
 import {
   DEFAULT_PREFS,
   parsePrefs,
@@ -20,7 +21,7 @@ const PASEO_TIMEOUT_MS = 30_000;
 export function paseoCli(deps: Pick<CheckDeps, 'platform' | 'env' | 'home' | 'exists'>) {
   if (deps.platform === 'win32') {
     // `paseo.cmd` only runs Paseo.exe as Node; a .cmd cannot take JSON arguments safely.
-    for (const template of ['%ProgramFiles%\\Paseo', '%LOCALAPPDATA%\\Programs\\Paseo']) {
+    for (const template of PASEO_FOLDERS) {
       const folder = expandPath(template, deps.env, deps.home);
       const program = win32.join(folder, 'Paseo.exe');
       const resources = win32.join(folder, 'resources');

@@ -51,11 +51,15 @@ test('the lookups of the latest installers, and what they lead to, pass; nothing
     'https://api.github.com/repos/cli/cli/releases/latest',
     'https://github.com/git-for-windows/git/releases/download/v2.56.1.windows.1/Git-2.56.1-64-bit.exe',
     'https://github.com/cli/cli/releases/download/v2.105.0/gh_2.105.0_windows_amd64.msi',
+    'https://api.github.com/repos/getpaseo/paseo/releases/latest',
+    'https://github.com/getpaseo/paseo/releases/download/v0.17.4/Paseo-Setup-0.17.4-x64.exe',
   ])
     assert.equal(isAllowedDownload(url), true, url);
   for (const url of [
     'https://api.github.com/repos/git-for-windows/git/releases',
     'https://api.github.com/repos/someone/else/releases/latest',
+    'https://api.github.com/repos/getpaseo/paseo/releases',
+    'https://github.com/getpaseo/paseo/archive/main.zip',
     'https://api.github.com/user',
     'https://github.com/someone/else/releases/download/v1/x.exe',
   ])

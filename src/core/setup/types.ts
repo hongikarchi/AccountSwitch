@@ -1,7 +1,7 @@
 // The shapes of the setup catalog and of /api/v1/setup. Types only and no Node imports, so the page
 // can `import type` from here. Everything in the catalog is plain data that survives JSON.
 
-export type SetupGroupId = 'base' | 'claude' | 'codex' | 'rhino' | 'blender' | 'ai';
+export type SetupGroupId = 'base' | 'claude' | 'codex' | 'paseo' | 'rhino' | 'blender' | 'ai';
 
 /** Where an item applies; without `platforms`, Windows only (SPEC 1, 3.11). */
 export type SetupPlatform = 'win32' | 'darwin';
@@ -51,6 +51,8 @@ export interface SetupGroup {
   optional: boolean;
   /** A terminal program: auto mode needs one of these ticked (SPEC 3.2). */
   cli?: boolean;
+  /** Its card starts ticked on the program screen (SPEC 3.2, Paseo). */
+  defaultPicked?: boolean;
 }
 
 /** One version command. `versionPattern` is a regular expression whose first group is the version. */
@@ -98,7 +100,8 @@ export type CheckSpec =
       python: string;
       packages: string[];
     }
-  | { kind: 'file'; path: string }
+  /** Installed when `path`, or one of `orPaths`, exists. */
+  | { kind: 'file'; path: string; orPaths?: string[] }
   /**
    * `<root>\<version>[\<marker>]` must exist; another version folder means 버전 다름. Without a
    * `version`, the newest version folder counts (holding `marker`, if given) and is the found version.
@@ -143,6 +146,8 @@ export type CheckSpec =
   | { kind: 'launcher'; file: string }
   /** Every row of the AI work settings plan is 같음 or 건너뜀 (SPEC 3.11). */
   | { kind: 'ai-settings' }
+  /** `settings.daemon.keepRunningAfterQuit` is true in Paseo's desktop settings (SPEC 3.3). */
+  | { kind: 'paseo-settings'; file: string }
   /** The parts of SPEC 3.8 the wizard sets: 1, 2 and 4. */
   | {
       kind: 'rhino-settings';
@@ -234,11 +239,13 @@ export type InstallStep =
   /** Apply the AI work settings with the saved prefix, mode and kept rows (SPEC 3.11). */
   | { kind: 'ai-settings' }
   | { kind: 'rhino-settings' }
+  /** Turn on `keepRunningAfterQuit` in the check's file, only while Paseo is closed (SPEC 3.3). */
+  | { kind: 'paseo-settings' }
   /** Nothing to run: tell the user what to do. */
   | { kind: 'manual'; message: string; url?: string };
 
 /** Whose newest installer `download-latest` looks up (SPEC 3.3). */
-export type LatestSource = 'node-lts' | 'git-for-windows' | 'gh';
+export type LatestSource = 'node-lts' | 'git-for-windows' | 'gh' | 'paseo';
 
 export interface InstallSpec {
   /** One Korean line on how this gets installed. */
@@ -254,6 +261,11 @@ export interface InstallSpec {
    * user PATH (SPEC 3.5 step 4). `folder` may hold %NAME% variables and stays that way in the registry.
    */
   pathFolders?: { folder: string; program: string }[];
+  /**
+   * Said along with `done` after a step ran, while this program runs: it keeps the PATH it started
+   * with and has to start again to find this one (SPEC 3.3, Paseo).
+   */
+  noteIfRunning?: { image: string; message: string };
 }
 
 export interface SetupItem {

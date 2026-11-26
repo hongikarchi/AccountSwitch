@@ -10,6 +10,7 @@ import { installBlenderAddon, writeBlenderStartup } from './install-blender.ts';
 import { cleanUp, StepStop, type InstallDeps } from './install-deps.ts';
 import { downloadsFolder, fetchBytes, saveDownload } from './install-download.ts';
 import { describeCommand, type SetupLog } from './install-log.ts';
+import { applyPaseoSettings } from './install-paseo.ts';
 import { applyRhinoSettings } from './install-rhino.ts';
 import { applyEnvironment } from './install-windows.ts';
 import { findLatest } from './install-latest.ts';
@@ -635,6 +636,8 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
       return { ran: true };
     case 'rhino-settings':
       return applyRhinoSettings(context);
+    case 'paseo-settings':
+      return applyPaseoSettings(context);
     case 'manual':
       throw new StepStop('needs-user', 'MANUAL', step.message);
   }
