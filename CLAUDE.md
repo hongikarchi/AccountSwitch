@@ -41,7 +41,7 @@ This project uses the branch prefix `accountswitch_` instead of the global one (
 - The coordinator tab works in the main checkout, which stays on `accountswitch_develop`. It talks with the user, writes issues, and merges. It changes no code there, and never stashes, resets, or switches branches there; it updates only with a fast-forward pull when clean.
 - Each task gets its own Paseo workspace on a new worktree, branched off `origin/accountswitch_develop`, on a branch `accountswitch_<task>`, with its own agent. Its PR targets `accountswitch_develop`.
 - An agent that is already in a worktree works in place and opens its PR from it. It does not make another worktree and does not touch the main checkout.
-- `paseo.json` holds the worktree install command. `.worktreeinclude` lists gitignored local files to copy into new worktrees; copy them by hand as well, since it has not been reliable.
+- `paseo.json` holds the worktree install command. `.worktreeinclude` lists gitignored local files to copy into new worktrees; Paseo's built-in `worktree-include` plugin copies them when Paseo's plugin switch (`pluginsEnabled`) is on (#44).
 - Backup folder for outputs git does not keep: `%USERPROFILE%\Desktop\AccountSwitch-backup`. After a task's PR is merged, copy the worktree's untracked and ignored files (except `node_modules`, `dist`, `release`, `.build`, and other rebuildable folders) to `<backup folder>\<task branch>\<YYYY-MM-DD>\`, check the sizes, and only then archive the workspace.
 
 ## Environment
