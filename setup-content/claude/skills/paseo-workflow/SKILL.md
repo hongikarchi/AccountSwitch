@@ -14,6 +14,7 @@ Requires the Paseo MCP tools (`mcp__paseo__*`). If they are missing, say so and 
 - **Prefix.** Read the project's CLAUDE.md first. If it names a branch prefix or an integration branch, use those. Otherwise the prefix is `{{branchPrefix}}` and the integration branch is `{{branchPrefix}}_develop`. Below, `<prefix>` means the one in use.
 - **One name per task.** The workspace title, the branch, and the worktree slug are all `<prefix>_<task>`, with `<task>` a short name in lowercase letters, digits, and hyphens. Put the issue number in the agent's title and brief, not in the workspace title.
 - **The folder is the one exception.** Paseo allows only lowercase letters, digits, `-`, and `/` in a worktree slug, so it turns `_` into `-`: branch `<prefix>_<task>` lives in folder `<prefix>-<task>`. Nothing in this workflow depends on the folder name; say so if the user asks. Do not install a plugin to change it.
+- **Workspaces made with Paseo's button** start with a random name. The agent in one renames its branch and the workspace title to `<prefix>_<task>` once it knows the task (global CLAUDE.md, Branches). Paseo follows a renamed branch: the workspace keeps its base branch, so the Changes panel still works.
 
 ## 1. Set up a project (once per repo)
 
