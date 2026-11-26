@@ -18,6 +18,10 @@ const ALLOWED: Record<string, (path: string) => boolean> = {
   'nodejs.org': (path) => path.startsWith('/dist/'),
   'www.python.org': (path) => path.startsWith('/ftp/python/'),
   'github.com': (path) => /^\/(git-for-windows\/git|cli\/cli|astral-sh\/uv)\/releases\//.test(path),
+  // The two release lookups of the latest installers (SPEC 3.3), nothing else of the API.
+  'api.github.com': (path) =>
+    path === '/repos/git-for-windows/git/releases/latest' ||
+    path === '/repos/cli/cli/releases/latest',
   'release-assets.githubusercontent.com': anyPath,
   'download.blender.org': (path) => path.startsWith('/release/'),
   'claude.ai': (path) => path === '/install.ps1',

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join, win32 } from 'node:path';
 import { codexEnvironment, subscriptionEnvironment } from '../cli.ts';
-import { newestVersionFolder, rawUserMcpServer } from './checks.ts';
+import { rawUserMcpServer } from './checks.ts';
 import { stuckClaudeUpdate } from './claude-update.ts';
 import type { CommandRequest, CommandResult } from './commands.ts';
 import { expandPath, findProgram, powershellPath } from './environment.ts';
@@ -11,7 +11,9 @@ import { downloadsFolder, fetchBytes, saveDownload } from './install-download.ts
 import { describeCommand, type SetupLog } from './install-log.ts';
 import { applyRhinoSettings } from './install-rhino.ts';
 import { applyEnvironment } from './install-windows.ts';
-import type { CheckResult, InstallStep, PluginPair, SetupItem } from './types.ts';
+import { findLatest } from './install-latest.ts';
+import { rhinomcpLauncher } from './rhinomcp-launcher.ts';
+import type { CheckResult, InstallStep, SetupItem } from './types.ts';
 
 // One install step of the manifest. Commands go through the runner, with no shell, and a program by
 // its full path whenever it can be known.
@@ -355,10 +357,23 @@ async function verifyInstaller(context: StepContext, file: string, sha256: strin
   if (context.cancelSignal.aborted) throw new StepStop('failed', 'CANCELLED', CANCELLED_MESSAGE);
 }
 
-async function runInstaller(
+type Installer = Omit<Extract<InstallStep, { kind: 'download-installer' }>, 'kind'>;
+
+/** SPEC 3.3, latest installers: look up the newest release, then install it as a pinned one. */
+async function runLatestInstaller(
   context: StepContext,
-  step: Extract<InstallStep, { kind: 'download-installer' }>,
+  step: Extract<InstallStep, { kind: 'download-latest' }>,
 ) {
+  const { fetch: fetcher } = context.deps;
+  const latest = await findLatest(step.source, (url) =>
+    fetchBytes(url, { fetcher, cancel: context.cancelSignal, timeoutMs: context.remainingMs() }),
+  );
+  context.log.line(`${context.item.id}: 최신 ${latest.version} (${latest.url})`);
+  const { source: _source, ...rest } = step;
+  return runInstaller(context, { ...rest, url: latest.url, sha256: latest.sha256 });
+}
+
+async function runInstaller(context: StepContext, step: Installer) {
   const { fetch: fetcher, files, directory } = context.deps;
   const file = await saveDownload(step.url, directory, files, {
     fetcher,
@@ -443,15 +458,20 @@ async function runYak(context: StepContext, step: Extract<InstallStep, { kind: '
   return judge(await context.exec({ program, args: ['install', step.package, ...version] }));
 }
 
-const PLUGIN_MISSING = 'Rhino 플러그인을 찾지 못했어요. 플러그인을 먼저 설치해 주세요.';
+const LAUNCHER_MISSING = 'rhinomcp 실행기 파일이 없어요. 먼저 설치해 주세요.';
 
-/** The step's arguments, the paired package given the version of the plugin on disk (SPEC 3.3). */
-function pairedArgs(context: StepContext, step: { args: string[]; pairWith?: PluginPair }) {
-  const pair = step.pairWith;
-  if (!pair) return step.args;
-  const version = newestVersionFolder(context.deps.check.listFolders, context.path(pair.root));
-  if (!version) throw new StepStop('failed', 'PLUGIN_MISSING', PLUGIN_MISSING);
-  return step.args.map((arg) => (arg === pair.package ? `${pair.package}@${version}` : arg));
+/**
+ * The step's arguments with `%NAME%` paths filled in. A registration that runs a launcher needs the
+ * launcher there first: it would otherwise point at nothing (SPEC 3.3).
+ */
+function registeredArgs(context: StepContext, step: { args: string[] }) {
+  const { item } = context;
+  if (item.check.kind === 'mcp' && item.check.launcher) {
+    const launcher = context.path(item.check.launcher);
+    if (!context.deps.check.exists(launcher))
+      throw new StepStop('failed', 'LAUNCHER_MISSING', LAUNCHER_MISSING);
+  }
+  return step.args.map((arg) => (arg.includes('%') ? context.path(arg) : arg));
 }
 
 const CLAUDE_MISSING = 'Claude Code를 찾지 못했어요. 먼저 설치해 주세요.';
@@ -505,7 +525,7 @@ async function runClaudeMcp(
     const claude = check.executable('claude-cli');
     if (!claude) throw new StepStop('failed', 'CLAUDE_MISSING', CLAUDE_MISSING);
     // Before anything is removed, so a missing plugin leaves the old entry alone.
-    const args = pairedArgs(context, step);
+    const args = registeredArgs(context, step);
     const failure = { reason: 'MCP_FAILED', message: MCP_FAILED };
     const request = (args: string[]) => ({ program: claude, args, cwd: check.home });
     let previous: { name: string; entry: object } | undefined;
@@ -567,7 +587,7 @@ async function runCodexMcp(
   const codex = check.executable('codex-cli');
   if (!codex) throw new StepStop('failed', 'CODEX_MISSING', CODEX_MISSING);
   const result = await context.exec(
-    { program: codex, args: pairedArgs(context, step), cwd: check.home },
+    { program: codex, args: registeredArgs(context, step), cwd: check.home },
     { quiet: true },
   );
   return judge(result, [], { reason: 'MCP_FAILED', message: CODEX_MCP_FAILED });
@@ -588,6 +608,8 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
       return runClaudeRestore(context);
     case 'download-installer':
       return runInstaller(context, step);
+    case 'download-latest':
+      return runLatestInstaller(context, step);
     case 'npm-global':
       return runNpm(context, step);
     case 'pip':
@@ -604,6 +626,10 @@ export async function executeStep(context: StepContext, step: InstallStep): Prom
       return installBlenderAddon(context, step);
     case 'blender-startup':
       return writeBlenderStartup(context, step);
+    case 'launcher':
+      context.deps.files.write(context.path(step.file), rhinomcpLauncher());
+      context.log.line('rhinomcp 실행기를 넣었어요.');
+      return { ran: true };
     case 'rhino-settings':
       return applyRhinoSettings(context);
     case 'manual':

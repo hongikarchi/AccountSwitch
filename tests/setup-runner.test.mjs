@@ -15,6 +15,7 @@ import {
 } from '../src/core/setup/install-deps.ts';
 import { readLogTail } from '../src/core/setup/install-log.ts';
 import { roleNote } from '../src/core/setup/role-note.ts';
+import { rhinomcpLauncher } from '../src/core/setup/rhinomcp-launcher.ts';
 import { blenderStartupScript } from '../src/core/setup/blender-startup.ts';
 import { readSetupState } from '../src/core/setup/state.ts';
 import { catalog, PINS } from '../src/core/setup/manifest.ts';
@@ -38,6 +39,10 @@ import {
   statusOf,
   until,
   WINGET,
+  LATEST,
+  LATEST_URLS,
+  LAUNCHER,
+  LAUNCHER_COMMAND,
   RHINOMCP_PLUGIN,
   RHINOMCP_ROOT,
   RHINOMCP_VERSION,
@@ -320,7 +325,7 @@ test('every program gets the fresh PATH, no keys and no account folder', () =>
 
 // --- winget, then the fallback
 
-test('a failing winget moves to the fallback, and the download is the pinned file', () =>
+test('a failing winget moves to the fallback: the newest LTS, found with its published hash', () =>
   withRunner(
     {
       on: (request, name, pc) => {
@@ -336,12 +341,14 @@ test('a failing winget moves to the fallback, and the download is the pinned fil
       await runner.settled();
       assert.equal(statusOf(runner.progress(), 'node'), 'done');
       assert.deepEqual(pc.downloads, [
-        `https://nodejs.org/dist/v${PINS.node}/node-v${PINS.node}-x64.msi`,
+        'https://nodejs.org/dist/index.json',
+        `https://nodejs.org/dist/v${LATEST.node}/SHASUMS256.txt`,
+        LATEST_URLS.node,
       ]);
       const [msi] = pc.named('msiexec');
       assert.equal(msi.program, 'C:\\Windows\\System32\\msiexec.exe');
       assert.equal(msi.args[0], '/i');
-      assert.ok(msi.args[1].endsWith(`node-v${PINS.node}-x64.msi`));
+      assert.ok(msi.args[1].endsWith(`node-v${LATEST.node}-x64.msi`));
       assert.deepEqual(msi.args.slice(2), ['/passive', '/norestart']);
       // The installer is gone once it ran.
       assert.equal(pc.files.read(msi.args[1]), undefined);
@@ -365,7 +372,10 @@ test('a winget that cannot start moves to the fallback; the file itself is what 
       assert.equal(statusOf(runner.progress(), 'git'), 'done');
       const installer = pc.calls.find((call) => commandName(call).startsWith('git-'));
       assert.deepEqual(installer.args, ['/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART']);
-      assert.ok(pc.downloads[0].startsWith('https://github.com/git-for-windows/git/'));
+      assert.deepEqual(pc.downloads, [
+        'https://api.github.com/repos/git-for-windows/git/releases/latest',
+        LATEST_URLS.git,
+      ]);
     },
   ));
 
@@ -481,7 +491,7 @@ test('exit 2 from winget or 1602 from Git are ordinary failures, not a decline',
     async ({ runner, pc }) => {
       runner.start(auto('git'));
       await until(() => runner.progress().phase === 'waiting');
-      assert.equal(pc.downloads.length, 1);
+      assert.equal(pc.downloads.filter((url) => url.endsWith('.exe')).length, 1);
       assert.equal(itemOf(runner.progress(), 'git').reason, 'INSTALL_FAILED');
     },
   ));
@@ -597,7 +607,7 @@ test('a dependency failed and skipped makes what needs it skipped too; the rest 
       const run = runner.progress();
       assert.equal(statusOf(run, 'uv'), 'done');
       assert.equal(statusOf(run, 'codex'), 'skipped');
-      assert.match(itemOf(run, 'codex').message, /Node\.js 24/);
+      assert.match(itemOf(run, 'codex').message, /Node\.js/);
       assert.equal(pc.calls.filter((call) => call.args.includes('@openai/codex')).length, 0);
     },
   ));
@@ -1152,8 +1162,7 @@ test('every MCP write runs inside the lock, without CLAUDE_CONFIG_DIR, and is no
         '-e',
         'RHINO_MCP_HOST=127.0.0.1',
         '--',
-        'uvx',
-        `rhinomcp@${RHINOMCP_VERSION}`,
+        ...LAUNCHER_COMMAND,
       ]);
       assert.deepEqual(writes[1].args.slice(4), [
         '--transport',
@@ -1208,7 +1217,7 @@ test('registered differently: left alone until the user confirms', () =>
         const item = itemOf(runner.progress(), 'rhinomcp-mcp');
         assert.equal(item.status, 'needs-user');
         assert.equal(item.reason, 'REPLACE_NOT_CONFIRMED');
-        assert.equal(item.foundVersion, '0.1.0');
+        assert.match(item.message, /저절로 따라가도록/);
         assert.ok(!item.message.includes(SECRET));
       }
       assert.equal(mcpWrites(pc).length, 0);
@@ -1244,7 +1253,6 @@ test('named in replace: removed and added again, inside one lock', () => {
       runner.start({ items: ['rhinomcp-mcp'], mode: 'auto', replace: ['rhinomcp-mcp'] });
       await runner.settled();
       assert.equal(statusOf(runner.progress(), 'rhinomcp-mcp'), 'done');
-      assert.equal(itemOf(runner.progress(), 'rhinomcp-mcp').foundVersion, RHINOMCP_VERSION);
       const writes = mcpWrites(pc);
       assert.deepEqual(writes[0].args, ['mcp', 'remove', '-s', 'user', 'rhino']);
       assert.equal(writes[1].args[1], 'add');
@@ -1260,7 +1268,7 @@ test('replace does nothing to a registration that is already right', () =>
       present: [CLAUDE, UV, UVX],
       files: {
         [CLAUDE_CONFIG]: JSON.stringify({
-          mcpServers: { rhino: { command: 'uvx', args: [`rhinomcp@${RHINOMCP_VERSION}`] } },
+          mcpServers: { rhino: { command: 'uv', args: LAUNCHER_COMMAND.slice(1) } },
         }),
       },
       on: registers,
@@ -1344,22 +1352,21 @@ test('cancel while waiting for the lock ends the wait, and nothing runs when the
 
 const yakFolders = {};
 
-test('Yak installs the newest rhinomcp and the pinned Cordyceps, by full path', () =>
+test('Yak installs the newest rhinomcp and the newest Cordyceps, by full path', () =>
   withRunner(
     {
       present: [RHINO, YAK],
       folders: yakFolders,
+      launcher: false,
       on: (request, name, pc) => {
         if (name === 'yak' && request.args[1] === 'rhinomcp') {
           yakFolders[RHINOMCP_ROOT] = ['0.5.1'];
           return ok();
         }
-        if (name === 'yak') {
-          const [, package_, version] = request.args;
-          pc.add(`${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\${package_}\\${version}`);
-          pc.add(
-            `${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\${package_}\\${version}\\Cordyceps.gha`,
-          );
+        if (name === 'yak' && request.args[1] === 'cordyceps') {
+          const root = `${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\cordyceps`;
+          yakFolders[root] = ['1.6.0'];
+          pc.add(`${root}\\1.6.0\\Cordyceps.gha`);
           return ok();
         }
       },
@@ -1375,11 +1382,12 @@ test('Yak installs the newest rhinomcp and the pinned Cordyceps, by full path', 
       assert.equal(calls[0].program, YAK);
       assert.deepEqual(calls[0].args, ['install', 'rhinomcp']);
       assert.equal(itemOf(run, 'rhinomcp-plugin').foundVersion, '0.5.1');
-      assert.deepEqual(calls[1].args, ['install', 'cordyceps', PINS.cordyceps]);
+      assert.deepEqual(calls[1].args, ['install', 'cordyceps']);
+      assert.equal(itemOf(run, 'cordyceps-plugin').foundVersion, '1.6.0');
     },
   ));
 
-test('any rhinomcp plugin already there is kept, and its servers pair with it', () =>
+test('any rhinomcp plugin already there is kept, and its servers run the launcher', () =>
   withRunner(
     {
       present: [RHINO, YAK, CLAUDE, UV, UVX],
@@ -1393,11 +1401,24 @@ test('any rhinomcp plugin already there is kept, and its servers pair with it', 
       assert.equal(item.status, 'done');
       assert.equal(item.foundVersion, '0.3.0');
       assert.equal(pc.named('yak').length, 0);
-      assert.equal(mcpWrites(pc)[0].args.at(-1), 'rhinomcp@0.3.0');
+      // No version in the registration: the launcher reads it at every start (SPEC 3.3).
+      assert.deepEqual(mcpWrites(pc)[0].args.slice(-5), LAUNCHER_COMMAND);
+      assert.equal(statusOf(runner.progress(), 'rhinomcp-mcp'), 'done');
     },
   ));
 
-test('with no rhinomcp plugin on disk, a server at any exact version is left alone', () =>
+test('the launcher is written whole, and an older text is replaced', () =>
+  withRunner(
+    { present: [UV, UVX], files: { [LAUNCHER]: '# an older launcher\n' } },
+    async ({ runner, pc }) => {
+      runner.start(auto('rhinomcp-launcher'));
+      await runner.settled();
+      assert.equal(statusOf(runner.progress(), 'rhinomcp-launcher'), 'done');
+      assert.equal(pc.files.read(LAUNCHER).toString(), rhinomcpLauncher());
+    },
+  ));
+
+test('without the launcher and the plugin, an old registration is not touched, even when asked', () =>
   withRunner(
     {
       present: [CLAUDE, UV, UVX],
@@ -1405,10 +1426,11 @@ test('with no rhinomcp plugin on disk, a server at any exact version is left alo
       on: registers,
     },
     async ({ runner, pc }) => {
-      // Nothing to pair with, so nothing is replaced, even when asked.
       runner.start({ items: ['rhinomcp-mcp'], mode: 'check', replace: ['rhinomcp-mcp'] });
       await runner.settled();
-      assert.equal(statusOf(runner.progress(), 'rhinomcp-mcp'), 'done');
+      const item = itemOf(runner.progress(), 'rhinomcp-mcp');
+      assert.equal(item.status, 'skipped');
+      assert.equal(item.reason, 'WAITING_FOR');
       assert.equal(mcpWrites(pc).length, 0);
       assert.equal(
         JSON.parse(pc.files.read(CLAUDE_CONFIG)).mcpServers.rhino.args[0],
@@ -1429,13 +1451,13 @@ test('auto mode keeps an older Node, and what needs Node still goes ahead', () =
       },
     },
     async ({ runner, pc }) => {
-      pc.versions.node = 'v22.1.0';
+      pc.versions.node = 'v20.18.0';
       runner.start(auto('node', 'codex'));
       await runner.settled();
       const run = runner.progress();
       assert.equal(itemOf(run, 'node').reason, 'OTHER_VERSION_KEPT');
-      assert.equal(itemOf(run, 'node').foundVersion, '22.1.0');
-      assert.match(itemOf(run, 'node').message, /22\.1\.0/);
+      assert.equal(itemOf(run, 'node').foundVersion, '20.18.0');
+      assert.match(itemOf(run, 'node').message, /20\.18\.0/);
       assert.equal(pc.named('winget').length, 0);
       assert.equal(statusOf(run, 'codex'), 'done');
     },
@@ -1445,13 +1467,13 @@ test('after an install the old version still answering is reported, not called d
   withRunner(
     { present: [NODE], on: (request, name) => (name === 'msiexec' ? notThere() : undefined) },
     async ({ runner, pc }) => {
-      pc.versions.node = 'v22.1.0';
+      pc.versions.node = 'v20.18.0';
       runner.start({ items: ['node'], mode: 'check' });
       await until(() => runner.progress().phase === 'waiting');
       const item = itemOf(runner.progress(), 'node');
       assert.equal(item.status, 'failed');
       assert.equal(pc.named('winget').length, 1);
-      assert.equal(item.foundVersion, '22.1.0');
+      assert.equal(item.foundVersion, '20.18.0');
     },
   ));
 

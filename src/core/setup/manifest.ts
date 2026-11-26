@@ -1,34 +1,21 @@
-import type { InstallStep, PluginPair, SetupCatalog, SetupGroup, SetupItem } from './types.ts';
+import type { InstallStep, LatestSource, SetupCatalog, SetupGroup, SetupItem } from './types.ts';
 
 // The setup catalog (SPEC 3.3): the one place for pinned versions, and pure data the page renders
 // from. Change this file and SPEC together (CLAUDE.md, ADR-002).
 
-/** Pinned versions. Everything not named here installs latest. */
+/**
+ * Pinned versions: only where a newer release is known to break something (SPEC 3.3, latest by
+ * default). Everything not named here installs latest.
+ */
 export const PINS = {
-  /** winget's `--version` takes an exact version only, and without it this id installs Node 26. */
-  node: '24.22.1',
-  /** node-v24.22.1-x64.msi, from https://nodejs.org/dist/v24.22.1/SHASUMS256.txt */
-  nodeInstallerSha256: '3bda4baf1ee709b33cf920dd633106ddb23951e322bff9c03ec9f64ab8981b01',
-  /** Any Node of this major version is left alone. */
-  nodeMajor: '24',
+  /** Codex CLI asks for Node 16 or newer; a Node from this major on is left alone. */
+  nodeMinimumMajor: '22',
   python: '3.13',
-  /** Only the fallback installer; winget picks the newest 3.13. */
+  /** Only the fallback installer; winget picks the newest 3.13. The last 3.13 with a Windows one. */
   pythonInstaller: '3.13.17',
   /** python-3.13.17-amd64.exe, from https://www.python.org/downloads/release/python-31317/ */
   pythonInstallerSha256: '5da012101ba2e17113a9a1cd901e9ce1441086f2b7ecb5de06ec94163899a190',
-  /** Only the fallback installer; winget installs the latest Git. The hash: its release notes. */
-  gitInstaller: {
-    tag: 'v2.56.0.windows.4',
-    file: 'Git-2.56.0.4-64-bit.exe',
-    sha256: '4961a4a8cc778d8b6e00a5819e5fe4d078b754555aff7aedc2d77a5d74c2de80',
-  },
-  /** Only the fallback installer; winget installs the latest GitHub CLI. The hash: its checksums file. */
-  ghInstaller: {
-    version: '2.103.3',
-    sha256: '5073112b7abb5ffbba24b76aee7e89269af531218c0a42751f5f0bfb6440c2cc',
-  },
   rhino: '8',
-  cordyceps: '1.5.0',
   blender: '5.2.3',
   /** blender-5.2.3-windows-x64.msi, from .../release/Blender5.2/blender-5.2.3.sha256 */
   blenderInstallerSha256: 'a103d4ece8d9acffd2a95c9d8860355b1f209977cc983b4a3d1e1cfb441c8605',
@@ -58,9 +45,14 @@ const PY_FOLDERS = [
 const GIT_FOLDERS = [`${PROGRAM_FILES}\\Git\\cmd`, '%LOCALAPPDATA%\\Programs\\Git\\cmd'];
 const GH_FOLDERS = [`${PROGRAM_FILES}\\GitHub CLI`, '%LOCALAPPDATA%\\Programs\\GitHub CLI'];
 const RHINO_PACKAGES = '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0';
-/** rhinomcp is not pinned: its servers follow the plugin on disk (SPEC 3.3). */
 const RHINOMCP_ROOT = `${RHINO_PACKAGES}\\rhinomcp`;
-const RHINOMCP_PAIR: PluginPair = { package: 'rhinomcp', root: RHINOMCP_ROOT };
+/**
+ * rhinomcp is not pinned: its servers run this launcher, which follows the plugin on disk at every
+ * start (SPEC 3.3). A fixed folder, not the data folder `ACCOUNTSWITCH_DATA` can move: the
+ * registration names the file.
+ */
+const RHINOMCP_LAUNCHER = '%LOCALAPPDATA%\\AccountSwitch\\mcp\\rhinomcp-launch.py';
+const RUN_LAUNCHER = ['uv', 'run', '--no-project', '--quiet', RHINOMCP_LAUNCHER];
 const YAK = `${PROGRAM_FILES}\\Rhino 8\\System\\Yak.exe`;
 const BLENDER_VERSIONS = '%APPDATA%\\Blender Foundation\\Blender';
 const BLENDER_USER = `${BLENDER_VERSIONS}\\${PINS.blenderSeries}`;
@@ -115,6 +107,16 @@ function msiFallback(url: string, sha256: string): InstallStep {
     declinedExitCodes: MSI_DECLINED,
   };
 }
+/** The newest MSI of `source`, found with its publisher's hash when the step runs (SPEC 3.3). */
+function latestMsi(source: LatestSource): InstallStep {
+  return {
+    kind: 'download-latest',
+    source,
+    program: 'msiexec',
+    args: ['/i', FILE, '/passive', '/norestart'],
+    declinedExitCodes: MSI_DECLINED,
+  };
+}
 
 /** One bundle of Python packages: what the check looks for is what the install installs. */
 function pipItem(
@@ -148,21 +150,13 @@ function pipItem(
 }
 
 /** A user-scope MCP registration; the arguments of `claude mcp add` live in one place. */
-function mcpInstall(summary: string, args: string[], pairWith?: PluginPair) {
-  const step: InstallStep = {
-    kind: 'claude-mcp-add',
-    args: ['mcp', 'add', '-s', 'user', ...args],
-    ...(pairWith ? { pairWith } : {}),
-  };
+function mcpInstall(summary: string, args: string[]) {
+  const step: InstallStep = { kind: 'claude-mcp-add', args: ['mcp', 'add', '-s', 'user', ...args] };
   return { summary, automatic: true, steps: [step] };
 }
 
-function codexMcpInstall(summary: string, args: string[], pairWith?: PluginPair) {
-  const step: InstallStep = {
-    kind: 'codex-mcp-add',
-    args: ['mcp', 'add', ...args],
-    ...(pairWith ? { pairWith } : {}),
-  };
+function codexMcpInstall(summary: string, args: string[]) {
+  const step: InstallStep = { kind: 'codex-mcp-add', args: ['mcp', 'add', ...args] };
   return { summary, automatic: true, steps: [step] };
 }
 
@@ -221,9 +215,8 @@ const items: SetupItem[] = [
       steps: [
         winget('Git.Git'),
         {
-          kind: 'download-installer',
-          url: `https://github.com/git-for-windows/git/releases/download/${PINS.gitInstaller.tag}/${PINS.gitInstaller.file}`,
-          sha256: PINS.gitInstaller.sha256,
+          kind: 'download-latest',
+          source: 'git-for-windows',
           program: FILE,
           args: ['/SP-', '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART'],
           declinedExitCodes: INNO_DECLINED,
@@ -250,13 +243,7 @@ const items: SetupItem[] = [
       summary: 'winget으로 설치하고, 안 되면 공식 설치 파일을 받아요.',
       automatic: true,
       pathFolders: onPath('gh', GH_FOLDERS),
-      steps: [
-        winget('GitHub.cli'),
-        msiFallback(
-          `https://github.com/cli/cli/releases/download/v${PINS.ghInstaller.version}/gh_${PINS.ghInstaller.version}_windows_amd64.msi`,
-          PINS.ghInstaller.sha256,
-        ),
-      ],
+      steps: [winget('GitHub.cli'), latestMsi('gh')],
     },
     pinnedVersion: 'latest',
     // The MSI installs for all users.
@@ -264,7 +251,7 @@ const items: SetupItem[] = [
   },
   {
     id: 'node',
-    label: `Node.js ${PINS.nodeMajor}`,
+    label: 'Node.js',
     description: 'Codex CLI를 돌리는 데 필요한 실행 환경이에요.',
     group: 'base',
     dependsOn: [],
@@ -272,21 +259,16 @@ const items: SetupItem[] = [
       kind: 'command',
       commands: [{ program: 'node', args: ['-v'], versionPattern: 'v?(\\d+\\.\\d+\\.\\d+)' }],
       knownFolders: [`${PROGRAM_FILES}\\nodejs`],
-      acceptVersion: `${PINS.nodeMajor}.x`,
+      acceptVersion: `>=${PINS.nodeMinimumMajor}`,
     },
     install: {
-      summary: 'winget으로 설치하고, 안 되면 공식 설치 파일을 받아요.',
+      summary: 'winget으로 최신 LTS를 설치하고, 안 되면 공식 설치 파일을 받아요.',
       automatic: true,
       pathFolders: onPath('node', [`${PROGRAM_FILES}\\nodejs`]),
-      steps: [
-        winget('OpenJS.NodeJS.LTS', '--version', PINS.node),
-        msiFallback(
-          `https://nodejs.org/dist/v${PINS.node}/node-v${PINS.node}-x64.msi`,
-          PINS.nodeInstallerSha256,
-        ),
-      ],
+      // Without `--version` this id installs the newest LTS (SPEC 3.3).
+      steps: [winget('OpenJS.NodeJS.LTS'), latestMsi('node-lts')],
     },
-    pinnedVersion: PINS.node,
+    pinnedVersion: 'latest',
     mayElevate: true,
   },
   {
@@ -480,17 +462,34 @@ const items: SetupItem[] = [
     mayElevate: false,
   },
   {
+    id: 'rhinomcp-launcher',
+    label: 'rhinomcp 실행기',
+    description: 'rhinomcp가 켜질 때마다 Rhino 플러그인과 같은 버전으로 실행되게 해요.',
+    group: 'rhino',
+    dependsOn: ['uv'],
+    check: { kind: 'launcher', file: RHINOMCP_LAUNCHER },
+    install: {
+      summary: '작은 실행 파일을 하나 넣어요.',
+      automatic: true,
+      steps: [{ kind: 'launcher', file: RHINOMCP_LAUNCHER }],
+    },
+    pinnedVersion: null,
+    mayElevate: false,
+  },
+  {
     id: 'rhinomcp-mcp',
     label: 'rhinomcp 연결 (Claude Code)',
     description: 'Claude Code에 rhinomcp를 등록해요.',
     group: 'rhino',
-    dependsOn: ['claude', 'uv', 'rhinomcp-plugin'],
-    check: { kind: 'mcp', name: 'rhino', package: 'rhinomcp', versionFrom: RHINOMCP_ROOT },
-    install: mcpInstall(
-      'Rhino 플러그인과 같은 버전으로 Claude Code에 등록해요.',
-      ['rhino', '-e', 'RHINO_MCP_HOST=127.0.0.1', '--', 'uvx', 'rhinomcp'],
-      RHINOMCP_PAIR,
-    ),
+    dependsOn: ['claude', 'uv', 'rhinomcp-plugin', 'rhinomcp-launcher'],
+    check: { kind: 'mcp', name: 'rhino', launcher: RHINOMCP_LAUNCHER },
+    install: mcpInstall('Rhino 플러그인 버전을 저절로 따라가도록 Claude Code에 등록해요.', [
+      'rhino',
+      '-e',
+      'RHINO_MCP_HOST=127.0.0.1',
+      '--',
+      ...RUN_LAUNCHER,
+    ]),
     pinnedVersion: null,
     mayElevate: false,
   },
@@ -499,19 +498,15 @@ const items: SetupItem[] = [
     label: 'rhinomcp 연결 (GPT)',
     description: 'Codex CLI에 rhinomcp를 등록해요.',
     group: 'rhino',
-    dependsOn: ['codex', 'uv', 'rhinomcp-plugin'],
-    check: {
-      kind: 'mcp',
-      client: 'codex',
-      name: 'rhino',
-      package: 'rhinomcp',
-      versionFrom: RHINOMCP_ROOT,
-    },
-    install: codexMcpInstall(
-      'Rhino 플러그인과 같은 버전으로 Codex CLI에 등록해요.',
-      ['rhino', '--env', 'RHINO_MCP_HOST=127.0.0.1', '--', 'uvx', 'rhinomcp'],
-      RHINOMCP_PAIR,
-    ),
+    dependsOn: ['codex', 'uv', 'rhinomcp-plugin', 'rhinomcp-launcher'],
+    check: { kind: 'mcp', client: 'codex', name: 'rhino', launcher: RHINOMCP_LAUNCHER },
+    install: codexMcpInstall('Rhino 플러그인 버전을 저절로 따라가도록 Codex CLI에 등록해요.', [
+      'rhino',
+      '--env',
+      'RHINO_MCP_HOST=127.0.0.1',
+      '--',
+      ...RUN_LAUNCHER,
+    ]),
     pinnedVersion: null,
     mayElevate: false,
   },
@@ -524,15 +519,14 @@ const items: SetupItem[] = [
     check: {
       kind: 'versioned-folder',
       root: `${RHINO_PACKAGES}\\cordyceps`,
-      version: PINS.cordyceps,
       marker: 'Cordyceps.gha',
     },
     install: {
-      summary: 'Rhino 패키지 관리자로 설치해요.',
+      summary: 'Rhino 패키지 관리자로 최신 버전을 설치해요.',
       automatic: true,
-      steps: [{ kind: 'yak', program: YAK, package: 'cordyceps', version: PINS.cordyceps }],
+      steps: [{ kind: 'yak', program: YAK, package: 'cordyceps' }],
     },
-    pinnedVersion: PINS.cordyceps,
+    pinnedVersion: 'latest',
     mayElevate: false,
   },
   {

@@ -34,8 +34,8 @@ export type CheckSpec =
        */
       orFilesExist?: string[];
       /**
-       * Which found versions count as fine, when wider than what gets installed: Node installs
-       * exactly 24.22.1, but any 24.x is left alone. Without it, the item's `pinnedVersion`.
+       * Which found versions count as fine, when wider than what gets installed: Node installs the
+       * newest LTS, but any `>=22` is left alone. Without it, the item's `pinnedVersion`.
        */
       acceptVersion?: string;
     }
@@ -61,7 +61,7 @@ export type CheckSpec =
   | { kind: 'file'; path: string }
   /**
    * `<root>\<version>[\<marker>]` must exist; another version folder means 버전 다름. Without a
-   * `version`, any version folder counts and the newest is the found version.
+   * `version`, the newest version folder counts (holding `marker`, if given) and is the found version.
    */
   | { kind: 'versioned-folder'; root: string; version?: string; marker?: string }
   /**
@@ -75,11 +75,8 @@ export type CheckSpec =
       /** Package and version expected in the registered command (uvx servers). */
       package?: string;
       version?: string;
-      /**
-       * In place of `version`: the newest version folder of this root, the plugin the server pairs
-       * with. With no folder there, any exact version is accepted.
-       */
-      versionFrom?: string;
+      /** The launcher file the registered command must run, in place of a package (SPEC 3.3). */
+      launcher?: string;
       /** Packages the command must also carry as `--with <spec>`; without one it is re-added. */
       with?: string[];
       /** Address expected of an HTTP server. */
@@ -102,6 +99,8 @@ export type CheckSpec =
   | { kind: 'blender-addon'; addonsFolder: string; userPrefs: string; module: string }
   /** `file` holds exactly `blenderStartupScript(module)` (src/core/setup/blender-startup.ts). */
   | { kind: 'blender-startup'; file: string; module: string }
+  /** `file` holds exactly `rhinomcpLauncher()` (src/core/setup/rhinomcp-launcher.ts). */
+  | { kind: 'launcher'; file: string }
   /** The parts of SPEC 3.8 the wizard sets: 1, 2 and 4. */
   | {
       kind: 'rhino-settings';
@@ -144,14 +143,25 @@ export type InstallStep =
       args: string[];
       declinedExitCodes: number[];
     }
+  /**
+   * The same with the newest release of `source`, found when the step runs together with the
+   * SHA-256 its publisher states (SPEC 3.3, latest installers).
+   */
+  | {
+      kind: 'download-latest';
+      source: LatestSource;
+      program: string;
+      args: string[];
+      declinedExitCodes: number[];
+    }
   | { kind: 'npm-global'; package: string }
   | { kind: 'pip'; launcher: string; python: string; packages: string[] }
   /** `<program> install <package> [<version>]`; without a version, the newest on Yak. */
   | { kind: 'yak'; program: string; package: string; version?: string }
   /** `claude <args>` inside DefaultLogin.exclusive (SPEC 3.7). */
-  | { kind: 'claude-mcp-add'; args: string[]; pairWith?: PluginPair }
+  | { kind: 'claude-mcp-add'; args: string[] }
   /** `codex <args>`; it replaces an entry of the same name in place (SPEC 3.7). */
-  | { kind: 'codex-mcp-add'; args: string[]; pairWith?: PluginPair }
+  | { kind: 'codex-mcp-add'; args: string[] }
   | {
       kind: 'environment';
       userPathFolder: string;
@@ -177,18 +187,14 @@ export type InstallStep =
     }
   /** Write `blenderStartupScript(module)` to `file`, replacing what is there. */
   | { kind: 'blender-startup'; file: string; module: string }
+  /** Write `rhinomcpLauncher()` to `file`, replacing what is there. */
+  | { kind: 'launcher'; file: string }
   | { kind: 'rhino-settings' }
   /** Nothing to run: tell the user what to do. */
   | { kind: 'manual'; message: string; url?: string };
 
-/**
- * The argument equal to `package` becomes `<package>@<version>`, the newest version folder of `root`,
- * read when the step runs, so a server always matches the plugin on disk (SPEC 3.3).
- */
-export interface PluginPair {
-  package: string;
-  root: string;
-}
+/** Whose newest installer `download-latest` looks up (SPEC 3.3). */
+export type LatestSource = 'node-lts' | 'git-for-windows' | 'gh';
 
 export interface InstallSpec {
   /** One Korean line on how this gets installed. */
