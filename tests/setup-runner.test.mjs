@@ -16,6 +16,7 @@ import {
 import { readLogTail } from '../src/core/setup/install-log.ts';
 import { roleNote } from '../src/core/setup/role-note.ts';
 import { rhinomcpLauncher } from '../src/core/setup/rhinomcp-launcher.ts';
+import { CLOSE_TRAY_COMMAND } from '../src/core/setup/rhinomcp-tray.ts';
 import { blenderStartupScript } from '../src/core/setup/blender-startup.ts';
 import { readSetupState } from '../src/core/setup/state.ts';
 import { catalog, PINS } from '../src/core/setup/manifest.ts';
@@ -1657,6 +1658,9 @@ test('Blender: the pinned winget version, then the MSI', () =>
 
 // --- Rhino settings
 
+/** Parts 2 and 5 as the wizard writes them: mcpstart, then the tray closed (ADR-013). */
+const STARTED = `_mcpstart ${CLOSE_TRAY_COMMAND}`;
+
 /** `startup`: the start commands, in a `General` child where Rhino puts it. */
 const settingsXml = (value, startup) =>
   `\uFEFF<settings id="2.0">\r\n  <settings>\r\n    <child key="Options">\r\n      <child key="FileSettings">\r\n        <entry key="EnableFileLockingOpenWarning">${value}</entry>\r\n      </child>\r\n${startup === undefined ? '' : `      <child key="General">\r\n        <entry key="StartupCommands">${startup}</entry>\r\n      </child>\r\n`}    </child>\r\n  </settings>\r\n</settings>\r\n`;
@@ -1675,14 +1679,41 @@ test('a file as Rhino saves it counts as done; the user\u2019s own start command
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
       assert.equal(statusOf(runner.progress(), 'rhino-settings'), 'done');
-      assert.equal(pc.files.read(SETTINGS).toString(), rhinoSaved('_SetDisplayMode _mcpstart'));
+      assert.equal(pc.files.read(SETTINGS).toString(), rhinoSaved(`_SetDisplayMode ${STARTED}`));
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
       assert.equal(
         pc.files.read(SETTINGS).toString(),
-        rhinoSaved('_SetDisplayMode _mcpstart'),
+        rhinoSaved(`_SetDisplayMode ${STARTED}`),
         'appended once',
       );
+    },
+  ));
+
+test('a PC set up before ADR-013 gets the tray closed after its mcpstart, and once', () =>
+  withRunner(
+    {
+      present: [RHINO],
+      files: { [SETTINGS]: rhinoSaved('_mcpstart _SetDisplayMode') },
+    },
+    async ({ runner, pc }) => {
+      runner.start(auto('rhino', 'rhino-settings'));
+      await runner.settled();
+      assert.equal(statusOf(runner.progress(), 'rhino-settings'), 'done');
+      const once = rhinoSaved(`_mcpstart _SetDisplayMode ${CLOSE_TRAY_COMMAND}`);
+      assert.equal(pc.files.read(SETTINGS).toString(), once);
+      assert.equal(
+        pc.files.read(`${SETTINGS}.accountswitch-bak`).toString(),
+        rhinoSaved('_mcpstart _SetDisplayMode'),
+      );
+      assert.equal(
+        pc.calls.filter((call) => /taskkill|Stop-Process/i.test(JSON.stringify(call))).length,
+        0,
+        'the wizard itself stops nothing; Rhino closes the tray when it starts',
+      );
+      runner.start(auto('rhino', 'rhino-settings'));
+      await runner.settled();
+      assert.equal(pc.files.read(SETTINGS).toString(), once, 'appended once');
     },
   ));
 
@@ -1738,7 +1769,7 @@ test('Rhino closed: backup, warning on, note between markers, and the item is do
       await runner.settled();
       const item = itemOf(runner.progress(), 'rhino-settings');
       assert.equal(item.status, 'done');
-      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', '_mcpstart'));
+      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', STARTED));
       assert.equal(pc.files.read(`${SETTINGS}.accountswitch-bak`).toString(), settingsXml('False'));
       const note = pc.files.read(NOTE).toString();
       assert.ok(note.startsWith('# Mine\nkeep this\n\n<!-- accountswitch:start -->\n'));
@@ -1763,7 +1794,7 @@ test('a second run keeps the first backup and does not touch what is already rig
       runner.start(auto('rhino', 'rhino-settings'));
       await runner.settled();
       assert.equal(pc.files.read(`${SETTINGS}.accountswitch-bak`).toString(), settingsXml('False'));
-      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', '_mcpstart'));
+      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', STARTED));
       assert.equal(pc.files.read(NOTE), firstNote, 'the very same bytes: not written again');
     },
   ));
@@ -1800,13 +1831,13 @@ test('broken markers in the note: the note file is left alone', () => {
       await runner.settled();
       assert.match(itemOf(runner.progress(), 'rhino-settings').message, /표시가 어긋나/);
       assert.equal(pc.files.read(NOTE).toString(), broken);
-      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', '_mcpstart'));
+      assert.equal(pc.files.read(SETTINGS).toString(), settingsXml('True', STARTED));
     },
   );
 });
 
 test('everything in place by hand: done without changing a thing', () => {
-  const xml = settingsXml('True', '_mcpstart');
+  const xml = settingsXml('True', STARTED);
   const note = `<!-- accountswitch:start -->\n${roleNote()}\n<!-- accountswitch:end -->\n`;
   return withRunner(
     {

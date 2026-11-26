@@ -148,12 +148,14 @@ export type CheckSpec =
   | { kind: 'ai-settings' }
   /** `settings.daemon.keepRunningAfterQuit` is true in Paseo's desktop settings (SPEC 3.3). */
   | { kind: 'paseo-settings'; file: string }
-  /** The parts of SPEC 3.8 the wizard sets: 1, 2 and 4. */
+  /** The parts of SPEC 3.8 the wizard sets: 1, 2, 4 and 5. */
   | {
       kind: 'rhino-settings';
       settingsFile: string;
       /** Part 2: appended to Rhino's start commands; rhinomcp's `mcpstart`. */
       startupCommand: string;
+      /** Part 5: appended after `startupCommand`; closes rhinomcp's tray (ADR-013). */
+      trayCloseCommand: string;
       /** Part 4, one file for each terminal program; only for a program that is there. */
       roleNotes: {
         id: string;
