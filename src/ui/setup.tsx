@@ -24,6 +24,7 @@ import {
   groupsOfRun,
   hasPanel,
   hasPrograms,
+  initialPicks,
   isListed,
   isPanelGroup,
   isRunActive,
@@ -373,7 +374,7 @@ export function SetupTab({ active }: { active: boolean }) {
     focusTitle.current = true;
     setMode(next);
     setPicking(next === 'auto');
-    setPicked(new Set());
+    setPicked(overview ? initialPicks(overview.catalog) : new Set());
     setLastRun(null);
     setActionError('');
     // 점검만 is recorded, or the wizard would reopen on every start of a PC without Claude Code.

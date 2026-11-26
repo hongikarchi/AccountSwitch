@@ -124,6 +124,15 @@ export function cardGroups(catalog: SetupCatalog) {
   return catalog.groups.filter((group) => group.optional && !isPanelGroup(catalog, group.id));
 }
 
+/** The cards ticked when the program screen opens (SPEC 3.2): only groups that say so, Paseo. */
+export function initialPicks(catalog: SetupCatalog): ReadonlySet<string> {
+  return new Set(
+    cardGroups(catalog)
+      .filter((group) => group.defaultPicked)
+      .map((group) => group.id),
+  );
+}
+
 /**
  * Whether this catalog has a terminal program to pick. The engine sends only its own platform's
  * items (SPEC 1), so on macOS it has none: no first screen, no cards, only the checklist.

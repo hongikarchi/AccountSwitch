@@ -45,6 +45,7 @@ Everything in M3 has so far run against fakes only. Windows Sandbox proves:
 12. Rhino missing: `rhino` is `needs-user`, its plugins and settings are `skipped`, and the run finishes.
 13. Cancel during a slow install: the tree dies after the grace period, and only that tree. Quit during a run: the dialog, then a gentle stop.
 14. The log has no tokens and no environment values. Note timings.
+15. Paseo (#23): winget is absent, so the `Paseo-Setup-<version>-x64.exe /S /currentuser` fallback runs. It lands in `%LOCALAPPDATA%\Programs\Paseo` with no prompt and does not start Paseo. Start Paseo once, quit it, and `paseo-settings` then turns `keepRunningAfterQuit` on; Paseo's 설정 → 데몬 shows it on. With Paseo running, `paseo-settings` is `needs-user` and the file is unchanged.
 
 The Sandbox cannot prove these; they need the user on a real PC:
 

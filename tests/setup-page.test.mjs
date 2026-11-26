@@ -434,7 +434,7 @@ test('the cards are the optional groups in order, and the base group comes along
   // The AI work settings are optional too, but a panel of their own, not a card (SPEC 3.11).
   assert.deepEqual(
     cardGroups(catalog).map((group) => group.label),
-    ['Claude Code', 'GPT', 'Rhino', 'Blender'],
+    ['Claude Code', 'GPT', 'Paseo', 'Rhino', 'Blender'],
   );
   for (const id of ['py-gis', 'py-3d'])
     assert.equal(catalog.items.find((item) => item.id === id).group, 'base');
