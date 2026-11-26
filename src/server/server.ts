@@ -14,7 +14,7 @@ import { executable, status } from '../core/cli.ts';
 import { DefaultLogin } from '../core/default-login.ts';
 import { AutoSwitch } from '../core/auto-switch.ts';
 import { Launcher, type LauncherOptions } from '../core/launcher.ts';
-import { modelId, PaseoLauncher, type PaseoLauncherOptions } from '../core/launcher-paseo.ts';
+import { PaseoLauncher, type PaseoLauncherOptions } from '../core/launcher-paseo.ts';
 import { SetupService } from '../core/setup/service.ts';
 import type { CheckDeps } from '../core/setup/checks.ts';
 import type { InstallOverrides } from '../core/setup/install-deps.ts';
@@ -88,8 +88,8 @@ export interface Options {
   port?: number;
   /** Tests: start the terminal with this instead of a real process. */
   launcherSpawn?: LauncherOptions['spawnProcess'];
-  /** Tests: Paseo's CLI and desktop app replaced, so no real agent is made (SPEC 4.1). */
-  launcherPaseo?: Partial<Omit<PaseoLauncherOptions, 'file'>>;
+  /** Tests: Paseo's CLI and desktop app replaced, so the real Paseo is never touched (SPEC 4.1). */
+  launcherPaseo?: PaseoLauncherOptions;
   /** Replaces parts of the setup checks, so tests start no real programs. */
   setupChecks?: Partial<CheckDeps>;
   /** Replaces the downloads and files of the installs; `setupChecks.run` starts their commands. */
@@ -105,10 +105,7 @@ export async function startServer({
   setupInstall,
 }: Options) {
   const launcher = new Launcher({ spawnProcess: launcherSpawn });
-  const paseoLauncher = new PaseoLauncher({
-    file: join(directory, 'launcher.json'),
-    ...launcherPaseo,
-  });
+  const paseoLauncher = new PaseoLauncher(launcherPaseo);
   const accountLogin = new AccountLogin();
   const profiles = new AccountProfiles(join(directory, 'profiles'), (p) => accountLogin.busy(p));
   const defaultLogin = new DefaultLogin({ root: join(directory, 'profiles') });
@@ -227,7 +224,7 @@ export async function startServer({
         ?.split('=')[1];
       if (!equal(cookie, session)) throw new DomainError('UNAUTHORIZED');
 
-      // "Claude 열기" and "GPT 열기": whether each can open, and the browser fallback.
+      // "Paseo 열기" and "터미널 열기" (SPEC 4): what can open, and the browser fallback.
       if (url.pathname === '/api/v1/launcher' && request.method === 'GET') {
         send(200, { ...launcher.status(), paseo: paseoLauncher.available() });
         return;
@@ -240,26 +237,13 @@ export async function startServer({
         send(200, await launcher.open(input.provider, input.folder));
         return;
       }
-      // The same buttons through Paseo (SPEC 4.1): its models, the saved choice, and the agent.
-      if (url.pathname === '/api/v1/launcher/models' && request.method === 'GET') {
-        send(200, await paseoLauncher.models());
-        return;
-      }
-      if (url.pathname === '/api/v1/launcher/models' && request.method === 'PUT') {
-        const input = z
-          .object({ provider, model: modelId })
-          .strict()
-          .parse(await body(request));
-        paseoLauncher.choose(input.provider, input.model);
-        send(200, {});
-        return;
-      }
+      // Paseo 열기 (SPEC 4.1): the folder's workspace, and the Paseo window brought to it.
       if (url.pathname === '/api/v1/launcher/paseo' && request.method === 'POST') {
         const input = z
-          .object({ provider, folder: z.string().max(4096), model: modelId.optional() })
+          .object({ folder: z.string().max(4096) })
           .strict()
           .parse(await body(request));
-        send(200, await paseoLauncher.open(input.provider, input.folder, input.model));
+        send(200, await paseoLauncher.open(input.folder));
         return;
       }
       if (url.pathname === '/api/v1/accounts' && request.method === 'GET') {

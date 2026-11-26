@@ -1,6 +1,6 @@
 # ADR-010 Claude 열기 and GPT 열기 open a Paseo agent when Paseo is there
 
-Status: accepted, 2026-11-26 (#45)
+Status: accepted, 2026-11-26 (#45); first message, model list and button names replaced by ADR-012
 
 ## Context
 

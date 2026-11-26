@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { AccountSettings, ServiceHead } from './account-settings.tsx';
 import { ClaudeRepairNotice } from './claude-repair.tsx';
 import { EmptyState, UsageToolbar, useUsage } from './usage.tsx';
-import { LauncherButton, LauncherNotice, useLauncher } from './launcher.tsx';
+import { LauncherNotice, PaseoButton, TerminalButton, useLauncher } from './launcher.tsx';
 import { SetupTab, useSetupAutoOpen } from './setup.tsx';
 import { api, connect } from './gateway.ts';
 import { providers, type Provider } from '../core/providers.ts';
@@ -209,13 +209,12 @@ function AppHead({ tab, choose }: { tab: Tab; choose: (tab: Tab) => void }) {
 }
 
 /** Its own component so that the launcher's state changes do not render the accounts again. */
-function Launcher() {
-  const launcher = useLauncher();
+function Launcher({ openSetup }: { openSetup: () => void }) {
+  const launcher = useLauncher(openSetup);
   return (
     <>
-      {providers.map((provider) => (
-        <LauncherButton key={provider} launcher={launcher} provider={provider} />
-      ))}
+      <PaseoButton launcher={launcher} />
+      <TerminalButton launcher={launcher} />
       <LauncherNotice launcher={launcher} />
     </>
   );
@@ -315,7 +314,7 @@ function App() {
             ))}
           </div>
           <UsageToolbar usage={usage} failure={failure} load={load}>
-            <Launcher />
+            <Launcher openSetup={() => chooseTab('setup')} />
           </UsageToolbar>
         </div>
         <div

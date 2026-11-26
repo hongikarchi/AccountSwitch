@@ -843,18 +843,10 @@ select {
 .launcher {
   position: relative;
   flex: none;
-  /* A model select stays with its button when the row wraps (5.3). */
   display: flex;
   align-items: center;
-  gap: 4px;
 }
-.launcher-model {
-  max-width: 140px;
-  padding: 0 8px;
-  border-radius: 999px;
-  font-weight: 500;
-}
-/* The browser's path field, upward: the button is at the bottom of the tab. */
+/* The program choice and the browser's path field, upward: the button is at the bottom of the tab. */
 .launcher-popover {
   position: absolute;
   bottom: calc(100% + 4px);
@@ -870,6 +862,26 @@ select {
   border-radius: var(--radius-panel);
   background: var(--bg);
   box-shadow: var(--shadow-menu);
+}
+/* 터미널 열기's choice of program: rows of a menu (5.5), as the account menu. */
+.launcher-choice {
+  width: auto;
+  min-width: 120px;
+}
+.launcher-choice button {
+  min-height: 36px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-control);
+  background: transparent;
+  font-size: inherit;
+  line-height: inherit;
+  font-weight: 400;
+  text-align: left;
+}
+.launcher-choice button:hover:not(:disabled),
+.launcher-choice button:focus-visible {
+  background: var(--panel);
 }
 .launcher-label {
   color: var(--muted);

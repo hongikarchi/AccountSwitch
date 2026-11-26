@@ -52,6 +52,11 @@ One fact, one place.
   - Set the workspace title to the same name with Paseo's `rename_workspace` tool.
   - Leave the folder name. Skip the main checkout and branches already named by the rule.
 
+## Projects not yet set up the Paseo way
+When the first request of a conversation comes in the main checkout of a git repository (`git rev-parse --git-dir` equals `--git-common-dir`) that has no `paseo.json` at its root, set it up with the `paseo-workflow` skill before doing the request:
+- Ask only the values the skill needs and nothing else records, as choice questions (AskUserQuestion), batched, with a recommendation.
+- Then set it up in one go, and then do the request.
+
 ## Work tracking (GitHub Issues)
 When a project tracks work in GitHub Issues:
 - Every request from the user, question owed to the user, and step only the user can do becomes an issue before the work starts. Make one issue per thing; no catch-all lists.

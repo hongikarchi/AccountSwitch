@@ -18,10 +18,10 @@ Requires the Paseo MCP tools (`mcp__paseo__*`). If they are missing, say so and 
 
 ## 1. Set up a project (once per repo)
 
-The user says "Paseo 방식으로 세팅해줘". Do the whole setup in one go, without trial and error. The only question is the backup folder.
+The user says "Paseo 방식으로 세팅해줘", or the first request of a conversation comes in the main checkout of a repo with no `paseo.json` (global CLAUDE.md). In the second case, set up first and then do that request. Do the whole setup in one go, without trial and error. The only question is the backup folder.
 
 1. **Read** the project's CLAUDE.md, default branch (`gh repo view --json defaultBranchRef`), install command (lockfile and package manager, plus tool restores such as `dotnet tool restore`), CI, and any worktree-cleanup hooks.
-2. **Ask** for the backup folder, unless the project's CLAUDE.md or memory already records it. It holds outputs git does not keep: renders, reference images, drawings such as DWG, uploads. It can be on a network share. Archiving a workspace deletes these files (section 3).
+2. **Ask** for the backup folder, unless the project's CLAUDE.md or memory already records it. Ask it as a choice question (AskUserQuestion) with a suggested folder first, for example `<Desktop>\<repo name>-backup`; the user can type another. It holds outputs git does not keep: renders, reference images, drawings such as DWG, uploads. It can be on a network share. Archiving a workspace deletes these files (section 3).
 3. **Integration branch.** If `git ls-remote --heads origin <prefix>_develop` prints nothing, create it from the default branch and push it: `git fetch origin`, then `git push origin origin/<default>:refs/heads/<prefix>_develop`.
 4. **Main checkout.** If `git status --porcelain` is empty, `git fetch` and `git switch <prefix>_develop` (it tracks the remote branch). If it is not clean, do not switch; tell the user which files are in the way.
 5. **Plugins.** `.worktreeinclude` is read by Paseo's built-in `worktree-include` plugin, which runs only when Paseo's "Enable plugins" switch is on. Check with `paseo daemon config get pluginsEnabled` (`"value": true`). If it is off, tell the user; AccountSwitch's AI 작업 설정 turns it on.
