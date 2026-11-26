@@ -184,7 +184,7 @@ namespace AccountSwitch.Desktop
         }
 
         /// <summary>
-        /// Paseo's window to the front, restored if minimized (SPEC 4.1). Started from the user's click
+        /// Paseo's window to the front, restored if minimized, or Paseo started when it has none (SPEC 4.1). Started from the user's click
         /// on this window, which holds the foreground, so Windows lets it through.
         /// </summary>
         private static void ShowPaseo()
@@ -199,6 +199,23 @@ namespace AccountSwitch.Desktop
                     SetForegroundWindow(window);
                     return;
                 }
+            }
+            // No window: Paseo was quit while its daemon kept running (keepRunningAfterQuit, SPEC
+            // 3.3), so the engine found it answering and started nothing. A first start opens one window.
+            // The folders of PASEO_FOLDERS in the setup manifest, in its order.
+            foreach (string folder in new[]
+            {
+                Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Programs\Paseo"),
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Paseo"),
+            })
+            {
+                string program = Path.Combine(folder, "Paseo.exe");
+                if (!File.Exists(program)) continue;
+                var start = new System.Diagnostics.ProcessStartInfo(program) { UseShellExecute = false, WorkingDirectory = folder };
+                foreach (string name in new[] { "ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ATTACH_CONSOLE", "PASEO_NODE_ENV" })
+                    start.EnvironmentVariables.Remove(name);
+                System.Diagnostics.Process.Start(start)?.Dispose();
+                return;
             }
         }
 

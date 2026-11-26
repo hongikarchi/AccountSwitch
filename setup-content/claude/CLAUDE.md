@@ -53,9 +53,10 @@ One fact, one place.
   - Leave the folder name. Skip the main checkout and branches already named by the rule.
 
 ## Projects not yet set up the Paseo way
-When the first request of a conversation comes in the main checkout of a git repository (`git rev-parse --git-dir` equals `--git-common-dir`) that has no `paseo.json` at its root, set it up with the `paseo-workflow` skill before doing the request:
+When the Paseo tools (`mcp__paseo__*`) are available and the first request of a conversation comes in the main checkout of a git repository (`git rev-parse --git-dir` equals `--git-common-dir`) that has no `paseo.json` at its root, set it up with the `paseo-workflow` skill before doing the request:
 - Ask only the values the skill needs and nothing else records, as choice questions (AskUserQuestion), batched, with a recommendation.
 - Then set it up in one go, and then do the request.
+- If the setup cannot run, say so in one line and still do the request.
 
 ## Work tracking (GitHub Issues)
 When a project tracks work in GitHub Issues:
