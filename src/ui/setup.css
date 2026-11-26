@@ -360,7 +360,7 @@
 .ai-prefix {
   width: 100%;
   max-width: 280px;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 .ai-preview {
   display: grid;
@@ -370,7 +370,7 @@
 }
 .ai-preview code {
   color: var(--text);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 .ai-preview [data-tone='danger'] {
   color: var(--danger);
@@ -453,7 +453,7 @@
   width: 38%;
 }
 .ai-target code {
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
 }
 .ai-action {
   font-weight: 500;
@@ -663,7 +663,7 @@
   overflow: auto;
   border-radius: var(--radius-panel);
   background: var(--panel);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 18px;
   white-space: pre-wrap;

@@ -67,6 +67,8 @@ Radii: 6 px controls, 10 px panels, 999 px pills. Shadows: none, except menus an
 
 Font: Pretendard (Korean and Latin, OFL), bundled as `woff2` in the build because the CSP blocks remote fonts. Fallback `'Malgun Gothic', system-ui, sans-serif`. Numbers use `font-variant-numeric: tabular-nums`.
 
+Monospace (`--font-mono`): `ui-monospace, 'Cascadia Mono', Consolas, 'SF Mono', Menlo, monospace`. Chromium on Windows ignores `ui-monospace`, and its generic `monospace` on a Korean system is GulimChe, whose Latin letters read as full-width (user, 2026-11-26), so named fonts come before the generic one.
+
 | Role | Size / line | Weight | Tracking | Use |
 |---|---|---|---|---|
 | Display | 24 / 32 | 600 | -0.02em | Wizard step title on its first screen, empty states |
