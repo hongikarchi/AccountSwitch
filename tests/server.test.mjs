@@ -321,8 +321,8 @@ test('GET /api/v1/setup gives the catalog, the state, and whether the wizard ope
       stateFileExists: false,
       claudeInstalled: false,
     });
-    assert.equal(setup.catalog.items.length, 26);
-    assert.equal(setup.catalog.groups.length, 6);
+    assert.equal(setup.catalog.items.length, 28);
+    assert.equal(setup.catalog.groups.length, 7);
     assert.equal(setup.catalog.items[0].id, 'git');
     // Asking must not create the file that decides the rule.
     assert.equal(existsSync(join(server.directory, 'setup-state.json')), false);
@@ -375,13 +375,13 @@ test('POST /api/v1/setup/check runs the checks, with or without a body, and writ
       const report = await response.json();
       assert.equal(report.supported, true);
       assert.equal(report.pathSource, 'registry');
-      assert.equal(report.results.length, 26);
+      assert.equal(report.results.length, 28);
       assert.equal(report.results.find((result) => result.id === 'git').status, 'missing');
     }
     assert.ok(server.calls.length >= 2);
     assert.equal(existsSync(join(server.directory, 'setup-state.json')), false);
     const setup = await (await server.get()).json();
-    assert.equal(setup.lastCheck.results.length, 26);
+    assert.equal(setup.lastCheck.results.length, 28);
   } finally {
     await server.close();
   }
@@ -709,6 +709,79 @@ test('a server started with no fakes cannot start a real install under the test 
     assert.deepEqual(await answer.json(), { run: null });
   } finally {
     console.error = errors;
+    await app.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('the Paseo 열기 route (SPEC 4.1) needs the session and origin; no real Paseo', async () => {
+  const directory = await mkdtemp(join(tmpdir(), 'accountswitch-server-'));
+  const project = join(directory, '내 프로젝트 & 2');
+  await mkdir(project);
+  const calls = [];
+  const shown = [];
+  const answers = {
+    status: '{"serverId":"srv_A"}',
+    'workspace ls': '[]',
+    'workspace create': '{"workspaceId":"w-1"}',
+    ls: '[]',
+  };
+  const run = async ({ args }) => {
+    const rest = args.slice(1);
+    calls.push(rest);
+    const stdout = answers[rest.slice(0, 2).join(' ')] ?? answers[rest[0]] ?? '';
+    return { code: 0, stdout, stderr: '', timedOut: false };
+  };
+  const app = await startServer({
+    directory,
+    launcherPaseo: {
+      run,
+      cli: () => (args) => ({ program: 'Paseo.exe', args: ['cli', ...args], env: {} }),
+      startDesktop: (program, args) => shown.push(args),
+    },
+  });
+  try {
+    const origin = new URL(app.url).origin;
+    const session = await fetch(origin + '/api/v1/session', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: origin },
+      body: JSON.stringify({ token: new URL(app.launchUrl).hash.slice(1) }),
+    });
+    const cookie = session.headers.get('set-cookie').split(';')[0];
+    const send = (method, path, data, headers = { Cookie: cookie, Origin: origin }) =>
+      fetch(origin + '/api/v1/launcher/' + path, {
+        method,
+        headers: { 'Content-Type': 'application/json', ...headers },
+        body: data === undefined ? undefined : JSON.stringify(data),
+      });
+
+    const good = { folder: project };
+    assert.equal((await send('POST', 'paseo', good, { Origin: origin })).status, 401);
+    assert.equal((await send('POST', 'paseo', good, { Cookie: cookie })).status, 403);
+    assert.equal((await send('POST', 'paseo', { ...good, model: 'x' })).status, 400);
+    assert.equal((await send('POST', 'paseo', { ...good, provider: 'claude-cli' })).status, 400);
+    // The model list is gone with the select (ADR-012).
+    assert.equal((await send('GET', 'models')).status, 404);
+    assert.equal(calls.length, 0);
+
+    const status = await (
+      await fetch(origin + '/api/v1/launcher', { headers: { Cookie: cookie } })
+    ).json();
+    assert.equal(status.paseo, true);
+
+    const opened = await send('POST', 'paseo', good);
+    if (process.platform === 'win32') {
+      assert.deepEqual(
+        [opened.status, await opened.json()],
+        [200, { folder: project, workspaceId: 'w-1', shown: 'window' }],
+      );
+      // No agent made, no message sent, and nothing started: the shell brings Paseo forward.
+      assert.ok(!calls.some((c) => c[0] === 'run' || c[0] === 'send'));
+      assert.deepEqual(shown, []);
+    } else {
+      assert.deepEqual([opened.status, (await opened.json()).code], [409, 'UNSUPPORTED_PLATFORM']);
+    }
+  } finally {
     await app.close();
     await rm(directory, { recursive: true, force: true });
   }

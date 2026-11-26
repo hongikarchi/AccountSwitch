@@ -52,7 +52,7 @@ export const BACKUP_SUFFIX = '.accountswitch-bak';
  * not give the same bytes (UTF-16, CP949), so a write would destroy the rest. A NUL byte counts too,
  * because UTF-16 without a byte order mark can pass that test.
  */
-function readForEdit(files: InstallFiles, path: string) {
+export function readForEdit(files: InstallFiles, path: string) {
   let bytes: Buffer | undefined;
   try {
     bytes = files.read(path);
@@ -67,7 +67,7 @@ function readForEdit(files: InstallFiles, path: string) {
 }
 
 /** Only a change gets here. The backup is of the file before the first change, so it is kept after. */
-function writeWithBackup(files: InstallFiles, path: string, text: string) {
+export function writeWithBackup(files: InstallFiles, path: string, text: string) {
   const backup = path + BACKUP_SUFFIX;
   if (!files.read(backup)) files.copy(path, backup);
   files.write(path, text);

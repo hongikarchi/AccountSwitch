@@ -11,7 +11,7 @@ import {
   type StepContext,
   type StepFailure,
 } from './install-steps.ts';
-import { ensureItemOnPath } from './install-windows.ts';
+import { ensureItemOnPath, isProgramRunning } from './install-windows.ts';
 import { catalog, catalogFor } from './manifest.ts';
 import { setRunMarker } from './run-marker.ts';
 import { finishSetupState, recordSetupItem } from './state.ts';
@@ -416,7 +416,10 @@ export class SetupRunner {
         if (after.status === 'installed') {
           this.unconfirmed.delete(item.id);
           await this.fixPath(context, item);
-          return { status: 'done', ...(outcome.note ? { message: outcome.note } : {}) };
+          const message = [outcome.note, await this.restartNote(context, item)]
+            .filter(Boolean)
+            .join(' ');
+          return { status: 'done', ...(message ? { message } : {}) };
         }
         this.unconfirmed.add(item.id);
         if (outcome.needsUser) return { status: 'needs-user', ...outcome.needsUser };
@@ -444,6 +447,20 @@ export class SetupRunner {
       }
     }
     return { status: 'failed', ...last };
+  }
+
+  /**
+   * SPEC 3.3, Paseo: a program that keeps the PATH it started with is told about, never stopped. Not
+   * knowing says nothing; the item is installed either way.
+   */
+  private async restartNote(context: StepContext, item: SetupItem) {
+    const watch = item.install.noteIfRunning;
+    if (!watch || this.deps.check.platform !== 'win32' || context.cancelSignal.aborted) return '';
+    try {
+      return (await isProgramRunning(context, watch.image)) ? watch.message : '';
+    } catch {
+      return '';
+    }
   }
 
   /**

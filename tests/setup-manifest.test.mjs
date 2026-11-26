@@ -20,6 +20,8 @@ test('the catalog has every item of the spec, once, in the spec order', () => {
       'py-3d',
       'claude',
       'codex',
+      'paseo',
+      'paseo-settings',
       'rhino',
       'rhinomcp-plugin',
       'rhinomcp-launcher',
@@ -197,7 +199,7 @@ test("GPT's connections run the same servers, with telemetry off and the same pi
 test('every winget step has the standard flags and the declined exit code', () => {
   const steps = catalog.items.flatMap((item) => item.install.steps);
   const wingets = steps.filter((step) => step.kind === 'winget');
-  assert.equal(wingets.length, 5);
+  assert.equal(wingets.length, 6);
   for (const step of wingets) {
     assert.deepEqual(step.args.slice(0, 9), [
       'install',

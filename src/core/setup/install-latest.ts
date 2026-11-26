@@ -45,16 +45,17 @@ async function nodeLts(read: ReadText): Promise<LatestInstaller> {
   return { url: `https://nodejs.org/dist/v${version}/${file}`, sha256, version };
 }
 
-const RELEASES: Record<'git-for-windows' | 'gh', { repo: string; asset: RegExp }> = {
+type GithubSource = Exclude<LatestSource, 'node-lts'>;
+
+const RELEASES: Record<GithubSource, { repo: string; asset: RegExp }> = {
   'git-for-windows': { repo: 'git-for-windows/git', asset: /^Git-(\d+\.\d+\.\d+)-64-bit\.exe$/ },
   gh: { repo: 'cli/cli', asset: /^gh_(\d+\.\d+\.\d+)_windows_amd64\.msi$/ },
+  // Not `Paseo-Setup-<version>.exe`, which holds every architecture.
+  paseo: { repo: 'getpaseo/paseo', asset: /^Paseo-Setup-(\d+\.\d+\.\d+)-x64\.exe$/ },
 };
 
 /** The newest GitHub release's installer asset, by name, with the digest GitHub publishes for it. */
-async function githubRelease(
-  read: ReadText,
-  source: 'git-for-windows' | 'gh',
-): Promise<LatestInstaller> {
+async function githubRelease(read: ReadText, source: GithubSource): Promise<LatestInstaller> {
   const { repo, asset } = RELEASES[source];
   const release = json(await read(`https://api.github.com/repos/${repo}/releases/latest`));
   const assets = (release as { assets?: unknown } | null)?.assets;

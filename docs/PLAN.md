@@ -11,6 +11,7 @@ Order is chosen so the riskiest unknowns are measured early and every milestone 
 | M2 | Setup engine, read only: manifest, checks, PATH re-read, `GET /setup`, `POST /setup/check`; 설치 tab shows the stepper with real status | Correct status on the development PC (most items present) and in Windows Sandbox (nothing present) |
 | M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `env`, `py-base`, `py-gis`, `py-3d`), then `claude`, `codex`, Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |
 | M4 | Launcher: shell bridge, folder dialog, `cmd /K` running Claude Code or Codex CLI | Opens both in a folder with a Korean name and spaces |
+| M4b | Paseo 열기 and 터미널 열기 (SPEC 4, 4.1, #45): `launcher.pick`, `launcher.show-paseo`, engine route, program popover | With Paseo, Paseo 열기 on a scratch git folder with a Korean name, spaces and `&` registers one workspace, creates no agent, and brings the Paseo window forward; a second press adds no second workspace; with an agent in that workspace the window shows it. 터미널 열기 asks Claude or GPT (no popover with one installed) and opens the terminal as in M4; without Paseo both buttons show, and Paseo 열기 shows the install line whose 설치 탭으로 goes to the 설치 tab. Test workspaces and projects are deleted afterwards |
 | M5 | Logo and icons | Approved concept, hand-drawn SVG, ICO and tray icons legible at 16 px on light and dark taskbars |
 | M6 | Release 0.3.0 | §4 checklist passed, user confirms, tag pushed |
 | Later | CAD (ZWCAD) after a hands-on test (ADR-004); macOS setup; terminal per account | – |
@@ -45,6 +46,7 @@ Everything in M3 has so far run against fakes only. Windows Sandbox proves:
 12. Rhino missing: `rhino` is `needs-user`, its plugins and settings are `skipped`, and the run finishes.
 13. Cancel during a slow install: the tree dies after the grace period, and only that tree. Quit during a run: the dialog, then a gentle stop.
 14. The log has no tokens and no environment values. Note timings.
+15. Paseo (#23): winget is absent, so the `Paseo-Setup-<version>-x64.exe /S /currentuser` fallback runs. It lands in `%LOCALAPPDATA%\Programs\Paseo` with no prompt and does not start Paseo. Start Paseo once, quit it, and `paseo-settings` then turns `keepRunningAfterQuit` on; Paseo's 설정 → 데몬 shows it on. With Paseo running, `paseo-settings` is `needs-user` and the file is unchanged.
 
 The Sandbox cannot prove these; they need the user on a real PC:
 

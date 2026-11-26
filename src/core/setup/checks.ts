@@ -26,6 +26,7 @@ import { pendingRows, planAiSettings, rowLabel } from './ai-settings.ts';
 import { catalogFor } from './manifest.ts';
 import { hasStartupCommand, readOnlyWarningOn } from './rhino-xml.ts';
 import { runsLauncher, rhinomcpLauncher } from './rhinomcp-launcher.ts';
+import { keepRunningState } from './paseo-desktop.ts';
 import { hasRoleNote } from './role-note.ts';
 import type { CheckPart, CheckReport, CheckResult, CheckSpec, SetupItem } from './types.ts';
 
@@ -660,8 +661,16 @@ function checkOne(context: Context, item: SetupItem): Outcome | Promise<Outcome>
       return checkEnvironment(context, check);
     case 'pip':
       return checkPip(context, check);
-    case 'file':
-      return { status: context.deps.exists(context.path(check.path)) ? 'installed' : 'missing' };
+    case 'file': {
+      const paths = [check.path, ...(check.orPaths ?? [])];
+      const found = paths.some((path) => context.deps.exists(context.path(path)));
+      return { status: found ? 'installed' : 'missing' };
+    }
+    case 'paseo-settings': {
+      const file = context.deps.readFile(context.path(check.file));
+      const on = keepRunningState(file?.toString('utf8')) === 'on';
+      return { status: on ? 'installed' : 'missing' };
+    }
     case 'versioned-folder':
       return checkVersionedFolder(context, check);
     case 'mcp':

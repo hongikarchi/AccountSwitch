@@ -33,6 +33,17 @@ AccountSwitch is a desktop app for Windows (C# WinForms + WebView2 shell, `src/d
 - Commit, tag, and publish only when asked. Pushing a tag `vX.Y.Z` releases to every installed copy through auto-update, so confirm with the user before tagging.
 - Before reporting work done: `npm test`, `npm run typecheck`, `npm run format:check`; for shell changes also `npm run build:desktop`.
 
+## Workspaces (Paseo)
+
+This project uses the branch prefix `accountswitch_` instead of the global one (user, 2026-11-26).
+
+- Branches: the integration branch is `accountswitch_develop`. Task branches are `accountswitch_<task>` (lowercase letters, digits, hyphens). `main` is for releases: `accountswitch_develop` reaches `main` through a PR, and tags are pushed from `main`.
+- The coordinator tab works in the main checkout, which stays on `accountswitch_develop`. It talks with the user, writes issues, and merges. It changes no code there, and never stashes, resets, or switches branches there; it updates only with a fast-forward pull when clean.
+- Each task gets its own Paseo workspace on a new worktree, branched off `origin/accountswitch_develop`, on a branch `accountswitch_<task>`, with its own agent. Its PR targets `accountswitch_develop`.
+- An agent that is already in a worktree works in place and opens its PR from it. It does not make another worktree and does not touch the main checkout.
+- `paseo.json` holds the worktree install command. `.worktreeinclude` lists gitignored local files to copy into new worktrees; Paseo's built-in `worktree-include` plugin copies them when Paseo's plugin switch (`pluginsEnabled`) is on (#44).
+- Backup folder for outputs git does not keep: `%USERPROFILE%\Desktop\AccountSwitch-backup`. After a task's PR is merged, copy the worktree's untracked and ignored files (except `node_modules`, `dist`, `release`, `.build`, and other rebuildable folders) to `<backup folder>\<task branch>\<YYYY-MM-DD>\`, check the sizes, and only then archive the workspace.
+
 ## Environment
 
 Windows 11, Node 24.15+, .NET SDK (the shell targets .NET Framework 4.8), `dotnet tool restore` for `vpk`.

@@ -56,11 +56,12 @@ export function pinnedHash(fileName) {
 }
 
 /** The newest releases the pretend publishers announce for the latest installers (SPEC 3.3). */
-export const LATEST = { node: '26.13.1', git: '2.56.1', gh: '2.105.0' };
+export const LATEST = { node: '26.13.1', git: '2.56.1', gh: '2.105.0', paseo: '0.17.4' };
 export const LATEST_URLS = {
   node: `https://nodejs.org/dist/v${LATEST.node}/node-v${LATEST.node}-x64.msi`,
   git: `https://github.com/git-for-windows/git/releases/download/v${LATEST.git}.windows.1/Git-${LATEST.git}-64-bit.exe`,
   gh: `https://github.com/cli/cli/releases/download/v${LATEST.gh}/gh_${LATEST.gh}_windows_amd64.msi`,
+  paseo: `https://github.com/getpaseo/paseo/releases/download/v${LATEST.paseo}/Paseo-Setup-${LATEST.paseo}-x64.exe`,
 };
 const release = (url) => ({
   tag_name: 'v-latest',
@@ -94,6 +95,16 @@ export function latestAnswer(url) {
     return JSON.stringify(release(LATEST_URLS.git));
   if (url === 'https://api.github.com/repos/cli/cli/releases/latest')
     return JSON.stringify(release(LATEST_URLS.gh));
+  if (url === 'https://api.github.com/repos/getpaseo/paseo/releases/latest') {
+    // The installer that holds every architecture comes first and must not be taken.
+    const answer = release(LATEST_URLS.paseo);
+    answer.assets.unshift({
+      name: `Paseo-Setup-${LATEST.paseo}.exe`,
+      browser_download_url: LATEST_URLS.paseo.replace('-x64.exe', '.exe'),
+      digest: `sha256:${'0'.repeat(64)}`,
+    });
+    return JSON.stringify(answer);
+  }
   return undefined;
 }
 
