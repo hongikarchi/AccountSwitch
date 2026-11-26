@@ -7,6 +7,7 @@ import { join, win32 } from 'node:path';
 import { realCheckDeps } from '../src/core/setup/checks.ts';
 import { buildInstallDeps } from '../src/core/setup/install-deps.ts';
 import { catalog } from '../src/core/setup/manifest.ts';
+import { rhinomcpLauncher } from '../src/core/setup/rhinomcp-launcher.ts';
 import { SetupRunner } from '../src/core/setup/runner.ts';
 
 export const HOME = 'C:\\Users\\tester';
@@ -19,10 +20,17 @@ export const CLAUDE_CONFIG = `${HOME}\\.claude.json`;
 export const SETTINGS = `${APPDATA}\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml`;
 export const NOTE = `${HOME}\\.claude\\CLAUDE.md`;
 export const WINGET = `${LOCAL}\\Microsoft\\WindowsApps\\winget.exe`;
-/** The rhinomcp plugin folder, and a plugin there that the servers pair with (SPEC 3.3). */
+/** The rhinomcp plugin folder, and a plugin there (SPEC 3.3). */
 export const RHINOMCP_ROOT = `${APPDATA}\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp`;
 export const RHINOMCP_VERSION = '0.4.1.1';
+/**
+ * `folders: RHINOMCP_PLUGIN` stands for a PC this version set up: the plugin, and the launcher its
+ * servers run (SPEC 3.3). `launcher: false` leaves the launcher out.
+ */
 export const RHINOMCP_PLUGIN = { [RHINOMCP_ROOT]: [RHINOMCP_VERSION] };
+export const LAUNCHER = `${LOCAL}\\AccountSwitch\\mcp\\rhinomcp-launch.py`;
+/** The arguments of `<client> mcp add rhino … --` that run the launcher. */
+export const LAUNCHER_COMMAND = ['uv', 'run', '--no-project', '--quiet', LAUNCHER];
 
 export const ok = (stdout = '') => ({ code: 0, stdout, stderr: '', timedOut: false });
 export const exit = (code, stderr = '') => ({ code, stdout: '', stderr, timedOut: false });
@@ -45,6 +53,48 @@ export function pinnedHash(fileName) {
     .flatMap((item) => item.install.steps)
     .find((step) => step.kind === 'download-installer' && step.url.endsWith(`/${fileName}`))
     ?.sha256;
+}
+
+/** The newest releases the pretend publishers announce for the latest installers (SPEC 3.3). */
+export const LATEST = { node: '26.13.1', git: '2.56.1', gh: '2.105.0' };
+export const LATEST_URLS = {
+  node: `https://nodejs.org/dist/v${LATEST.node}/node-v${LATEST.node}-x64.msi`,
+  git: `https://github.com/git-for-windows/git/releases/download/v${LATEST.git}.windows.1/Git-${LATEST.git}-64-bit.exe`,
+  gh: `https://github.com/cli/cli/releases/download/v${LATEST.gh}/gh_${LATEST.gh}_windows_amd64.msi`,
+};
+const release = (url) => ({
+  tag_name: 'v-latest',
+  assets: [
+    { name: 'checksums.txt', browser_download_url: 'https://github.com/x/y', digest: null },
+    {
+      name: url.split('/').pop(),
+      browser_download_url: url,
+      digest: `sha256:${sha256(PRETEND_INSTALLER)}`,
+    },
+  ],
+});
+
+/**
+ * What the pretend publishers answer to the lookups of the latest installers, with the hash of the
+ * pretend installer; undefined for any other address.
+ */
+export function latestAnswer(url) {
+  if (url === 'https://nodejs.org/dist/index.json')
+    return JSON.stringify([
+      { version: 'v27.0.0', lts: false },
+      { version: `v${LATEST.node}`, lts: 'Lithium' },
+      { version: 'v24.22.3', lts: 'Krypton' },
+    ]);
+  if (url === `https://nodejs.org/dist/v${LATEST.node}/SHASUMS256.txt`)
+    return [
+      `${'0'.repeat(64)}  node-v${LATEST.node}-arm64.msi`,
+      `${sha256(PRETEND_INSTALLER)}  node-v${LATEST.node}-x64.msi`,
+    ].join('\n');
+  if (url === 'https://api.github.com/repos/git-for-windows/git/releases/latest')
+    return JSON.stringify(release(LATEST_URLS.git));
+  if (url === 'https://api.github.com/repos/cli/cli/releases/latest')
+    return JSON.stringify(release(LATEST_URLS.gh));
+  return undefined;
 }
 
 /** Files in memory, with the shape of InstallFiles. */
@@ -115,7 +165,12 @@ export function fakePc({
   cancelGraceMs,
   // Short, so a test that ends with a command still going does not wait out the real 10 s.
   stopGraceMs = 5,
+  launcher = Object.hasOwn(folders, RHINOMCP_ROOT),
 } = {}) {
+  if (launcher) {
+    present = [...present, LAUNCHER];
+    initialFiles = { [LAUNCHER]: rhinomcpLauncher(), ...initialFiles };
+  }
   const memory = memoryFiles(initialFiles);
   const paths = new Set(present.map(lower));
   // As written, so a listing gives names a test can find again.
@@ -281,7 +336,7 @@ export function fakePc({
       fetch ??
       (async (url) => {
         pc.downloads.push(url);
-        return new Response(PRETEND_INSTALLER);
+        return new Response(latestAnswer(url) ?? PRETEND_INSTALLER);
       }),
     files,
     ...(now ? { now } : {}),

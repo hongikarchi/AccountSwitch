@@ -21,13 +21,14 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 
 | 묶음 | 항목 |
 |---|---|
-| 기본 | Git, GitHub CLI(gh), Node.js 24, uv, Python 3.13, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
+| 기본 | Git, GitHub CLI(gh), Node.js(최신 LTS), uv, Python 3.13, 터미널 기본 설정, Python 기본·지도(GIS)·3D 패키지 |
 | Claude Code | Claude Code |
 | GPT | Codex CLI |
 | Rhino | Rhino 8은 직접 설치하고, 플러그인과 Claude Code·GPT 연결(rhinomcp, Cordyceps)을 설치합니다 |
 | Blender | Blender 5.2.3, 애드온, Claude Code·GPT 연결(blender-mcp) |
 
-- **rhinomcp는 설치할 때의 최신 버전으로 받습니다.** Rhino 플러그인과 Claude Code·GPT 연결은 서로 같은 버전이어야 해서, 연결은 PC에 깔린 플러그인과 같은 버전으로 등록합니다. 나중에 Rhino에서 플러그인이 새 버전으로 바뀌면 점검에서 "버전 다름"으로 알려 주고, 누르면 같은 버전으로 다시 등록합니다.
+- **기본은 최신 버전입니다.** 새 버전이 무언가를 깨뜨린다고 알려진 경우에만 버전을 고정합니다. 지금 고정된 것은 Python 3.13과 Blender 묶음뿐입니다. Node.js는 최신 LTS를 받고, 이미 22 이상이 있으면 그대로 둡니다. winget이 안 될 때 받는 Git·GitHub CLI·Node.js 설치 파일도, 설치하는 그때 공식 사이트에서 최신 버전과 그 공식 해시를 읽어 확인한 뒤 실행합니다.
+- **rhinomcp는 Rhino 플러그인 버전을 저절로 따라갑니다.** 플러그인과 Claude Code·GPT 연결은 서로 같은 버전이어야 하는데, Rhino는 플러그인을 스스로 업데이트합니다. 그래서 연결에는 버전을 적지 않고, 켜질 때마다 PC에 깔린 플러그인 버전을 읽어 그 버전으로 실행하는 작은 실행기(`%LOCALAPPDATA%\AccountSwitch\mcp\rhinomcp-launch.py`)를 등록합니다. 그 버전이 아직 PyPI에 없으면 받을 수 있는 가장 새 버전으로 실행합니다. 0.3.5까지 버전을 적어 등록한 PC는 점검에서 "버전 다름"으로 보이니, 한 번 눌러서 다시 등록하면 됩니다.
 - **이미 있는 프로그램은 건드리지 않습니다.** 다른 버전이 있으면 "버전 다름"으로 알려 주고 그대로 둡니다. Claude Code 연결을 다시 등록하는 일과, 점검만 모드에서 다른 버전의 Blender 옆에 설치하는 일은 먼저 물어봅니다. winget으로 Blender를 설치하면 다른 버전이 지워질 수 있어 경고합니다.
 - **로그인 정보를 읽거나 쓰지 않습니다.** `~/.claude.json`에 쓰는 일은 계정 전환과 겹치지 않게 하나씩 실행합니다.
 - **받는 곳**: winget, 각 프로젝트의 공식 주소, npm, PyPI만 씁니다. 버전을 고정한 설치 파일은 공개된 해시로 확인한 뒤 실행합니다.

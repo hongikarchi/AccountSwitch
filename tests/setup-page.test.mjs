@@ -152,8 +152,8 @@ test('an MCP item with another version goes in replace only after being asked', 
       ['cordyceps-mcp', true],
     ],
   );
-  assert.match(asked[0].text, /Rhino 플러그인과 같은 버전으로 다시 등록/);
-  assert.doesNotMatch(asked[1].text, /버전으로/);
+  assert.match(asked[0].text, /Rhino 플러그인 버전을 저절로 따라가도록 다시 등록/);
+  assert.doesNotMatch(asked[1].text, /버전/);
   assert.deepEqual(runRequest(['rhinomcp-mcp'], 'check', [asked[0]]), {
     items: ['rhinomcp-mcp'],
     mode: 'check',
@@ -173,9 +173,12 @@ test('a row says what the check found', () => {
   assert.equal(row('git', { status: 'installed', foundVersion: '2.56.0' }).node, 'done');
   assert.equal(row('git', { status: 'missing' }).meta, '없음');
   assert.equal(row('git', { status: 'missing' }).node, 'pending');
-  const other = row('node', { status: 'version-mismatch', foundVersion: '22.1.0' });
+  const other = row('node', { status: 'version-mismatch', foundVersion: '20.18.0' });
   assert.equal(other.node, 'mismatch');
-  assert.equal(other.meta, '버전 다름 · 찾은 버전 22.1.0 · 필요한 버전 24.22.1');
+  // Node installs the newest LTS, so there is no one version to name.
+  assert.equal(other.meta, '버전 다름 · 찾은 버전 20.18.0');
+  const pinned = row('blender', { status: 'version-mismatch', foundVersion: '5.1.0' });
+  assert.equal(pinned.meta, '버전 다름 · 찾은 버전 5.1.0 · 필요한 버전 5.2.3');
   assert.equal(stepFromCheck(catalog, item('git'), undefined).meta, '확인하는 중');
 });
 
@@ -206,10 +209,10 @@ test('a row says in Korean which packages, parts and programs are missing', () =
 
   const result = { id: 'codex', pinnedVersion: 'latest', status: 'missing', waitingFor: ['node'] };
   const waiting = stepFromCheck(catalog, item('codex'), result);
-  assert.deepEqual(waiting.notes, [{ text: '먼저 필요해요: Node.js 24', tone: 'muted' }]);
+  assert.deepEqual(waiting.notes, [{ text: '먼저 필요해요: Node.js', tone: 'muted' }]);
   const coming = stepFromCheck(catalog, item('codex'), result, { checked: new Set(['node']) });
   assert.deepEqual(coming.notes, [
-    { text: 'Node.js 24 설치가 끝나면 이어서 설치해요.', tone: 'muted' },
+    { text: 'Node.js 설치가 끝나면 이어서 설치해요.', tone: 'muted' },
   ]);
 });
 
@@ -327,8 +330,8 @@ test('a run item the catalog does not know still gets a row', () => {
 test('counts', () => {
   const state = report({ git: missing, node: missing });
   assert.equal(checkSummary(catalog, state, none), '11개 중 9개 완료');
-  assert.equal(groupCount(catalog, report({ rhino: missing }), 'rhino'), '8개 중 7개 설치됨');
-  assert.equal(groupCount(catalog, null, 'rhino'), '4개');
+  assert.equal(groupCount(catalog, report({ rhino: missing }), 'rhino'), '9개 중 8개 설치됨');
+  assert.equal(groupCount(catalog, null, 'rhino'), '5개');
   const run = {
     phase: 'finished',
     mode: 'auto',
@@ -366,12 +369,9 @@ test('progress is announced in words', () => {
     startedAt: '',
     items: [{ id, status }],
   });
-  assert.equal(
-    runAnnouncement(catalog, run('running')),
-    `Node.js 24 설치하는 중. ${ELEVATION_NOTE}`,
-  );
+  assert.equal(runAnnouncement(catalog, run('running')), `Node.js 설치하는 중. ${ELEVATION_NOTE}`);
   assert.equal(runAnnouncement(catalog, run('running', 'uv')), 'uv 설치하는 중.');
-  assert.match(runAnnouncement(catalog, run('failed')), /Node\.js 24 설치에 실패했어요/);
+  assert.match(runAnnouncement(catalog, run('failed')), /Node\.js 설치에 실패했어요/);
   assert.equal(
     runAnnouncement(catalog, { ...run('running'), cancelling: true }),
     '취소하는 중이에요.',
@@ -514,7 +514,7 @@ test('a group row counts what applies and its button runs what is missing', () =
     'cordyceps-codex': missing,
   });
   const step = stepFromGroup(catalog, rhino, state, new Map(), 'check');
-  assert.equal(step.view.meta, '6개 중 4개 설치됨');
+  assert.equal(step.view.meta, '7개 중 5개 설치됨');
   assert.equal(step.view.node, 'pending');
   assert.deepEqual(step.install, ['rhinomcp-plugin', 'rhino-settings']);
   assert.equal(step.attention, false);

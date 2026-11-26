@@ -22,6 +22,7 @@ test('the catalog has every item of the spec, once, in the spec order', () => {
       'codex',
       'rhino',
       'rhinomcp-plugin',
+      'rhinomcp-launcher',
       'rhinomcp-mcp',
       'rhinomcp-codex',
       'cordyceps-plugin',
@@ -60,8 +61,19 @@ test('dependencies follow the spec rules', () => {
   const dependsOn = (id) => byId.get(id).dependsOn;
   assert.deepEqual(dependsOn('codex'), ['node']);
   for (const id of ['py-base', 'py-gis', 'py-3d']) assert.deepEqual(dependsOn(id), ['python']);
-  assert.deepEqual(dependsOn('rhinomcp-mcp'), ['claude', 'uv', 'rhinomcp-plugin']);
-  assert.deepEqual(dependsOn('rhinomcp-codex'), ['codex', 'uv', 'rhinomcp-plugin']);
+  assert.deepEqual(dependsOn('rhinomcp-launcher'), ['uv']);
+  assert.deepEqual(dependsOn('rhinomcp-mcp'), [
+    'claude',
+    'uv',
+    'rhinomcp-plugin',
+    'rhinomcp-launcher',
+  ]);
+  assert.deepEqual(dependsOn('rhinomcp-codex'), [
+    'codex',
+    'uv',
+    'rhinomcp-plugin',
+    'rhinomcp-launcher',
+  ]);
   assert.deepEqual(dependsOn('blender-mcp'), ['claude', 'uv']);
   assert.deepEqual(dependsOn('cordyceps-mcp'), ['claude']);
   assert.deepEqual(dependsOn('rhinomcp-plugin'), ['rhino']);
@@ -75,25 +87,37 @@ test('only the base group is on by default', () => {
 
 test('the pins of the spec are what checks and installs use', () => {
   const step = (id, index = 0) => byId.get(id).install.steps[index];
+  // Latest by default (SPEC 3.3): only Python and the Blender group keep a pin.
   assert.deepEqual(
-    [PINS.node, PINS.python, PINS.cordyceps, PINS.blender, PINS.blenderMcp],
-    ['24.22.1', '3.13', '1.5.0', '5.2.3', '1.5.5'],
+    [PINS.python, PINS.pythonInstaller, PINS.blender, PINS.blenderMcp],
+    ['3.13', '3.13.17', '5.2.3', '1.5.5'],
   );
-  // Without --version this id installs Node 26; any Node 24 already there is left alone.
-  assert.deepEqual(step('node').args.slice(-2), ['--version', '24.22.1']);
+  for (const gone of ['node', 'nodeMajor', 'gitInstaller', 'ghInstaller', 'cordyceps', 'rhinomcp'])
+    assert.equal(PINS[gone], undefined, gone);
+  // Without --version this id installs the newest LTS; any Node 22 or newer is left alone.
   assert.equal(step('node').id, 'OpenJS.NodeJS.LTS');
-  assert.equal(byId.get('node').check.acceptVersion, '24.x');
-  // rhinomcp is not pinned: the plugin installs the newest, its servers follow the plugin on disk.
-  const rhinomcpRoot = '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp';
-  assert.equal(PINS.rhinomcp, undefined);
+  assert.ok(!step('node').args.includes('--version'));
+  assert.equal(byId.get('node').check.acceptVersion, '>=22');
+  assert.equal(byId.get('node').pinnedVersion, 'latest');
+  // rhinomcp is not pinned: the plugin installs the newest, its servers run the launcher.
+  const launcher = '%LOCALAPPDATA%\\AccountSwitch\\mcp\\rhinomcp-launch.py';
   assert.equal(step('rhinomcp-plugin').version, undefined);
   assert.equal(byId.get('rhinomcp-plugin').check.version, undefined);
-  assert.equal(byId.get('rhinomcp-plugin').check.root, rhinomcpRoot);
+  assert.equal(
+    byId.get('rhinomcp-plugin').check.root,
+    '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp',
+  );
+  assert.deepEqual(byId.get('rhinomcp-launcher').check, { kind: 'launcher', file: launcher });
+  assert.deepEqual(step('rhinomcp-launcher'), { kind: 'launcher', file: launcher });
   for (const id of ['rhinomcp-mcp', 'rhinomcp-codex']) {
-    assert.deepEqual(step(id).args.slice(-2), ['uvx', 'rhinomcp'], id);
-    assert.deepEqual(step(id).pairWith, { package: 'rhinomcp', root: rhinomcpRoot }, id);
-    assert.equal(byId.get(id).check.version, undefined, id);
-    assert.equal(byId.get(id).check.versionFrom, rhinomcpRoot, id);
+    assert.deepEqual(
+      step(id).args.slice(-5),
+      ['uv', 'run', '--no-project', '--quiet', launcher],
+      id,
+    );
+    assert.equal(byId.get(id).check.launcher, launcher, id);
+    assert.equal(byId.get(id).check.package, undefined, id);
+    assert.ok(byId.get(id).dependsOn.includes('rhinomcp-launcher'), id);
   }
   assert.deepEqual(step('blender-mcp').args.slice(-4), [
     'uvx',
@@ -102,12 +126,19 @@ test('the pins of the spec are what checks and installs use', () => {
     'blender-mcp@1.5.5',
   ]);
   assert.equal(byId.get('blender-mcp').check.version, '1.5.5');
-  assert.equal(step('cordyceps-plugin').version, '1.5.0');
+  assert.equal(step('cordyceps-plugin').version, undefined);
+  assert.equal(byId.get('cordyceps-plugin').check.version, undefined);
+  assert.equal(byId.get('cordyceps-plugin').check.marker, 'Cordyceps.gha');
   assert.deepEqual(step('blender').args.slice(-2), ['--version', '5.2.3']);
   assert.equal(step('gh').id, 'GitHub.cli');
-  assert.equal(
-    step('gh', 1).url,
-    'https://github.com/cli/cli/releases/download/v2.103.3/gh_2.103.3_windows_amd64.msi',
+  // The fallbacks of Git, GitHub CLI and Node are looked up when they run.
+  assert.deepEqual(
+    ['git', 'gh', 'node'].map((id) => [step(id, 1).kind, step(id, 1).source]),
+    [
+      ['download-latest', 'git-for-windows'],
+      ['download-latest', 'gh'],
+      ['download-latest', 'node-lts'],
+    ],
   );
 });
 
@@ -122,11 +153,19 @@ test("GPT's connections run the same servers, with telemetry off and the same pi
   const step = (id) => byId.get(id).install.steps[0];
   assert.deepEqual(step('rhinomcp-codex'), {
     kind: 'codex-mcp-add',
-    args: ['mcp', 'add', 'rhino', '--env', 'RHINO_MCP_HOST=127.0.0.1', '--', 'uvx', 'rhinomcp'],
-    pairWith: {
-      package: 'rhinomcp',
-      root: '%APPDATA%\\McNeel\\Rhinoceros\\packages\\8.0\\rhinomcp',
-    },
+    args: [
+      'mcp',
+      'add',
+      'rhino',
+      '--env',
+      'RHINO_MCP_HOST=127.0.0.1',
+      '--',
+      'uv',
+      'run',
+      '--no-project',
+      '--quiet',
+      '%LOCALAPPDATA%\\AccountSwitch\\mcp\\rhinomcp-launch.py',
+    ],
   });
   assert.deepEqual(step('cordyceps-codex').args, [
     'mcp',
@@ -191,7 +230,7 @@ test('every download comes from a host the spec allows', () => {
     .flatMap((item) => item.install.steps)
     .filter((step) => step.kind !== 'manual' && step.url)
     .map((step) => step.url);
-  assert.ok(urls.length >= 7);
+  assert.ok(urls.length >= 5);
   for (const url of urls) {
     assert.equal(new URL(url).protocol, 'https:', url);
     assert.ok(allowed.has(new URL(url).hostname), url);

@@ -22,6 +22,7 @@ import { hasBlenderStartupScript } from './blender-startup.ts';
 import { stuckClaudeUpdate, stuckMessage } from './claude-update.ts';
 import { catalog } from './manifest.ts';
 import { hasStartupCommand, readOnlyWarningOn } from './rhino-xml.ts';
+import { runsLauncher, rhinomcpLauncher } from './rhinomcp-launcher.ts';
 import { hasRoleNote } from './role-note.ts';
 import type { CheckPart, CheckReport, CheckResult, CheckSpec, SetupItem } from './types.ts';
 
@@ -116,10 +117,11 @@ export async function refreshEnginePath(deps: CheckDeps) {
   return { snapshot, refreshed: !!path };
 }
 
-/** Whether a found version satisfies a pin: `latest`, `24.x`, or an exact version. */
+/** Whether a found version satisfies a pin: `latest`, `24.x`, `>=22`, or an exact version. */
 export function versionMatches(pinned: string | null, found: string) {
   if (pinned === null || pinned === 'latest') return true;
   if (pinned.endsWith('.x')) return found.startsWith(pinned.slice(0, -1));
+  if (pinned.startsWith('>=')) return newestFirst(found, pinned.slice(2)) <= 0;
   return found === pinned;
 }
 
@@ -396,7 +398,9 @@ function checkVersionedFolder(
   const root = context.path(spec.root);
   if (!spec.version) {
     const newest = newestVersionFolder(context.deps.listFolders, root);
-    return newest ? { status: 'installed', foundVersion: newest } : { status: 'missing' };
+    const complete =
+      newest && (!spec.marker || context.deps.exists(win32.join(root, newest, spec.marker)));
+    return complete ? { status: 'installed', foundVersion: newest } : { status: 'missing' };
   }
   const wanted = win32.join(root, spec.version, ...(spec.marker ? [spec.marker] : []));
   if (context.deps.exists(wanted)) return { status: 'installed', foundVersion: spec.version };
@@ -435,7 +439,7 @@ async function checkMcp(
     if (!context.deps.executable('codex-cli')) return { status: 'missing' };
     const config = context.deps.readFile(win32.join(context.deps.home, '.codex', 'config.toml'));
     const server = config && codexMcpServer(config, spec.name);
-    return server ? mcpOutcome(expected(context, spec), server) : { status: 'missing' };
+    return server ? mcpOutcome(context, spec, server) : { status: 'missing' };
   }
   if (!context.deps.executable('claude-cli')) return { status: 'missing' };
   // Inside the lock so the read never meets an account switch rewriting the file (SPEC 3.7).
@@ -448,36 +452,32 @@ async function checkMcp(
   if (server === null)
     return { status: 'error', message: 'Claude Code 설정 파일을 읽지 못했어요.' };
   if (!server) return { status: 'missing' };
-  return mcpOutcome(expected(context, spec), server);
-}
-
-/** The check with `versionFrom` turned into the version of the plugin on disk, if there is one. */
-function expected(context: Context, spec: Extract<CheckSpec, { kind: 'mcp' }>) {
-  if (!spec.versionFrom) return spec;
-  const version = newestVersionFolder(context.deps.listFolders, context.path(spec.versionFrom));
-  return { ...spec, ...(version ? { version } : {}) };
+  return mcpOutcome(context, spec, server);
 }
 
 /** What a registered server is, against what the catalog expects of it. */
 function mcpOutcome(
+  context: Context,
   spec: Extract<CheckSpec, { kind: 'mcp' }>,
   server: { command: string; url?: string | undefined },
 ): Outcome {
   if (spec.url && server.url !== spec.url)
     return { status: 'version-mismatch', message: '다른 주소로 등록되어 있어요.' };
+  // SPEC 3.3: the server follows the plugin through the launcher; a fixed version falls behind.
+  if (spec.launcher)
+    return runsLauncher(server.command, context.path(spec.launcher))
+      ? { status: 'installed' }
+      : {
+          status: 'version-mismatch',
+          message: 'Rhino 플러그인 버전을 저절로 따라가도록 다시 등록해야 해요.',
+        };
   if (spec.package) {
     const found = findPackage(server.command, spec.package);
     if (!found) return { status: 'version-mismatch', message: '다른 방식으로 등록되어 있어요.' };
     if (!found.version)
       return { status: 'version-mismatch', message: '버전을 고정하지 않고 등록되어 있어요.' };
     if (spec.version && found.version !== spec.version)
-      return {
-        status: 'version-mismatch',
-        foundVersion: found.version,
-        ...(spec.versionFrom
-          ? { message: `Rhino 플러그인(${spec.version})과 버전이 달라요. 다시 등록해 주세요.` }
-          : {}),
-      };
+      return { status: 'version-mismatch', foundVersion: found.version };
     const words = server.command.split(/\s+/);
     const lacking = (spec.with ?? []).some(
       (extra) => !words.some((word, index) => word === extra && words[index - 1] === '--with'),
@@ -636,6 +636,14 @@ function checkOne(context: Context, item: SetupItem): Outcome | Promise<Outcome>
     case 'blender-startup': {
       const file = context.deps.readFile(context.path(check.file));
       const ok = file !== undefined && hasBlenderStartupScript(file.toString('utf8'), check.module);
+      return { status: ok ? 'installed' : 'missing' };
+    }
+    case 'launcher': {
+      // Any other text, an older launcher among it, is written again (SPEC 3.3).
+      const file = context.deps.readFile(context.path(check.file));
+      const ok =
+        file !== undefined &&
+        file.toString('utf8').replace(/\r\n/g, '\n') === rhinomcpLauncher().replace(/\r\n/g, '\n');
       return { status: ok ? 'installed' : 'missing' };
     }
     case 'rhino-settings':

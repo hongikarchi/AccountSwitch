@@ -27,8 +27,10 @@ import {
   SETTINGS,
   statusOf,
   until,
+  latestAnswer,
+  LATEST_URLS,
+  LAUNCHER_COMMAND,
   RHINOMCP_PLUGIN,
-  RHINOMCP_VERSION,
   withRunner,
 } from './setup-install-helpers.mjs';
 
@@ -227,7 +229,10 @@ test('the real read: undefined only for a missing file, and any other error reac
 // --- Finding 2: no restart on its own, and the user hears about a pending one
 
 test('every MSI and bundle fallback passes /norestart, and the Git one its own flag', () => {
-  const fallback = (id) => itemById(id).install.steps.find((s) => s.kind === 'download-installer');
+  const fallback = (id) =>
+    itemById(id).install.steps.find((s) =>
+      ['download-installer', 'download-latest'].includes(s.kind),
+    );
   assert.deepEqual(fallback('node').args, ['/i', '<file>', '/passive', '/norestart']);
   assert.deepEqual(fallback('blender').args, ['/i', '<file>', '/passive', '/norestart']);
   assert.deepEqual(fallback('python').args, [
@@ -596,10 +601,6 @@ test('a code off the list still falls back, and the declined code still ends it 
 
 test('every fixed installer carries the hash its project publishes, and SPEC says the same', () => {
   const published = {
-    'Git-2.56.0.4-64-bit.exe': '4961a4a8cc778d8b6e00a5819e5fe4d078b754555aff7aedc2d77a5d74c2de80',
-    'gh_2.103.3_windows_amd64.msi':
-      '5073112b7abb5ffbba24b76aee7e89269af531218c0a42751f5f0bfb6440c2cc',
-    'node-v24.22.1-x64.msi': '3bda4baf1ee709b33cf920dd633106ddb23951e322bff9c03ec9f64ab8981b01',
     'python-3.13.17-amd64.exe': '5da012101ba2e17113a9a1cd901e9ce1441086f2b7ecb5de06ec94163899a190',
     'blender-5.2.3-windows-x64.msi':
       'a103d4ece8d9acffd2a95c9d8860355b1f209977cc983b4a3d1e1cfb441c8605',
@@ -622,7 +623,7 @@ test('a download that does not match its hash never runs, and is not left behind
   withRunner(
     {
       on: (request, name) => (name === 'winget' ? exit(1) : undefined),
-      fetch: async () => new Response('tampered bytes'),
+      fetch: async (url) => new Response(latestAnswer(url) ?? 'tampered bytes'),
     },
     async ({ runner, pc }) => {
       runner.start(auto('node'));
@@ -839,7 +840,8 @@ test('a successful re-registration does not restore anything', () =>
       files: { [CLAUDE_CONFIG]: oldConfig() },
       on: claudeMcp({
         add: (pc, config) => {
-          config.mcpServers.rhino = { command: 'uvx', args: [`rhinomcp@${RHINOMCP_VERSION}`] };
+          const [command, ...args] = LAUNCHER_COMMAND;
+          config.mcpServers.rhino = { command, args };
           pc.files.write(CLAUDE_CONFIG, JSON.stringify(config));
           return ok();
         },
@@ -1140,7 +1142,11 @@ test('git.exe there but git --version failing: the install is not done', () =>
     assert.equal(item.status, 'failed');
     assert.equal(item.reason, 'NOT_DETECTED');
     assert.equal(pc.named('winget').length, 1);
-    assert.equal(pc.downloads.length, 1, 'the fallback got its turn');
+    // The fallback got its turn: the lookup of the newest Git, then that installer.
+    assert.deepEqual(pc.downloads, [
+      'https://api.github.com/repos/git-for-windows/git/releases/latest',
+      LATEST_URLS.git,
+    ]);
   }));
 
 test('a retry of that is not fooled by the file either, and a working Git then counts', () => {

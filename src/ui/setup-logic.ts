@@ -273,8 +273,8 @@ export function confirmationsFor(
     const action = actionFor(item, results.get(item.id), mode);
     if (action.kind === 'register-again') {
       const version =
-        item.check.kind === 'mcp' && item.check.versionFrom
-          ? 'Rhino 플러그인과 같은 버전으로 '
+        item.check.kind === 'mcp' && item.check.launcher
+          ? 'Rhino 플러그인 버전을 저절로 따라가도록 '
           : item.pinnedVersion && item.pinnedVersion !== 'latest'
             ? `${item.pinnedVersion} 버전으로 `
             : '';
