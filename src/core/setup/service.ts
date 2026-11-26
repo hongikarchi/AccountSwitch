@@ -1,3 +1,5 @@
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { DomainError } from '../errors.ts';
 import { realCheckDeps, refreshEnginePath, runChecks, type CheckDeps } from './checks.ts';
 import { stuckClaudeUpdate } from './claude-update.ts';
@@ -8,11 +10,23 @@ import {
   type InstallOverrides,
 } from './install-deps.ts';
 import { readLogTail } from './install-log.ts';
-import { catalog } from './manifest.ts';
+import { loadAiContent } from './ai-content.ts';
+import { BRANCH_PREFIX } from './ai-settings-rules.ts';
+import { aiReader, paseoHome, readPrefs } from './ai-settings-pc.ts';
+import { planAiSettings, PREFS_FILE, prefsText, publicRow } from './ai-settings.ts';
+import { catalog, catalogFor } from './manifest.ts';
 import { setRunMarker } from './run-marker.ts';
 import { SetupRunner } from './runner.ts';
 import { readSetupState, recordCheck, shouldAutoOpen } from './state.ts';
-import type { CheckReport, RunProgress, RunRequest, SetupOverview } from './types.ts';
+import type {
+  AiSettingsMode,
+  AiSettingsPlan,
+  AiSettingsSave,
+  CheckReport,
+  RunProgress,
+  RunRequest,
+  SetupOverview,
+} from './types.ts';
 
 // What /api/v1/setup answers from. Nothing here starts a program until a route asks.
 
@@ -37,7 +51,7 @@ export class SetupService {
     installOverrides: InstallOverrides = {},
   ) {
     this.directory = directory;
-    this.deps = realCheckDeps({ exclusive, ...overrides });
+    this.deps = realCheckDeps({ exclusive, dataDirectory: directory, ...overrides });
     this.installOverrides = installOverrides;
     // One service per engine, and a second engine attaches before it gets here: a marker found now
     // was left by an engine that went down during a run.
@@ -75,6 +89,42 @@ export class SetupService {
       !deps.executable('claude-cli') &&
       !!stuckClaudeUpdate(deps.home, deps)
     );
+  }
+
+  /**
+   * SPEC 3.11: the saved choices and the plan for a prefix and mode. Read only, Paseo's config
+   * through its CLI. Without any prefix there is nothing to plan.
+   */
+  async aiSettingsPlan(prefix?: string, mode?: AiSettingsMode): Promise<AiSettingsPlan> {
+    const { deps } = this;
+    if (prefix !== undefined && !BRANCH_PREFIX.test(prefix)) throw new DomainError('INVALID_INPUT');
+    const saved = readPrefs(deps);
+    const branchPrefix = prefix ?? saved.branchPrefix;
+    const answer = { branchPrefix: saved.branchPrefix, mode: saved.mode };
+    if (!branchPrefix) return { ...answer, rows: [] };
+    const reader = await aiReader(deps, (request) =>
+      deps.run({ timeoutMs: deps.timeouts.commandMs, ...request }),
+    );
+    const rows = planAiSettings(
+      loadAiContent(),
+      reader,
+      { ...saved, branchPrefix, mode: mode ?? saved.mode },
+      paseoHome(deps),
+    );
+    return { ...answer, rows: rows.map(publicRow) };
+  }
+
+  /** SPEC 3.11: the prefix, the mode and the kept rows for the next run; what was written stays. */
+  saveAiSettings(save: AiSettingsSave) {
+    if (this.installer?.active()) throw new DomainError('SETUP_RUN_ACTIVE');
+    if (!BRANCH_PREFIX.test(save.branchPrefix)) throw new DomainError('INVALID_INPUT');
+    const saved = readPrefs(this.deps);
+    const next = { ...saved, branchPrefix: save.branchPrefix, mode: save.mode, keep: save.keep };
+    const path = join(this.directory, PREFS_FILE);
+    mkdirSync(this.directory, { recursive: true });
+    writeFileSync(`${path}.tmp`, prefsText(next));
+    renameSync(`${path}.tmp`, path);
+    return { branchPrefix: next.branchPrefix, mode: next.mode };
   }
 
   /** The existing runner; before the first run there is nothing to skip, retry or cancel. */
@@ -125,14 +175,15 @@ export class SetupService {
 
   async overview(): Promise<SetupOverview> {
     const { platform } = this.deps;
-    const supported = platform === 'win32';
+    // macOS has the 설치 tab with the items of its own catalog (SPEC 3.11).
+    const supported = platform === 'win32' || platform === 'darwin';
     // Once per engine, so the auto-open rule does not trust a PATH from before an install.
-    if (supported) await (this.pathReady ??= refreshEnginePath(this.deps));
+    if (platform === 'win32') await (this.pathReady ??= refreshEnginePath(this.deps));
     const { file, state } = readSetupState(this.directory);
     return {
       platform,
       supported,
-      catalog,
+      catalog: catalogFor(platform),
       lastCheck: this.last,
       state,
       stateFile: file,

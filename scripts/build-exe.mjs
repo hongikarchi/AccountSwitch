@@ -60,6 +60,13 @@ if (!assets['ui/index.html']) {
   console.error('dist/ui/index.html is missing; run `npm run build:web` first.');
   process.exit(1);
 }
+// SPEC 3.11: the AI work settings, with an index of their files (src/core/setup/ai-content.ts).
+const content = join(root, 'setup-content');
+const contentFiles = files(content).map((file) => relative(content, file).replaceAll('\\', '/'));
+for (const path of contentFiles) assets[`setup-content/${path}`] = join(content, path);
+const contentIndex = join(work, 'setup-content-index.json');
+writeFileSync(contentIndex, JSON.stringify(contentFiles));
+assets['setup-content/index.json'] = contentIndex;
 const config = join(work, 'sea-config.json');
 writeFileSync(
   config,

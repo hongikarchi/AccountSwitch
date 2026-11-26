@@ -178,6 +178,11 @@ export function fakePc({
   // A file moved into place or removed is there or gone for the checks too.
   const files = {
     ...memory,
+    // A file written is there for the checks too, as on a real disk.
+    write: (path, data) => {
+      memory.write(path, data);
+      pc.add(path);
+    },
     rename: (from, to) => {
       memory.rename(from, to);
       pc.drop(from);

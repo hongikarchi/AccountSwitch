@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
+  AiSettingsSave,
   CheckReport,
   RunProgress,
   SetupItem,
   SetupMode,
   SetupOverview,
 } from '../core/setup/types.ts';
+import { AiSettingsPanel } from './ai-settings.tsx';
 import { api, errors } from './gateway.ts';
 import {
   actionFor,
   autoOpens,
   canStart,
   cardDone,
+  cardGroups,
   checkedInOrder,
   checkSummary,
   confirmationsFor,
@@ -19,7 +22,10 @@ import {
   failureMessage,
   groupItems,
   groupsOfRun,
+  hasPanel,
+  hasPrograms,
   isListed,
+  isPanelGroup,
   isRunActive,
   parseLog,
   parseOverview,
@@ -51,7 +57,8 @@ import './setup.css';
 
 // The 설치 tab (SPEC 3): the first screen, the checklist of the two modes, and the run screen. The
 // server owns a run, so this page only ever draws what it answers, and comes back to the same place
-// after a reload. Nothing starts a run but the two buttons that call `startRun`.
+// after a reload. Nothing starts a run but the buttons that call `startRun`. On macOS the catalog
+// has nothing to pick, so the tab is only the checklist, in 점검만 (SPEC 1, 3.11).
 
 const POLL_MS = 1000;
 const message = (error: unknown) => failureMessage(error, errors);
@@ -158,25 +165,23 @@ function ProgramScreen({
     <>
       <PageHead title="어떤 프로그램을 쓰세요?" back={back} />
       <div className="program-cards">
-        {overview.catalog.groups
-          .filter((group) => group.optional)
-          .map((group) =>
-            cardDone(overview.catalog, report, group.id, picked) ? (
-              <ProgramCard key={group.id} name={group.label} note="설치됨" />
-            ) : (
-              <ProgramCard
-                key={group.id}
-                name={group.label}
-                picked={picked.has(group.id)}
-                toggle={(on) => {
-                  const after = new Set(picked);
-                  if (on) after.add(group.id);
-                  else after.delete(group.id);
-                  setPicked(after);
-                }}
-              />
-            ),
-          )}
+        {cardGroups(overview.catalog).map((group) =>
+          cardDone(overview.catalog, report, group.id, picked) ? (
+            <ProgramCard key={group.id} name={group.label} note="설치됨" />
+          ) : (
+            <ProgramCard
+              key={group.id}
+              name={group.label}
+              picked={picked.has(group.id)}
+              toggle={(on) => {
+                const after = new Set(picked);
+                if (on) after.add(group.id);
+                else after.delete(group.id);
+                setPicked(after);
+              }}
+            />
+          ),
+        )}
         <ProgramCard name="ZWCAD" note="준비 중" />
       </div>
       <SummaryBar {...(checking ? { line: '확인하는 중이에요' } : {})} error={error}>
@@ -209,6 +214,8 @@ export function SetupTab({ active }: { active: boolean }) {
   const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
   const [warning, setWarning] = useState(false);
   const [unfolded, setUnfolded] = useState<ReadonlySet<string>>(new Set());
+  // Items whose own panel is unfolded (SPEC 3.11). On macOS it always is.
+  const [panels, setPanels] = useState<ReadonlySet<string>>(new Set());
   const [openGroups, setOpenGroups] = useState<ReadonlySet<string>>(new Set());
   const [confirming, setConfirming] = useState<{
     items: string[];
@@ -229,6 +236,12 @@ export function SetupTab({ active }: { active: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   // Moves the keyboard to the new screen's title, only after the user's own press.
   const focusTitle = useRef(false);
+  // A panel's button is replaced by the panel and back: the keyboard follows, after a press only.
+  const focusPanel = useRef<string | null>(null);
+  const focusOpener = useRef<string | null>(null);
+  useEffect(() => {
+    focusPanel.current = null;
+  }, [panels]);
 
   const chooseGroups = (next: ReadonlySet<string>) => {
     groups.current = next;
@@ -306,6 +319,10 @@ export function SetupTab({ active }: { active: boolean }) {
         // SPEC 3.1: after the first time, the tab is the same checklist with current status.
         setMode(next.state.mode);
         void runCheck();
+      } else if (!hasPrograms(next.catalog)) {
+        // Nothing to pick (macOS): straight to the checklist, with no choice to record.
+        setMode('check');
+        void runCheck();
       }
     } catch (error) {
       setLoadError(message(error));
@@ -377,12 +394,21 @@ export function SetupTab({ active }: { active: boolean }) {
     chooseGroups(new Set());
   };
 
-  /** The one way into a run: after a press, with the items the user left checked. */
-  const startRun = async (items: string[], runMode: SetupMode, confirmed: Confirmation[] = []) => {
+  /**
+   * The one way into a run: after a press, with the items the user left checked. `prepare` goes
+   * first and fails the same way (a panel saving its choices). True when the run was started.
+   */
+  const startRun = async (
+    items: string[],
+    runMode: SetupMode,
+    confirmed: Confirmation[] = [],
+    prepare?: () => Promise<unknown>,
+  ) => {
     setBusy(true);
     setActionError('');
     setConfirming(null);
     try {
+      if (prepare) await prepare();
       await api('/setup/run', 'POST', runRequest(items, runMode, confirmed));
       focusTitle.current = true;
       setPicking(false);
@@ -390,6 +416,7 @@ export function SetupTab({ active }: { active: boolean }) {
       setLog(null);
       setMode(runMode);
       applyRun(await fetchRun(), true);
+      return true;
     } catch (error) {
       // 409: another window started a run first, so this page follows that one.
       const current = await fetchRun().catch(() => null);
@@ -397,9 +424,24 @@ export function SetupTab({ active }: { active: boolean }) {
         setMode(current.mode);
         applyRun(current);
       } else setActionError(message(error));
+      return false;
     } finally {
       setBusy(false);
     }
+  };
+  /** A panel's 설치 (SPEC 3.11): save its choices, then run its item like any 점검만 install. */
+  const startPanelRun = async (item: SetupItem, save: AiSettingsSave) => {
+    // The screen's own mode, so applying these settings does not turn an auto run into a check.
+    const started = await startRun([item.id], mode ?? 'check', [], () =>
+      api('/setup/ai-settings', 'PUT', save),
+    );
+    // The row follows the run; folded, it shows the result like every other row.
+    if (started)
+      setPanels((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
   };
   /** Asks first when these items change something the user already has. */
   const requestRun = (items: string[], runMode: SetupMode) => {
@@ -481,9 +523,10 @@ export function SetupTab({ active }: { active: boolean }) {
           size="large"
           kind="install"
           title="이 컴퓨터에서는 쓸 수 없어요"
-          detail="설치 화면은 Windows에서만 쓸 수 있어요. 계정 화면은 그대로 쓸 수 있어요."
+          detail="설치 화면은 Windows와 macOS에서 쓸 수 있어요. 계정 화면은 그대로 쓸 수 있어요."
         />
       );
+    const picks = hasPrograms(overview.catalog);
     if (!overview.catalog.items.length)
       return (
         <EmptyState
@@ -498,11 +541,15 @@ export function SetupTab({ active }: { active: boolean }) {
         </EmptyState>
       );
     if (run) return checklist();
-    if (!mode) return <FirstScreen choose={choose} />;
+    // Without anything to pick, the checklist is the whole tab.
+    if (!mode && picks) return <FirstScreen choose={choose} />;
     if (checkError && !report)
       return (
         <EmptyState size="large" kind="error" title="점검하지 못했어요" detail={checkError}>
-          <button type="button" onClick={() => void runCheck(mode === 'check' && !lastRun)}>
+          <button
+            type="button"
+            onClick={() => void runCheck(mode === 'check' && !lastRun && picks)}
+          >
             다시 시도
           </button>
         </EmptyState>
@@ -539,7 +586,9 @@ export function SetupTab({ active }: { active: boolean }) {
     const { catalog } = overview!;
     const results = resultsById(report);
     const lastItems = new Map((lastRun?.items ?? []).map((entry) => [entry.id, entry]));
-    const auto = mode === 'auto';
+    // macOS: nothing to pick, so 점검만, no 처음으로, and the panel is the screen (SPEC 3.11).
+    const picks = hasPrograms(catalog);
+    const auto = mode === 'auto' && picks;
     const listMode = auto ? 'auto' : 'check';
     const outcome = lastRun ? runOutcome(lastRun) : undefined;
     const selected = checkedInOrder(catalog, checked);
@@ -572,9 +621,95 @@ export function SetupTab({ active }: { active: boolean }) {
       const action = actionFor(item, results.get(item.id), listMode);
       return (
         (action.kind === 'install' || action.kind === 'register-again') &&
+        !hasPanel(item) &&
         isListed(catalog, item.group, openGroups)
       );
     });
+
+    /**
+     * A row with its own panel (SPEC 3.11). Its 설치 unfolds the panel, whose 설치 starts the run;
+     * once there, 설정 보기 unfolds it again. Never part of a checked set or an auto-mode run.
+     */
+    const panelRow = (item: SetupItem) => {
+      const result = results.get(item.id);
+      const last = lastItems.get(item.id);
+      const open = !picks || panels.has(item.id);
+      const step = stepFromCheck(catalog, item, result, last ? { lastRun: last } : {});
+      // Open, the plan says the same row by row.
+      const view = open ? { ...step, parts: [] } : step;
+      const missing = actionFor(item, result).kind === 'install';
+      const fold = (unfold: boolean) => {
+        const next = new Set(panels);
+        if (unfold) {
+          next.add(item.id);
+          focusPanel.current = item.id;
+        } else {
+          next.delete(item.id);
+          focusOpener.current = item.id;
+        }
+        setPanels(next);
+      };
+      // The button that comes back after 접기 takes the keyboard, once.
+      const opener = (element: HTMLButtonElement | null) => {
+        if (!element || focusOpener.current !== item.id) return;
+        focusOpener.current = null;
+        element.focus();
+      };
+      return (
+        <StepRow
+          key={item.id}
+          view={view}
+          active={open}
+          control={
+            !open && missing ? (
+              <button
+                ref={opener}
+                type="button"
+                aria-label={`${item.label} 설치`}
+                aria-expanded={false}
+                disabled={!!run}
+                onClick={() => fold(true)}
+              >
+                설치
+              </button>
+            ) : undefined
+          }
+          actions={
+            !picks ? undefined : open ? (
+              <button
+                type="button"
+                className="text-button"
+                aria-expanded={true}
+                onClick={() => fold(false)}
+              >
+                접기
+              </button>
+            ) : missing ? undefined : (
+              <button
+                ref={opener}
+                type="button"
+                className="text-button"
+                aria-expanded={false}
+                onClick={() => fold(true)}
+              >
+                설정 보기
+              </button>
+            )
+          }
+        >
+          {open ? (
+            <AiSettingsPanel
+              label={item.label}
+              autoFocus={focusPanel.current === item.id}
+              locked={!!run}
+              blocked={busy || checking}
+              stamp={report?.finishedAt}
+              install={(save) => void startPanelRun(item, save)}
+            />
+          ) : null}
+        </StepRow>
+      );
+    };
 
     const row = (item: SetupItem) => {
       const progress = inRun.get(item.id);
@@ -582,6 +717,7 @@ export function SetupTab({ active }: { active: boolean }) {
         return (
           <StepRow key={item.id} view={stepFromRun(item, progress)} actions={runActions(item.id)} />
         );
+      if (hasPanel(item)) return panelRow(item);
       const result = results.get(item.id);
       const action = actionFor(item, result, listMode);
       const isChecked = checked.has(item.id);
@@ -620,11 +756,13 @@ export function SetupTab({ active }: { active: boolean }) {
       return <StepRow key={item.id} view={view} active={auto && isChecked} control={control} />;
     };
 
+    // A group set up in a panel lists its rows after the programs (SPEC 3.11).
+    const panelled = catalog.items.filter((item) => isPanelGroup(catalog, item.group));
     const listed = catalog.items.filter((item) => {
       const group = catalog.groups.find((entry) => entry.id === item.group);
-      return !group?.optional || group.cli;
+      return (!group?.optional || group.cli) && !panelled.includes(item);
     });
-    const programs = catalog.groups.filter((group) => group.optional && !group.cli);
+    const programs = cardGroups(catalog).filter((group) => !group.cli);
     const lastByItem = new Map((lastRun?.items ?? []).map((entry) => [entry.id, entry]));
 
     return (
@@ -647,7 +785,7 @@ export function SetupTab({ active }: { active: boolean }) {
                   ? '없는 항목에 미리 체크해 두었어요. 시작을 눌러야 설치가 시작돼요.'
                   : '확인만 했어요. 아무것도 바꾸지 않았어요. 필요한 것만 골라 설치할 수 있어요.'))
           }
-          {...(run ? {} : { back: backToFirst })}
+          {...(run || !picks ? {} : { back: backToFirst })}
         />
         {run ? (
           <p className="sr-only" aria-live="polite">
@@ -655,16 +793,21 @@ export function SetupTab({ active }: { active: boolean }) {
           </p>
         ) : null}
         <div className="stepper" {...(run ? { 'data-live': 'true' } : {})}>
-          <section className="step-section">
-            <GroupLabel
-              label={catalog.groups.find((group) => !group.optional)?.label ?? ''}
-              count={listed.length}
-            />
-            <ol className="step-list">{listed.map(row)}</ol>
-          </section>
-          {programs.length ? (
+          {listed.length ? (
             <section className="step-section">
-              <GroupLabel label="필요하면 더 고르세요" count={programs.length} />
+              <GroupLabel
+                label={catalog.groups.find((group) => !group.optional)?.label ?? ''}
+                count={listed.length}
+              />
+              <ol className="step-list">{listed.map(row)}</ol>
+            </section>
+          ) : null}
+          {programs.length || panelled.length ? (
+            <section className="step-section">
+              <GroupLabel
+                label={picks ? '필요하면 더 고르세요' : '필요하면 고르세요'}
+                count={programs.length + panelled.length}
+              />
               <ol className="step-list">
                 {programs.map((group) => {
                   const step = stepFromGroup(
@@ -733,6 +876,7 @@ export function SetupTab({ active }: { active: boolean }) {
                     </StepRow>
                   );
                 })}
+                {panelled.map(row)}
               </ol>
             </section>
           ) : null}

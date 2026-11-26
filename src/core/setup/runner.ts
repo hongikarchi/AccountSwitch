@@ -12,7 +12,7 @@ import {
   type StepFailure,
 } from './install-steps.ts';
 import { ensureItemOnPath } from './install-windows.ts';
-import { catalog } from './manifest.ts';
+import { catalog, catalogFor } from './manifest.ts';
 import { setRunMarker } from './run-marker.ts';
 import { finishSetupState, recordSetupItem } from './state.ts';
 import type {
@@ -55,8 +55,8 @@ interface Run {
 }
 
 /** Validate a request against the catalog; the routes only check its shape. */
-function validated(request: RunRequest) {
-  const byId = new Map(catalog.items.map((item) => [item.id, item]));
+function validated(request: RunRequest, own = catalog) {
+  const byId = new Map(own.items.map((item) => [item.id, item]));
   if (!request.items.length || request.items.some((id) => !byId.has(id)))
     throw new DomainError('INVALID_INPUT');
   const replace = request.replace ?? [];
@@ -64,7 +64,7 @@ function validated(request: RunRequest) {
     throw new DomainError('INVALID_INPUT');
   const wanted = new Set(request.items);
   return {
-    items: catalog.items.filter((item) => wanted.has(item.id)),
+    items: own.items.filter((item) => wanted.has(item.id)),
     replace: new Set(replace),
   };
 }
@@ -97,8 +97,11 @@ export class SetupRunner {
   }
 
   start(request: RunRequest) {
-    if (this.deps.check.platform !== 'win32') throw new DomainError('UNSUPPORTED_PLATFORM');
-    const { items, replace } = validated(request);
+    const { platform } = this.deps.check;
+    // macOS has the items of its own catalog only (SPEC 3.11).
+    if (platform !== 'win32' && platform !== 'darwin')
+      throw new DomainError('UNSUPPORTED_PLATFORM');
+    const { items, replace } = validated(request, catalogFor(platform));
     if (this.active()) throw new DomainError('SETUP_RUN_ACTIVE');
     const run: Run = {
       progress: {

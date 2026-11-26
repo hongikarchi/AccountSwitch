@@ -83,7 +83,7 @@ A superscript count at 0.75 em, top-aligned, in the stepper group label only. It
 
 ### 5.1 Header
 
-Two things only. Left: tabs 계정 · 설치 as text with a 2 px underline on the active tab (설치 hidden on macOS). Right: the theme toggle (5.2). Header height 64 px, hairline below. The launch buttons sit with 새로고침 (5.3).
+Two things only. Left: tabs 계정 · 설치 as text with a 2 px underline on the active tab (on macOS 설치 holds only AI 작업 설정, 5.6). Right: the theme toggle (5.2). Header height 64 px, hairline below. The launch buttons sit with 새로고침 (5.3).
 
 The window's title bar right above already carries the icon and the name "AccountSwitch", so the page has no logo (user, 2026-11-07). The name stays in the page as a heading hidden from view.
 
@@ -137,6 +137,16 @@ Vertical, after the reference stepper, in black and white:
 - Summary bar at the bottom, sticking to the window's bottom edge: "8개 중 5개 완료" and the primary 시작 / 계속 button. A confirmation (Blender warning, MCP 다시 등록) is one inline panel above the bar, not a modal.
 - 처음으로 is a text button at the right of the checklist title, back to the first screen.
 - A run never changes the screen: the checklist stays, and the rows in the run take their state in place, so the user sees the ring turn on the row they pressed (user, 2026-11-08). Only the title, the summary bar (count and 취소) and the off controls tell that a run is on.
+
+AI 작업 설정 (SPEC 3.11) is the last row under "필요하면 더 고르세요", after Rhino and Blender. Its one item is the row itself, with no 항목 보기 level, because a group of one would only unfold into the same row. It is no card on the program screen and has no checkbox in auto mode.
+
+- The panel is folded until asked for (principle 6): the checklist is long already, and an open panel asks the engine for its plan. While the item is missing, the row has the usual secondary 설치 at its right; pressing it unfolds the panel in place of the button and puts the keyboard in the prefix field. Once the item is there, the text button 설정 보기 unfolds it instead, to change the prefix or the mode. An unfolded row reads at full strength, shows 접기 (text) under its description, which gives the keyboard back to the button, and leaves its parts list to the plan. Pressing the panel's 설치 folds it again, and the row follows the run like any other row.
+- On macOS the row is the whole tab: no first screen, no 처음으로, the list label "필요하면 고르세요", and the panel unfolded with no 접기, except while its run is on and the row shows the run.
+- The panel has no box. It sits in the step's text column, 12 px under the description, its parts 24 px apart, each under a Label (12 / 16, 500, `--muted`): 브랜치 접두어, 방식, 계획.
+- 브랜치 접두어: a one-line field (5.4: 28 px, 12 px text, 6 px radius), up to 280 px wide, in monospace because it becomes a branch name. Under it, Small `--muted`: "통합 브랜치:" and "작업 브랜치:" with the names in monospace `--text`. While the prefix is not accepted, one line takes their place: "영문 소문자, 숫자, '-'만 쓸 수 있어요.", `--muted` on an empty field and `--danger` once something is typed or the engine refused it.
+- 방식: two choice rows like the setup start, at the panel's size: a 16 px radio in `--text` at the left, title (Body, 500), one line (Small, `--muted`), 12 px 8 px padding, a hairline between the two, hover `--panel`. The whole row is the press target, with the focus ring on the row.
+- 계획: a table in Small text, the Label as its caption and column labels 위치 · 할 일 · 설명 in Label weight. Columns: the target in monospace, the action word (500), the detail in `--muted`, and at the right the text button 내 것 유지, which turns the action into 내 것 유지 and itself into 되돌리기. A hairline between two rows only. Before the first plan, one `--muted` line says what it waits for; a failure is one `--danger` line with 다시 시도 (text).
+- Last, one row: "바꾸는 파일은 먼저 ~/.claude/backups/ 에 백업해요." (Small, `--muted`) at the left, the primary 설치 at the right. It stays off until the prefix is accepted and the plan for it has come. Its failures show in the summary bar, like every run's.
 
 The first screen of the wizard: Display title "이 PC를 준비할게요", two large choice rows (이미 세팅했어요 — 점검만 / 자동으로 설정해 주세요), each with one line of explanation.
 

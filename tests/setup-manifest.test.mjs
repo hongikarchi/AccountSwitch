@@ -34,6 +34,7 @@ test('the catalog has every item of the spec, once, in the spec order', () => {
       'blender-mcp-start',
       'blender-mcp',
       'blender-mcp-codex',
+      'ai-settings',
     ],
   );
   assert.equal(byId.size, catalog.items.length);

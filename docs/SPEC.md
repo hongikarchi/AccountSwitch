@@ -14,9 +14,9 @@ Status: draft for 0.3.0 (Windows). Values marked **verify** are believed correct
 | D | Logo, app and tray icons | 6, `DESIGN.md` §8 |
 | E | Ship the unreleased 0.2.2 fixes | 7 |
 
-macOS keeps the account features only. The 설치 tab and the launcher are hidden there (`navigator.userAgent` contains `Mac OS X`, or the engine reports `platform !== 'win32'`). The redesign applies to both.
+macOS keeps the account features. Since #30 it also has the 설치 tab, showing only the items of the catalog whose `platforms` include `darwin` (3.11). The launcher stays hidden there (`navigator.userAgent` contains `Mac OS X`, or the engine reports `platform !== 'win32'`). The redesign applies to both.
 
-Out of 0.3.0: CAD (AutoCAD, ZWCAD; ADR-004), Claude plugins, skills, `settings.json` templates, GitHub CLI, browser extensions, VS Code.
+Out of 0.3.0: CAD (AutoCAD, ZWCAD; ADR-004), Claude plugins, skills, `settings.json` templates, GitHub CLI, browser extensions, VS Code. Skills, `settings.json` and rules came with #30 (3.11).
 
 ## 2. Behavior that must not change
 
@@ -267,6 +267,94 @@ A Claude Code that ends between steps 3 and 4 leaves no `claude.exe`. In the mea
   - Any other end shows "고치지 못했어요. 설치 탭에서 확인해 주세요." A failed item keeps the run waiting, so the 설치 tab shows it with 다시 시도 and 건너뛰기.
   - A 409 `SETUP_RUN_ACTIVE` shows "설치 탭에서 설치가 진행 중이에요. 끝난 뒤 다시 눌러 주세요."
   - This is the only run that starts outside the 설치 tab, and it too starts only from a press.
+
+### 3.11 AI work settings (#30)
+
+The rules, settings and skills for working with Claude Code, Codex CLI and Paseo, applied from the 설치 tab on Windows and macOS. They were the user's own settings repository (copied at its commit `c654bf9`, user 2026-11-26), and now live in this repository, so they are versioned, tested and shipped with the app and apply offline.
+
+**Content**, in `setup-content/`, bundled into the engine at build time:
+
+| File | Goes to | How |
+|---|---|---|
+| `claude/CLAUDE.md` | `~/.claude/CLAUDE.md`; also `~/.codex/AGENTS.md` when Codex CLI is installed | the whole file, keeping AccountSwitch's own blocks (below) |
+| `claude/settings.json` | `~/.claude/settings.json` | key by key (below) |
+| `claude/skills/<name>/…` | `~/.claude/skills/<name>/`; also `~/.agents/skills/<name>/` when Codex CLI is installed | folder by folder (below) |
+| `paseo/config.json` | Paseo's daemon config | key by key, through Paseo's own CLI (below) |
+
+The only placeholder is `{{branchPrefix}}`, filled in when the files are written. No other text of the content changes on the way, and the content holds no personal, firm, client or project name, path or address (public repository).
+
+**Item.** `ai-settings`, the one item of a new optional group `ai` ("AI 작업 설정", "Claude·GPT·Paseo로 일하는 규칙과 스킬을 넣어요."), on `win32` and `darwin`. It depends on nothing: each part that needs a program says so in its row and is skipped without it.
+
+**Screen.** The item's row unfolds a panel, the only place where the choices are made:
+
+1. **브랜치 접두어**, a text field. Accepted: `^[a-z0-9][a-z0-9-]{0,30}$`. Under it, live: "통합 브랜치: `<prefix>_develop`" and "작업 브랜치: `<prefix>_<작업 이름>`". The suffix `_develop` and the `_` are fixed (user, 2026-11-26). The 설치 button is off until the prefix is valid.
+2. **방식**, two choices: **채워 넣기** (default: what is there stays, only what is missing is added) and **바꾸기** (this content's values win; what the content does not name stays).
+3. **계획**, a table with one row per target, recomputed when the prefix or the mode changes, before anything is written:
+
+| Action | Meaning |
+|---|---|
+| 추가 | not there; written |
+| 같음 | already as the content says; nothing written |
+| 채워 넣기 | there; the row names what gets added |
+| 새 버전 | a file or skill AccountSwitch wrote earlier, unchanged by the user since, and the content has changed; replaced |
+| 내 것 유지 | there and changed by the user since AccountSwitch wrote it, or a skill AccountSwitch did not write; left alone (채워 넣기) |
+| 바꾸기 | replaced; the old one is backed up. Under 바꾸기 for what 채워 넣기 keeps, and in both modes for a rule file AccountSwitch did not write (below) |
+| 건너뜀 | the program that part needs is missing, or its file cannot be read; the row says which |
+
+Before 설치 is pressed, a row with something to do (추가, 채워 넣기, 새 버전, 바꾸기) can be switched to 내 것 유지 and back (`canKeep`). 같음, 건너뜀 and 내 것 유지 rows have nothing to switch. A saved id that the plan no longer has, because a file changed in between, is ignored.
+
+The prefix, the mode and what was written are kept in the data folder, `ai-settings.json`: `{ "version": 1, "branchPrefix": "...", "mode": "fill" | "replace", "written": { "<target>": "<sha256>" } }`. Pressing 설치 saves the prefix and the mode and starts an ordinary run of `ai-settings` (3.4), so it is logged, one run at a time, and needs a press like every install.
+
+**`CLAUDE.md` and `AGENTS.md` are AccountSwitch's whole** (user, 2026-11-26): one global rule file without duplicate rules, with the old one kept in the backup. Merging by section could not do that: the user's `## 언어` and the content's `## Language` are the same rule under two names.
+- The file written is the content, then AccountSwitch's own marked blocks from the file it replaces, in their order. Today that is the Rhino note of 3.8, between `<!-- accountswitch:start -->` and `<!-- accountswitch:end -->`. So replacing the file never undoes another item.
+- A file AccountSwitch did not write is 바꾸기 in both modes.
+- A file AccountSwitch wrote is compared through its SHA-256, which is recorded in `written`. The hash is taken without AccountSwitch's marked blocks, so a Rhino note added later is no change by the user.
+  - Same hash: the user has not changed the file. It is 같음 when it equals the content and 새 버전 otherwise.
+  - Different hash: the user changed it. It is 내 것 유지 under 채워 넣기 and 바꾸기 under 바꾸기, like a skill.
+- The same UTF-8 round-trip rule as 3.8 holds. A file that would not survive it is left alone, and its row says so.
+
+**`settings.json`.** Read as JSON; a file that does not parse is 건너뜀, never overwritten. Objects merge key by key, and anything else (strings, numbers, booleans, arrays) is one value.
+- 채워 넣기 adds each key the file lacks.
+- 바꾸기 also sets each key the content names to the content's value.
+- Keys the content does not name stay in both modes, so the user's permissions, hooks and plugins remain.
+
+The write keeps the file's indentation (two spaces when unknown) and replaces it in one step.
+
+**Skills.** A skill folder written by AccountSwitch carries `.accountswitch-managed.json`: `{ "version": 1, "files": { "<relative path>": "<sha256 of what was written>" } }`. A folder:
+- missing: 추가.
+- with that file, and every listed file still hashing to its value: written by us and not changed since. 같음 when it equals the content, otherwise 새 버전.
+- otherwise, the user's own, changed by the user, or another tool's: 내 것 유지 under 채워 넣기, 바꾸기 under 바꾸기.
+
+Writing replaces the folder's files with the content's and rewrites the manifest. Files in the folder that the content does not have are left alone.
+
+**Paseo.** Only when the desktop app's bundled CLI is there; otherwise 건너뜀.
+- On Windows it is `…\Paseo\resources\bin\paseo.cmd` under `%ProgramFiles%` or `%LOCALAPPDATA%\Programs`. It is run as what that file runs: `Paseo.exe` with `ELECTRON_RUN_AS_NODE=1` and the CLI script. A `.cmd` cannot take a JSON argument safely (measured: the quotes break).
+- On macOS it is `/Applications/Paseo.app/Contents/Resources/bin/paseo`, or the same under `~/Applications`.
+
+`paseo daemon config get --json` reads what is configured, from its `value`. Then, for each leaf of `paseo/config.json` (an array counts as one leaf):
+- 채워 넣기 runs `paseo daemon config set <path> <JSON value>` for a path that is not set.
+- 바꾸기 also runs it for a path whose value differs.
+
+A map with names for keys, `agents.providers`, is different (measured: "Unknown configuration path … Replace its containing object with JSON for dynamic keys"). Its current value is merged with the content's, as `settings.json` is, and it is set whole, so the user's other providers stay.
+
+Then `paseo reload`. Paseo's own command is used because Paseo rewrites its file while it runs. The phone relay is off in the content (`daemon.relay.enabled: false`, user 2026-11-26). 채워 넣기 keeps a relay the user turned on, and 바꾸기 turns it off. "종료 후에도 데몬 계속 실행" is a desktop-app setting, not part of this config (#23).
+
+**Routes** (session cookie and origin rules as every other route):
+
+| Method, path | Body | Answer |
+|---|---|---|
+| `GET /api/v1/setup/ai-settings?prefix=<p>&mode=fill\|replace` | | `{ branchPrefix, mode, rows }`. `branchPrefix` and `mode` are the saved values (`null` and `fill` before the first save). `rows` is the plan for the asked prefix and mode; without `prefix` the saved one is used, and with none saved `rows` is empty. Each row is `{ id, part: 'rules' \| 'settings' \| 'skill' \| 'paseo', target, action, detail?, canKeep }`. `target` is shown with `~` for the home folder. 400 `INVALID_INPUT` for an invalid prefix. Read only |
+| `PUT /api/v1/setup/ai-settings` | `{ branchPrefix, mode, keep: string[] }` | saves them; `keep` lists the row ids switched to 내 것 유지 for the next run. 409 `SETUP_RUN_ACTIVE` while a run is active |
+
+The page then starts the run with `POST /api/v1/setup/run { items: ['ai-settings'], mode }`, `mode` being the screen's own (`check` on macOS), so applying the settings does not change how the 설치 tab opens next time.
+
+**Bundling.** `setup-content/` is read from disk when the engine runs from source, and from the engine's SEA assets (`setup-content/<path>`, next to `ui/<path>`, `scripts/build-exe.mjs`) when packaged. Its files are listed at build time, so adding a skill needs no code change.
+
+**Backup.** Before a file is first written in a run, it is copied to `~/.claude/backups/accountswitch-ai-settings-<YYYYMMDD-HHMMSS>/`, under `claude/…`, `codex/…`, `agents/…` or `paseo/config.json`. A skill folder is copied whole before it is replaced. A failed backup writes nothing for that target, and the run reports it.
+
+**Check.** `installed` when every row is settled under the saved prefix and mode: 같음, 건너뜀 or 내 것 유지, or switched to 내 것 유지 by the user (kept until the next save). Otherwise `missing`, with the rows as `parts`. Also `missing` while no prefix is saved. Read only, like every check.
+
+**macOS.** The 설치 tab shows the items whose `platforms` include `darwin`: for now only `ai-settings`. The rest of the catalog stays Windows-only. Installing programs on macOS (Claude Code, Codex CLI, GitHub CLI, Paseo) is a separate issue. On macOS the engine skips the Windows-only parts of 3.4 and 3.5: the PATH rebuild from the registry and the run marker the Windows shell reads.
 
 ## 4. Launcher
 

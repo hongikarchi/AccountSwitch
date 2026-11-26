@@ -20,7 +20,7 @@ export const ELEVATION_NOTE =
   "권한 확인 창이 뜨면 '예'를 누르세요. 창이 안 보이면 작업 표시줄을 확인하세요.";
 const ELEVATION_DECLINED_MESSAGE = "권한 확인에서 '아니요'를 눌렀어요";
 const FAILED_MESSAGE = '설치하지 못했어요.';
-const REQUEST_FAILED_MESSAGE = '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
+export const REQUEST_FAILED_MESSAGE = '요청을 처리하지 못했어요. 잠시 후 다시 시도해 주세요.';
 
 /** The stepper's circle. DESIGN 5.6 has the first five; the others are the check states it adds. */
 export type NodeState =
@@ -107,6 +107,31 @@ export function actionFor(
 const isOptional = (groups: SetupGroup[], id: string) =>
   groups.find((group) => group.id === id)?.optional ?? false;
 
+/**
+ * An item set up in its own panel under its row (SPEC 3.11), never by a card, a checkbox, a group's
+ * button or auto mode. Known by its check, so no item id is named here.
+ */
+export const hasPanel = (item: SetupItem) => item.check.kind === 'ai-settings';
+
+/** A group whose items all have their own panel: listed as those rows, not as a program. */
+export function isPanelGroup(catalog: SetupCatalog, id: string) {
+  const items = catalog.items.filter((item) => item.group === id);
+  return items.length > 0 && items.every(hasPanel);
+}
+
+/** The cards of the program screen: the optional groups, but none that is set up in a panel. */
+export function cardGroups(catalog: SetupCatalog) {
+  return catalog.groups.filter((group) => group.optional && !isPanelGroup(catalog, group.id));
+}
+
+/**
+ * Whether this catalog has a terminal program to pick. The engine sends only its own platform's
+ * items (SPEC 1), so on macOS it has none: no first screen, no cards, only the checklist.
+ */
+export function hasPrograms(catalog: SetupCatalog) {
+  return catalog.groups.some((group) => group.cli);
+}
+
 /** The items on screen: every always-offered group, plus the optional groups the user ticked. */
 export function visibleItems(catalog: SetupCatalog, openGroups: ReadonlySet<string>) {
   return catalog.items.filter(
@@ -118,7 +143,8 @@ export function visibleItems(catalog: SetupCatalog, openGroups: ReadonlySet<stri
  * Auto mode's first checklist: what is missing, in the groups on screen. 버전 다름 and unknown stay
  * unchecked. A missing item only the user can install counts as checked too and has no box: the run
  * reports it as `needs-user`, and what depends on it then says what it waits for (SPEC 3.4). An item
- * that needs a group the user did not pick stays unchecked too (SPEC 3.2).
+ * that needs a group the user did not pick stays unchecked too (SPEC 3.2), and so does an item with
+ * its own panel, which only its panel's 설치 runs (SPEC 3.11).
  */
 export function defaultChecked(
   catalog: SetupCatalog,
@@ -131,7 +157,9 @@ export function defaultChecked(
     visibleItems(catalog, openGroups)
       .filter(
         (item) =>
-          results.get(item.id)?.status === 'missing' && !needsClosedGroup(catalog, item, using),
+          results.get(item.id)?.status === 'missing' &&
+          !hasPanel(item) &&
+          !needsClosedGroup(catalog, item, using),
       )
       .map((item) => item.id),
   );
@@ -504,10 +532,13 @@ export function checkSummary(
   return summaryLine(items.length, done);
 }
 
-/** Whether a group's rows count on the checklist: always, for the base group and the terminals. */
+/**
+ * Whether a group's rows count on the checklist: always, for the base group and the terminals, and
+ * for every group of a catalog with nothing to pick (macOS).
+ */
 export function isListed(catalog: SetupCatalog, id: string, openGroups: ReadonlySet<string>) {
   const group = catalog.groups.find((entry) => entry.id === id);
-  return !group?.optional || !!group.cli || openGroups.has(id);
+  return !group?.optional || !!group.cli || openGroups.has(id) || !hasPrograms(catalog);
 }
 
 export function groupCount(
