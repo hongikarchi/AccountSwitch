@@ -1,4 +1,5 @@
 import type { InstallStep, LatestSource, SetupCatalog, SetupGroup, SetupItem } from './types.ts';
+import { CLOSE_TRAY_COMMAND } from './rhinomcp-tray.ts';
 
 // The setup catalog (SPEC 3.3): the one place for pinned versions, and pure data the page renders
 // from. Change this file and SPEC together (CLAUDE.md, ADR-002).
@@ -631,13 +632,14 @@ const items: SetupItem[] = [
     id: 'rhino-settings',
     label: 'Rhino 설정',
     description:
-      '읽기 전용 경고를 켜고, Rhino가 켜질 때 연결을 시작하게 하고, Claude Code·GPT에 Rhino 도구 쓰는 법을 적어 둬요.',
+      '읽기 전용 경고를 켜고, Rhino가 켜질 때 연결을 시작하고 저장을 막는 rhinomcp 아이콘은 닫게 하고, Claude Code·GPT에 Rhino 도구 쓰는 법을 적어 둬요.',
     group: 'rhino',
     dependsOn: ['rhino'],
     check: {
       kind: 'rhino-settings',
       settingsFile: '%APPDATA%\\McNeel\\Rhinoceros\\8.0\\settings\\settings-Scheme__Default.xml',
       startupCommand: '_mcpstart',
+      trayCloseCommand: CLOSE_TRAY_COMMAND,
       roleNotes: [
         {
           id: 'role-note',

@@ -636,6 +636,11 @@ function checkRhinoSettings(
       label: 'Rhino 켤 때 연결 시작',
       ok: hasStartupCommand(settings, spec.startupCommand),
     },
+    {
+      id: 'tray-close',
+      label: 'Rhino 켤 때 저장을 막는 아이콘 닫기',
+      ok: hasStartupCommand(settings, spec.trayCloseCommand, spec.startupCommand),
+    },
     ...spec.roleNotes
       .filter((note) => context.deps.executable(note.provider))
       .map((note) => {

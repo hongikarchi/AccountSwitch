@@ -13,6 +13,7 @@ import {
 } from '../src/core/setup/checks.ts';
 import { expandPath, pathHasFolder, rebuildPath } from '../src/core/setup/environment.ts';
 import { roleNote } from '../src/core/setup/role-note.ts';
+import { CLOSE_TRAY_COMMAND } from '../src/core/setup/rhinomcp-tray.ts';
 import { blenderStartupScript } from '../src/core/setup/blender-startup.ts';
 
 const HOME = 'C:\\Users\\tester';
@@ -565,14 +566,29 @@ test('rhino-settings reports its parts, from files only', async () => {
   assert.deepEqual(parts(none), {
     'read-only-warning': false,
     'startup-command': false,
+    'tray-close': false,
     'role-note': false,
     'codex-role-note': false,
   });
-  const on = fakePc({
+  // Set up before ADR-013: mcpstart alone leaves the tray holding the file, so part 5 is open.
+  const before = fakePc({
     contents: {
-      // As Rhino saves it: no warning entry, since on is its default.
       [settings]: options(
         '<child key="General"><entry key="StartupCommands">_mcpstart</entry></child>',
+      ),
+    },
+  });
+  before.deps.executable = () => undefined;
+  const older = statusOf(await runChecks(before.deps), 'rhino-settings');
+  assert.equal(older.status, 'missing');
+  assert.equal(parts(older)['startup-command'], true);
+  assert.equal(parts(older)['tray-close'], false);
+  const on = fakePc({
+    contents: {
+      // As Rhino saves it: no warning entry, since on is its default. Rhino may write the quotes
+      // of the script as entities; that still counts.
+      [settings]: options(
+        `<child key="General"><entry key="StartupCommands">_mcpstart ${CLOSE_TRAY_COMMAND.replaceAll("'", '&apos;')}</entry></child>`,
       ),
       // The current text counts with any line endings; an older text would be written again.
       [note]: `mine\r\n<!-- accountswitch:start -->\r\n${roleNote().replaceAll('\n', '\r\n')}\r\n<!-- accountswitch:end -->\r\n`,

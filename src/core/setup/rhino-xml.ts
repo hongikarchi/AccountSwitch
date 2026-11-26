@@ -1,4 +1,4 @@
-// Edits of Rhino's settings file for SPEC 3.8 parts 1 and 2, on its text, so every byte outside the
+// Edits of Rhino's settings file for SPEC 3.8 parts 1, 2 and 5, on its text, so every byte outside the
 // edit stays as it was. Shared by the check and the install. Measured on Rhino 8 (2026-11-09):
 // Rhino leaves out an entry that holds its default when it saves, and the read-only warning is on by
 // default, so a missing warning entry means on.
@@ -166,20 +166,51 @@ function startupCommands(xml: string) {
   return general && findEntry(xml, general, STARTUP_KEY);
 }
 
-/** Part 2: whether Rhino runs `command` when it starts. */
-export function hasStartupCommand(xml: string, command: string) {
-  const value = startupCommands(xml)?.value ?? '';
-  return value.split(/\s+/).some((word) => word && bare(word) === bare(command));
+/** The five entities XML text can hold, read back as characters, in case Rhino writes them. */
+const decode = (text: string) =>
+  text
+    .replace(/&apos;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&amp;/g, '&');
+
+/** Where each word that is `command` in any spelling starts. */
+const wordsAt = (value: string, command: string) =>
+  [...value.matchAll(/\S+/g)]
+    .filter((word) => bare(word[0]) === bare(command))
+    .map((word) => word.index);
+
+/** Where each copy of `text` starts. */
+function copiesAt(value: string, text: string) {
+  const at: number[] = [];
+  for (let index = value.indexOf(text); index >= 0; index = value.indexOf(text, index + 1))
+    at.push(index);
+  return at;
 }
 
 /**
- * Part 2: `command` appended to Rhino's "run these commands every time Rhino starts" list, once,
- * after what the user put there. The entry and its `General` go where Rhino puts them.
+ * Parts 2 and 5: whether Rhino runs `command` when it starts. A one-word command counts in any
+ * spelling (`_mcpstart`, `McpStart`); one with spaces (part 5's script) only as written. With
+ * `after`, it must come after a word that is `after`, because it acts on what `after` started.
  */
-export function addStartupCommand(xml: string, command: string): Edit {
+export function hasStartupCommand(xml: string, command: string, after?: string) {
+  const value = decode(startupCommands(xml)?.value ?? '');
+  const at = /\s/.test(command) ? copiesAt(value, command) : wordsAt(value, command);
+  if (after === undefined) return at.length > 0;
+  const first = wordsAt(value, after)[0];
+  return first !== undefined && at.some((index) => index > first);
+}
+
+/**
+ * Parts 2 and 5: `command` appended to Rhino's "run these commands every time Rhino starts" list,
+ * once, after what the user put there; `after` as in `hasStartupCommand`. The entry and its
+ * `General` go where Rhino puts them.
+ */
+export function addStartupCommand(xml: string, command: string, after?: string): Edit {
   const options = findOptions(xml);
   if (!options || options.selfClosing) return { problem: 'no-options' };
-  if (hasStartupCommand(xml, command)) return { xml, changed: false };
+  if (hasStartupCommand(xml, command, after)) return { xml, changed: false };
   const entryOf = (value: string) => `<entry key="${STARTUP_KEY}">${value}</entry>`;
   const general = findChild(xml, 'General', options.openEnd, options.closeStart);
   if (!general)

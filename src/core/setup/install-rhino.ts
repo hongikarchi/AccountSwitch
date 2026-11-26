@@ -8,8 +8,8 @@ import type { CheckSpec } from './types.ts';
 
 export { roleNote, setReadOnlyWarning, addStartupCommand };
 
-// The rhino-settings item (SPEC 3.8): parts 1 (the read-only warning) and 2 (mcpstart at Rhino
-// start) in Rhino's settings file, and part 4 (the tool-role note). Part 3 is the agent's: the note
+// The rhino-settings item (SPEC 3.8): parts 1 (the read-only warning), 2 (mcpstart at Rhino
+// start) and 5 (closing rhinomcp's tray, ADR-013) in Rhino's settings file, and part 4 (the tool-role note). Part 3 is the agent's: the note
 // tells it how to start Cordyceps. Rhino is only ever looked at, never stopped.
 
 const occurrences = (text: string, part: string) => text.split(part).length - 1;
@@ -73,8 +73,15 @@ export function writeWithBackup(files: InstallFiles, path: string, text: string)
   files.write(path, text);
 }
 
-/** Parts 1 and 2 on the real file, in one write: backup before the first change, and only if one. */
-function applySettingsFile(context: StepContext, path: string, startupCommand: string) {
+/**
+ * Parts 1, 2 and 5 on the real file, in one write: backup before the first change, and only if
+ * one. Part 5's command goes after part 2's, because it closes the tray `mcpstart` starts.
+ */
+function applySettingsFile(
+  context: StepContext,
+  path: string,
+  spec: Extract<CheckSpec, { kind: 'rhino-settings' }>,
+) {
   const { files } = context.deps;
   const file = readForEdit(files, path);
   if (file.state === 'missing') return 'no-file' as const;
@@ -82,16 +89,21 @@ function applySettingsFile(context: StepContext, path: string, startupCommand: s
   if (file.state === 'not-text') return 'unreadable' as const;
   const warning = setReadOnlyWarning(file.text);
   if (warning.problem) return 'unreadable' as const;
-  const startup = addStartupCommand(warning.xml, startupCommand);
+  const startup = addStartupCommand(warning.xml, spec.startupCommand);
   if (startup.problem) return 'unreadable' as const;
-  if (!warning.changed && !startup.changed) return 'done' as const;
+  const tray = addStartupCommand(startup.xml, spec.trayCloseCommand, spec.startupCommand);
+  if (tray.problem) return 'unreadable' as const;
+  if (!warning.changed && !startup.changed && !tray.changed) return 'done' as const;
   try {
-    writeWithBackup(files, path, startup.xml);
+    writeWithBackup(files, path, tray.xml);
   } catch {
     return 'read-error' as const;
   }
   if (warning.changed) context.log.line('Rhino 읽기 전용 경고를 켰어요.');
-  if (startup.changed) context.log.line(`Rhino가 켜질 때 ${startupCommand}를 실행하게 했어요.`);
+  if (startup.changed)
+    context.log.line(`Rhino가 켜질 때 ${spec.startupCommand}를 실행하게 했어요.`);
+  if (tray.changed)
+    context.log.line('Rhino가 켜질 때 파일 저장을 막는 rhinomcp 아이콘 프로그램을 닫게 했어요.');
   return 'done' as const;
 }
 
@@ -142,7 +154,7 @@ export async function applyRhinoSettings(context: StepContext): Promise<StepResu
     );
 
   const open: string[] = [];
-  const warning = applySettingsFile(context, context.path(spec.settingsFile), spec.startupCommand);
+  const warning = applySettingsFile(context, context.path(spec.settingsFile), spec);
   if (warning === 'no-file')
     open.push('Rhino를 한 번 켰다가 끄면 설정 파일이 생겨요. 그다음 다시 시도하세요.');
   if (warning === 'unreadable') open.push('Rhino 설정 파일의 모양이 예상과 달라서 그대로 뒀어요.');
