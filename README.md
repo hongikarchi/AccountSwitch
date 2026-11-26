@@ -1,8 +1,8 @@
 # AccountSwitch
 
-Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows·macOS 프로그램입니다. Windows에서는 새 PC를 Claude Code로 모델링할 수 있게 준비해 주고, 고른 폴더에서 Claude Code를 바로 열어 줍니다.
+Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 두고, 각 계정의 로그인 상태와 사용량(5시간·7일, Claude는 Fable 같은 모델별 주간 한도까지)을 한 화면에서 보고, 터미널·VS Code가 쓸 계정을 바꾸는 Windows·macOS 프로그램입니다. Windows에서는 새 PC를 Claude Code로 모델링할 수 있게 준비해 주고, 고른 폴더를 Paseo나 터미널에서 바로 열어 줍니다.
 
-> 상태: 초기 개발 중(0.3). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다. Windows에는 설치 마법사와 Claude 열기 버튼이 더해졌습니다.
+> 상태: 초기 개발 중(0.3). 계정 추가·로그인·이름 변경·순서 바꾸기·제거, 사용량 보기, "사용"으로 고른 계정을 터미널·VS Code의 기본 로그인으로 바꾸기, 사용량 기준 자동 전환, 자동 업데이트가 됩니다. Windows에는 설치 마법사와 Paseo 열기·터미널 열기 버튼이 더해졌습니다.
 
 ## 화면
 
@@ -26,6 +26,7 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 | GPT | Codex CLI |
 | Rhino | Rhino 8은 직접 설치하고, 플러그인과 Claude Code·GPT 연결(rhinomcp, Cordyceps)을 설치합니다 |
 | Blender | Blender 5.2.3, 애드온, Claude Code·GPT 연결(blender-mcp) |
+| Paseo | Paseo (내 계정용 설치), 창을 닫아도 계속 실행 |
 | AI 작업 설정 (Windows·Mac) | Claude·GPT·Paseo로 일하는 전체 규칙, Claude 설정, 스킬(paseo-workflow, progress-report, ui-review), Paseo 설정 |
 
 - **AI 작업 설정**은 버튼을 눌러야 넣고, 넣기 전에 무엇을 할지 표로 보여 줍니다.
@@ -41,18 +42,26 @@ Claude Code와 Codex CLI(ChatGPT)의 **구독 계정을 여러 개** 등록해 �
 - **이미 있는 프로그램은 건드리지 않습니다.** 다른 버전이 있으면 "버전 다름"으로 알려 주고 그대로 둡니다. Claude Code 연결을 다시 등록하는 일과, 점검만 모드에서 다른 버전의 Blender 옆에 설치하는 일은 먼저 물어봅니다. winget으로 Blender를 설치하면 다른 버전이 지워질 수 있어 경고합니다.
 - **로그인 정보를 읽거나 쓰지 않습니다.** `~/.claude.json`에 쓰는 일은 계정 전환과 겹치지 않게 하나씩 실행합니다.
 - **받는 곳**: winget, 각 프로젝트의 공식 주소, npm, PyPI만 씁니다. 버전을 고정한 설치 파일은 공개된 해시로 확인한 뒤 실행합니다.
-- **켜면 바로 연결됩니다.** Rhino를 켜면 `mcpstart`가 저절로 실행되고, Blender를 켜면 "Connect to Claude"를 누르지 않아도 연결이 시작됩니다. Grasshopper 연결(Cordyceps)은 Grasshopper를 열고 캔버스에 **Cordyceps 컴포넌트를 직접 놓아야** 켜집니다. **Rhino → Grasshopper·Cordyceps → Claude 열기** 순서로 하면 바로 연결됩니다. Claude를 먼저 열었다면 Claude Code에서 `/mcp`를 입력해 cordyceps를 다시 연결하세요(GPT는 새로 여세요). cordyceps 옆에 ✗가 없으면 연결된 것입니다. 설치할 때 이미 열려 있던 Rhino나 Blender는 한 번 닫았다 다시 켜면 됩니다.
-- **GitHub 로그인은 처음 한 번 직접 합니다.** 마법사는 GitHub CLI(`gh`)를 설치만 하고 로그인은 하지 않습니다. Claude 열기로 연 창에서 `! gh auth login --web --git-protocol https`를 입력하면 한 번만 쓰는 코드가 나오고 브라우저가 열립니다. 그 코드를 넣고 승인하면 끝이고, 그 뒤로는 Claude에게 "GitHub에 올려 줘"라고 부탁하면 됩니다.
+- **켜면 바로 연결됩니다.** Rhino를 켜면 `mcpstart`가 저절로 실행되고, Blender를 켜면 "Connect to Claude"를 누르지 않아도 연결이 시작됩니다. Grasshopper 연결(Cordyceps)은 Grasshopper를 열고 캔버스에 **Cordyceps 컴포넌트를 직접 놓아야** 켜집니다. **Rhino → Grasshopper·Cordyceps → Paseo 열기(또는 터미널 열기)** 순서로 하면 바로 연결됩니다. Claude를 먼저 열었다면 Claude Code에서 `/mcp`를 입력해 cordyceps를 다시 연결하세요(GPT는 새로 여세요). cordyceps 옆에 ✗가 없으면 연결된 것입니다. 설치할 때 이미 열려 있던 Rhino나 Blender는 한 번 닫았다 다시 켜면 됩니다.
+- **GitHub 로그인은 처음 한 번 직접 합니다.** 마법사는 GitHub CLI(`gh`)를 설치만 하고 로그인은 하지 않습니다. 터미널 열기로 연 Claude 창에서 `! gh auth login --web --git-protocol https`를 입력하면 한 번만 쓰는 코드가 나오고 브라우저가 열립니다. 그 코드를 넣고 승인하면 끝이고, 그 뒤로는 Claude에게 "GitHub에 올려 줘"라고 부탁하면 됩니다.
 - **Blender 연결**은 자료를 개발사로 보내는 기능(텔레메트리)을 꺼 둔 채로 설치합니다. 켜 두면 프롬프트·코드·스크린샷이 전송될 수 있기 때문입니다.
 - 권한 확인 창이 뜨면 "예"를 누르세요. 실패한 항목은 다시 시도·건너뛰기·로그 보기를 할 수 있고, 로그는 데이터 폴더의 `logs\setup-날짜.log`에 있습니다. 설치 중에 프로그램을 끝내려 하면 먼저 물어봅니다.
 - **Claude Code가 갑자기 사라졌다면** 업데이트가 중간에 멈춘 것일 수 있습니다. Claude Code는 스스로 업데이트하는데, 그때 Claude가 꺼지면(창을 닫는 등) `claude.exe`가 빠진 채로 남습니다(Claude Code의 알려진 문제, anthropics/claude-code#105554). 이때 계정 탭은 계정을 그대로 보여 주고 "Claude Code 업데이트가 중간에 멈췄어요"와 **고치기**를 띄웁니다. 고치기는 이미 받아 둔 새 버전을 제자리에 넣을 뿐이라 금방 끝나고, 로그인은 건드리지 않습니다. 설치 탭의 Claude Code 설치도 같은 일을 합니다.
 
-## Claude 열기, GPT 열기 (Windows)
+## Paseo 열기, 터미널 열기 (Windows)
 
-계정 탭 아래쪽, 새로고침 왼쪽의 **Claude 열기**나 **GPT 열기**를 누르면 폴더 선택 창이 바로 뜹니다. 폴더를 고르면 그 폴더에서 `cmd` 창이 열리고 Claude Code나 Codex CLI가 시작됩니다. `cd`를 칠 필요가 없고, "사용" 중인 계정으로 실행되며, 프로그램을 끝내도 창은 남습니다.
+계정 탭 아래쪽, 새로고침 왼쪽에 두 버튼이 있습니다.
+
+- **Paseo 열기**: 폴더를 고르면 그 폴더를 Paseo 목록에 넣고 Paseo 창을 앞으로 띄웁니다. Paseo가 꺼져 있으면 켭니다.
+  - 그 폴더에서 쓰던 대화가 있으면 그 대화로 갑니다.
+  - 처음 여는 폴더라면 Paseo 왼쪽 목록에서 그 폴더를 누르고, 탭 옆의 **+**를 눌러 새 대화를 시작하세요.
+  - Claude인지 GPT인지, 어떤 모델인지는 Paseo 대화 창에서 고릅니다. Paseo가 마지막 선택을 기억합니다.
+  - Paseo가 없으면 "Paseo를 먼저 설치해야 해요"라는 안내와 **설치 탭으로** 버튼이 나옵니다.
+- **터미널 열기**: Claude와 GPT 중 하나를 고르고(하나만 깔려 있으면 묻지 않습니다) 폴더를 고르면, 그 폴더에서 `cmd` 창이 열리고 Claude Code나 Codex CLI가 시작됩니다. `cd`를 칠 필요가 없고, "사용" 중인 계정으로 실행되며, 프로그램을 끝내도 창은 남습니다.
 
 - `\\서버\폴더` 같은 네트워크 경로에서는 열 수 없습니다. 드라이브 문자로 연결한 폴더를 고르세요.
-- 이 창에는 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 같은 환경 변수가 전달되지 않습니다. 구독 계정으로만 실행합니다.
+- 터미널 창에는 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY` 같은 환경 변수가 전달되지 않습니다. 구독 계정으로만 실행합니다.
+- **Paseo 방식으로 일하기**: 아직 Paseo 방식(관제탑 하나와 할 일마다 작업 공간 하나)으로 세팅되지 않은 git 저장소에서 처음 무언가를 부탁하면, AI가 백업 폴더만 묻고 세팅한 뒤 부탁한 일을 합니다. AI 작업 설정을 넣은 PC에서 그렇습니다.
 
 ## 어떻게 동작하나
 
@@ -160,7 +169,8 @@ npm run build:icons      # assets/brand/: 로고에서 아이콘 파일을 다�
 | `src/core/cli.ts` | CLI 찾기, 계정별 환경 변수, 로그인 상태 확인 |
 | `src/core/setup/` | 설치 탭: 항목 목록과 고정 버전(`manifest.ts`), 점검, 설치 실행 |
 | `setup-content/` | AI 작업 설정의 내용: 전역 규칙, Claude 설정, 스킬, Paseo 설정 (앱 안에 함께 들어감) |
-| `src/core/launcher.ts` | Claude 열기·GPT 열기: 브라우저에서 열기 |
+| `src/core/launcher.ts` | 터미널 열기: 브라우저에서 열기 |
+| `src/core/launcher-paseo.ts` | Paseo 열기: 폴더를 Paseo에 넣고 창 띄우기 |
 | `src/server/` | `127.0.0.1` 로컬 서버와 API (`/api/v1/accounts/*`, `/api/v1/setup/*`, `/api/v1/launcher/*`) |
 | `src/ui/` | React 화면 |
 | `src/core/keychain.ts` | macOS 로그인 키체인 (Claude Code의 로그인 항목) |
