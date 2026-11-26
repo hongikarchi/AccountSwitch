@@ -74,7 +74,13 @@ export function StepRow({
   children?: ReactNode;
 }) {
   return (
-    <li className="step" data-node={view.node} data-active={active ? 'true' : undefined}>
+    <li
+      className="step"
+      data-node={view.node}
+      data-active={active ? 'true' : undefined}
+      // Paseo 열기 without Paseo scrolls here (SPEC 4.1).
+      data-item={view.id}
+    >
       <StepNode state={view.node} />
       <div className="step-body">
         <div className="step-main">

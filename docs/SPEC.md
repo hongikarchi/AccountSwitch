@@ -9,7 +9,7 @@ Status: draft for 0.3.0 (Windows). Values marked **verify** are believed correct
 | | Feature | Section |
 |---|---|---|
 | A | Setup wizard: check this PC, install what is missing, step by step | 3 |
-| B | "Claude 열기" and "GPT 열기": pick a folder, open `cmd` there running the CLI | 4 |
+| B | "Paseo 열기" and "터미널 열기": pick a folder, open it in Paseo or in `cmd` running the CLI | 4 |
 | C | Black-and-white redesign of every screen, animated theme toggle | 5, `DESIGN.md` |
 | D | Logo, app and tray icons | 6, `DESIGN.md` §8 |
 | E | Ship the unreleased 0.2.2 fixes | 7 |
@@ -367,12 +367,13 @@ The page then starts the run with `POST /api/v1/setup/run { items: ['ai-settings
 
 ## 4. Launcher
 
-- Two buttons at the bottom of the 계정 tab, left of 새로고침 (Windows only, in the desktop window and in a browser): **Claude 열기** runs Claude Code, **GPT 열기** runs Codex CLI. Each is disabled while its CLI is missing, with "설치 탭에서 <name>를 먼저 설치하세요".
-- With Paseo on the PC, the buttons open a Paseo conversation instead of a terminal (4.1, #45). Without it they open the terminal as described here (user, 2026-11-26).
-- Pressing one opens the system folder dialog at once (`IFileOpenDialog` with `FOS_PICKFOLDERS`, the same dialog VS Code uses); choosing a folder opens the terminal. There is no menu and no list of recent folders (user, 2026-11-07: with one option a menu is only an extra click). The dialog itself starts where it was last used. Closing the dialog does nothing.
+- Buttons at the bottom of the 계정 tab, left of 새로고침 (Windows only, in the desktop window and in a browser): **Paseo 열기** (4.1) and **터미널 열기** (user, 2026-11-26). Both are always shown, with or without Paseo (user, 2026-11-26).
+- Both are disabled while neither Claude Code nor Codex CLI is installed, with "설치 탭에서 Claude Code나 Codex CLI를 먼저 설치하세요".
+- **터미널 열기** first asks which program, in a small choice popover with **Claude** (Claude Code) and **GPT** (Codex CLI), listing only the installed ones. With only one installed there is no popover. Then it works as the rest of this section says for that program.
+- Choosing a program opens the system folder dialog at once (`IFileOpenDialog` with `FOS_PICKFOLDERS`, the same dialog VS Code uses); choosing a folder opens the terminal. There is no list of recent folders. The dialog itself starts where it was last used. Closing the dialog does nothing.
 - Launch: `cmd.exe /K` with `WorkingDirectory` set to the folder and the resolved program path as the command, so no `cd` is needed and the window stays open after the program exits. Window title `Claude Code - <folder name>` or `Codex - <folder name>`. The terminal uses the login currently in use (the 사용 account of that service).
 - Page to shell: WebView2 `window.chrome.webview.postMessage({ type: 'launcher.open', provider })` with `provider` `claude-cli` or `codex-cli`. The shell shows the dialog and launches. It answers only a failure: `{ type: 'launcher.failed', provider, reason }`. The shell accepts messages only from the app's own page origin.
-- In the browser (`npm start`), where there is no shell, pressing the button opens a text field for a path, and the engine launches `cmd.exe` itself.
+- In the browser (`npm start`), where there is no shell, the folder dialog is a text field for a path (after the program popover), and the engine launches `cmd.exe` itself.
 
 Engine routes (session cookie and origin rules as every other route):
 
@@ -403,45 +404,38 @@ Launch details, the same in the shell (`CliLauncher.cs`) and the engine (`src/co
 - Environment for Codex CLI: the same removal as `codexEnvironment` (`OPENAI_*`, `CODEX_API_KEY`, `CODEX_ACCESS_TOKEN`, `CODEX_AUTH_*`, `CODEX_THREAD_ID`, `CODEX_INTERNAL_*`, `CODEX_HOME`, `CODEX_CONFIG_*`) plus `CLAUDECODE`. `executable('codex-cli')` finds the binary inside the npm package, not npm's wrapper script, so when the program lies in that package the terminal gets what the wrapper would set: `CODEX_MANAGED_BY_NPM=1` and `CODEX_MANAGED_PACKAGE_ROOT`.
 - The shell finds the programs as `executable()` does: `ACCOUNTSWITCH_CLAUDE_PATH`, `%USERPROFILE%\.local\bin\claude.exe`, the npm package's `claude.exe`, then `PATH`; and `ACCOUNTSWITCH_CODEX_PATH`, the npm package's `codex.exe`, the newest `%LOCALAPPDATA%\OpenAI\Codex\bin\*\codex.exe`, then `PATH`. It rebuilds `PATH` from the registry (machine, then user, then what the process already had) for the search and for the terminal, because an installer run after the shell started is otherwise invisible to it (see 3.5). The engine uses its own `PATH`, which setup keeps current.
 
-### 4.1 Through Paseo (#45)
+### 4.1 Paseo 열기 (#45)
 
-When Paseo's desktop app is on the PC, **Claude 열기** and **GPT 열기** start a Paseo agent in the chosen folder and show it in the Paseo window. There is no separate "Paseo 열기" button (user, 2026-11-26). Why the work is split this way: ADR-010.
+**Without Paseo** on the PC, pressing **Paseo 열기** opens no dialog. The line under the buttons says "Paseo를 먼저 설치해야 해요. 설치 탭에서 Paseo를 골라 설치하세요" with two text buttons: **설치 탭으로** switches to the 설치 tab and scrolls to Paseo's step when the checklist shows it, and 닫기. Nothing installs on its own (CLAUDE.md rule). Once Paseo is found (the page looks again every few seconds while it is missing), the line goes away and the button works as below.
 
-**Finding Paseo.** As in 3.11: the bundled CLI under `%ProgramFiles%\Paseo` or `%LOCALAPPDATA%\Programs\Paseo`, run as `Paseo.exe` with `ELECTRON_RUN_AS_NODE=1`, never through `paseo.cmd`. Every call has no shell and passes each value as its own argument, so a folder or a message with Korean, spaces, `&` or `%` arrives as it is (measured). The CLI's environment drops `PASEO_AGENT_ID`, `PASEO_AGENT_CWD`, `PASEO_WORKSPACE_ID`, `PASEO_CLI` and `PASEO_DESKTOP_CLI`: measured, an engine started from inside a Paseo agent otherwise creates the agent in that agent's own workspace, whatever `--cwd` says.
+When Paseo's desktop app is on the PC, **Paseo 열기** registers the chosen folder in Paseo and brings the Paseo window forward on it. It sends no first message and creates no agent: the user types the first request in Paseo, and picks Claude or GPT and the model in Paseo's own composer, which remembers the last choice. AccountSwitch has no model select (user, 2026-11-26). Why: ADR-012 (replacing ADR-010's first message and model list).
 
-**Models.** A select left of each button, shown only when there is a list for that service.
-- The list comes from Paseo: `paseo provider ls --json`, then `paseo provider models claude --json` or `codex --json` for a provider whose `status` is `available`. Each entry shows `model` (e.g. "Opus 5.5") and sends `id`. `provider ls` also gives each provider's `defaultMode`.
-- Both need Paseo's daemon, which runs only while the Paseo app does (measured). So the last good lookup is saved, and used while Paseo is closed.
-- The engine keeps a good lookup for 10 minutes. A failed lookup is not kept.
-- The data folder's `launcher.json` holds the choice and the last lookup: `{ "version": 1, "models": { "<service>": "<id>" }, "lists": { "<service>": [{ "id", "label" }] }, "modes": { "<service>": "<mode>" } }`. The choice is saved when the select changes. A saved model that the list no longer has falls back to the first in the list, which is Paseo's newest.
+**What Paseo allows (measured, Paseo 0.17.4).** An empty new chat ("draft") exists only inside the Paseo window. From outside, `Paseo.exe` takes only an agent link `paseo://h/<serverId>/agent/<agentId>` (strictly: no query, three path segments) or a folder path. A folder path opens one more Paseo window on its last screen, not on that folder. Provider and model of the empty chat come from the window's own stored preferences; no link or CLI option sets them. So:
 
-**Which way a button opens.** Paseo whenever Paseo is found; the terminal of 4 only without it (user, 2026-11-26). A button with no list yet (Paseo never answered on this PC) opens Paseo without a model, so Paseo uses its default. A button stays disabled while its CLI is missing, as in 4, since Paseo runs that CLI.
+- When the folder's workspace already has an agent, the button opens that agent's link. The window shows the folder's workspace, where the `+` beside its tabs starts an empty chat.
+- When it has none, the engine answers `window`, and the page asks the desktop shell to bring the Paseo window forward. On a folder opened for the first time the user then clicks the folder in Paseo's workspace list, and `+` beside its tabs to start a chat.
+
+**Finding Paseo.** As in 3.11: the bundled CLI under `%ProgramFiles%\Paseo` or `%LOCALAPPDATA%\Programs\Paseo`, run as `Paseo.exe` with `ELECTRON_RUN_AS_NODE=1`, never through `paseo.cmd`. Every call has no shell and passes each value as its own argument, so a folder with Korean, spaces, `&` or `%` arrives as it is (measured). The CLI's environment drops `PASEO_AGENT_ID`, `PASEO_AGENT_CWD`, `PASEO_WORKSPACE_ID`, `PASEO_CLI` and `PASEO_DESKTOP_CLI`: measured, an engine started from inside a Paseo agent otherwise acts in that agent's own workspace.
 
 **Opening, in the engine:**
 1. The folder must pass the same rules as 4 (`FOLDER_*`).
-2. `paseo status --json` gives `serverId`. When the daemon does not answer (`DAEMON_UNREACHABLE` or no `serverId`), the engine starts `Paseo.exe` and asks again every second for up to 20 seconds.
-3. `paseo workspace ls --json`: a workspace with `isolation` `local`, not `background`, whose `cwd` is the folder (compared without case), is reused with `--workspace <id>`. Measured: without it, every run adds another workspace for the same folder.
-4. `paseo run --cwd <folder> [--workspace <id>] --provider claude[/<model>] | codex[/<model>] [--mode <defaultMode>] --title "관제탑 - <folder name>" --no-wait --json <first message>`. `--mode` is the provider's `defaultMode` from the last lookup (`auto` for Claude, `auto-review` for Codex, measured), so the agent starts as one made in the Paseo app does; without it `run` starts in `default`, which asks before every command. The answer is read from the first line that starts with `{` or `[`; `run` also prints lines such as "Created workspace <id> - <folder name>", and a folder name can hold brackets. No `agentId` is a failure.
-5. `Paseo.exe paseo://h/<serverId>/agent/<agentId>`, detached, with `ELECTRON_RUN_AS_NODE`, `ELECTRON_NO_ATTACH_CONSOLE` and `PASEO_NODE_ENV` removed, as Paseo's own `open` command does. The running Paseo window takes the link and shows that agent. `paseo agent open` is not used: on Windows it looks only under `%LOCALAPPDATA%` and fails for a Program Files install (measured, Paseo 0.17.4).
+2. `paseo status --json` gives `serverId`. When the daemon does not answer (no `serverId`), the engine starts `Paseo.exe` and asks again every second for up to 20 seconds.
+3. `paseo workspace ls --json`: a workspace with `isolation` `local`, not `background`, whose `cwd` is the folder (compared without case), is reused. Otherwise `paseo workspace create --isolation local --path <folder> --no-background --json` makes one (this also registers the folder as a Paseo project). No `workspaceId` is a failure. A second press adds no second workspace.
+4. `paseo ls --global --json`: the first agent whose `workspaceId` is that workspace and which is not `background`. Each JSON answer is read from the first line that starts with `{` or `[`, since a CLI line before it can hold a folder name with brackets.
+5. With an agent: `Paseo.exe paseo://h/<serverId>/agent/<agentId>`, detached, with `ELECTRON_RUN_AS_NODE`, `ELECTRON_NO_ATTACH_CONSOLE` and `PASEO_NODE_ENV` removed, as Paseo's own `open` command does. The running window takes the link. `paseo agent open` is not used: on Windows it looks only under `%LOCALAPPDATA%` and fails for a Program Files install (measured). Without an agent, nothing is started here (a second `Paseo.exe` would open another window).
 
-The first message, the same for both services (proposed by Claude, 2026-11-26; the user may reword it):
-
-> 이 폴더에서 관제탑으로 일해 주세요. 이 폴더가 git 저장소인데 아직 Paseo 방식으로 세팅되지 않았으면 먼저 paseo-workflow 스킬로 세팅하세요. 다른 폴더는 건드리지 마세요. 그다음 무엇을 할지 물어봐 주세요.
-
-The agent judges whether the folder is set up; the skill (3.11) holds how. "다른 폴더는 건드리지 마세요" is there because a test agent in a plain scratch folder went looking in another project folder that Claude Code had been given as an extra working folder (measured, 2026-11-26; it only read). The agent uses the login in use, as the terminal does.
-
-**Page to shell.** The page sends `{ type: 'launcher.pick', provider }`. The shell shows the folder dialog and answers `{ type: 'launcher.picked', provider, folder }`; a closed dialog answers nothing, and a failure is `launcher.failed` with `DIALOG_FAILED` or `BUSY`. Before answering, the shell calls `AllowSetForegroundWindow(ASFW_ANY)`, because the shell holds the foreground right after the user's click and Windows otherwise keeps the Paseo window behind. The page then calls the engine and shows its failure under the buttons. In a browser the path field of 4 sends the path to the same route.
+**Page to shell.** The page sends `{ type: 'launcher.pick' }`. The shell shows the folder dialog (title "Paseo로 열 폴더 선택") and answers `{ type: 'launcher.picked', folder }`; a closed dialog answers nothing, and a failure is `{ type: 'launcher.failed', reason }` with `DIALOG_FAILED` or `BUSY`. Before answering, the shell calls `AllowSetForegroundWindow(ASFW_ANY)`, because the shell holds the foreground right after the user's click and Windows otherwise keeps the Paseo window behind. The page then calls the engine and shows its failure under the buttons. When the engine answers `window`, the page sends `{ type: 'launcher.show-paseo' }`, and the shell restores Paseo's main window if minimized and brings it to the front. When no Paseo window exists (the window was quit while the daemon kept running, `keepRunningAfterQuit` of 3.3, so the engine found the daemon answering and started nothing), the shell starts `Paseo.exe` from the folders of 3.11, without `ELECTRON_RUN_AS_NODE`, `ELECTRON_NO_ATTACH_CONSOLE` and `PASEO_NODE_ENV`, which opens one window. It answers nothing. In a browser the path field of 4 sends the path to the same route, and nothing brings Paseo forward.
 
 **Routes** (session cookie and origin rules as every other route):
 
 | Method, path | Body | Answer |
 |---|---|---|
 | `GET /api/v1/launcher` | | as in 4, plus `paseo: boolean`, whether Paseo's CLI was found |
-| `GET /api/v1/launcher/models` | | `{ 'claude-cli': { models: [{ id, label }], chosen }, 'codex-cli': … }`, live or the last saved; `models` empty and `chosen` null when there is no list |
-| `PUT /api/v1/launcher/models` | `{ provider, model }` | saves the choice; `{}` |
-| `POST /api/v1/launcher/paseo` | `{ provider, folder, model? }` | `{ folder, agentId }`. Windows only |
+| `POST /api/v1/launcher/paseo` | `{ folder }` | `{ folder, workspaceId, shown: 'agent' \| 'window' }`. Windows only |
 
-Reasons added to those of 4: `PASEO_UNAVAILABLE` (Paseo's CLI is not found) and `PASEO_FAILED` (the daemon did not answer in time, or `run` gave no agent).
+Reasons added to those of 4: `PASEO_UNAVAILABLE` (Paseo's CLI is not found) and `PASEO_FAILED` (the daemon did not answer in time, or no workspace came back).
+
+**Setting up a project the Paseo way.** Since no first message is sent, the rule file Claude Code reads (`setup-content/claude/CLAUDE.md`, 3.11) says what to do: when the Paseo tools are available and the first request in a conversation comes in the main checkout of a git repository not yet set up the Paseo way, the agent asks only the values it needs as choice questions, sets it up with the `paseo-workflow` skill, and then does the request. When the setup cannot run, it says so in one line and still does the request.
 
 ## 5. Redesign
 

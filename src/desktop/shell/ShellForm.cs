@@ -100,17 +100,23 @@ namespace AccountSwitch.Desktop
             catch (Exception) { return; }
             if (message == null || !message.TryGetValue("type", out object type)) return;
             // launcher.open: the folder dialog, then the terminal (SPEC 4). launcher.pick: only the
-            // folder dialog; the page has the engine open it in Paseo (SPEC 4.1).
+            // folder dialog; the page has the engine open it in Paseo (SPEC 4.1). launcher.show-paseo:
+            // the Paseo window to the front, when the engine had no agent to send it to.
+            if ("launcher.show-paseo".Equals(type))
+            {
+                try { ShowPaseo(); } catch (Exception) { }
+                return;
+            }
             bool pick = "launcher.pick".Equals(type);
             if (!pick && !"launcher.open".Equals(type)) return;
             string provider = message.TryGetValue("provider", out object named) ? named as string : null;
-            if (!CliLauncher.Knows(provider)) return;
-            void Failed(string why) => PostToPage(new Dictionary<string, object>
+            if (!pick && !CliLauncher.Knows(provider)) return;
+            void Failed(string why)
             {
-                ["type"] = "launcher.failed",
-                ["provider"] = provider,
-                ["reason"] = why,
-            });
+                var failed = new Dictionary<string, object> { ["type"] = "launcher.failed", ["reason"] = why };
+                if (!pick) failed["provider"] = provider;
+                PostToPage(failed);
+            }
             if (launching)
             {
                 Failed("BUSY");
@@ -119,7 +125,7 @@ namespace AccountSwitch.Desktop
             launching = true;
             try
             {
-                string reason = pick ? PickForPaseo(provider) : await OpenTerminal(provider);
+                string reason = pick ? PickForPaseo() : await OpenTerminal(provider);
                 if (reason != null) Failed(reason);
             }
             catch (Exception)
@@ -154,12 +160,12 @@ namespace AccountSwitch.Desktop
         /// The folder dialog for Paseo (SPEC 4.1): answers launcher.picked with the folder. The failure
         /// reason, or null when it answered or was cancelled.
         /// </summary>
-        private string PickForPaseo(string provider)
+        private string PickForPaseo()
         {
             string folder;
             try
             {
-                folder = FolderPicker.Pick(Handle, CliLauncher.Name(provider) + "를 열 폴더 선택", "이 폴더 열기");
+                folder = FolderPicker.Pick(Handle, "Paseo로 열 폴더 선택", "이 폴더 열기");
             }
             catch (Exception)
             {
@@ -172,11 +178,57 @@ namespace AccountSwitch.Desktop
             PostToPage(new Dictionary<string, object>
             {
                 ["type"] = "launcher.picked",
-                ["provider"] = provider,
                 ["folder"] = folder,
             });
             return null;
         }
+
+        /// <summary>
+        /// Paseo's window to the front, restored if minimized, or Paseo started when it has none (SPEC 4.1). Started from the user's click
+        /// on this window, which holds the foreground, so Windows lets it through.
+        /// </summary>
+        private static void ShowPaseo()
+        {
+            foreach (var process in System.Diagnostics.Process.GetProcessesByName("Paseo"))
+            {
+                using (process)
+                {
+                    IntPtr window = process.MainWindowHandle;
+                    if (window == IntPtr.Zero) continue;
+                    if (IsIconic(window)) ShowWindow(window, Restore);
+                    SetForegroundWindow(window);
+                    return;
+                }
+            }
+            // No window: Paseo was quit while its daemon kept running (keepRunningAfterQuit, SPEC
+            // 3.3), so the engine found it answering and started nothing. A first start opens one window.
+            // The folders of PASEO_FOLDERS in the setup manifest, in its order.
+            foreach (string folder in new[]
+            {
+                Environment.ExpandEnvironmentVariables(@"%LOCALAPPDATA%\Programs\Paseo"),
+                Environment.ExpandEnvironmentVariables(@"%ProgramFiles%\Paseo"),
+            })
+            {
+                string program = Path.Combine(folder, "Paseo.exe");
+                if (!File.Exists(program)) continue;
+                var start = new System.Diagnostics.ProcessStartInfo(program) { UseShellExecute = false, WorkingDirectory = folder };
+                foreach (string name in new[] { "ELECTRON_RUN_AS_NODE", "ELECTRON_NO_ATTACH_CONSOLE", "PASEO_NODE_ENV" })
+                    start.EnvironmentVariables.Remove(name);
+                System.Diagnostics.Process.Start(start)?.Dispose();
+                return;
+            }
+        }
+
+        private const int Restore = 9; // SW_RESTORE
+
+        [DllImport("user32.dll")]
+        private static extern bool IsIconic(IntPtr window);
+
+        [DllImport("user32.dll")]
+        private static extern bool ShowWindow(IntPtr window, int command);
+
+        [DllImport("user32.dll")]
+        private static extern bool SetForegroundWindow(IntPtr window);
 
         private const int AnyProcess = -1; // ASFW_ANY
 
