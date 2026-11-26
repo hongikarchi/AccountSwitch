@@ -15,6 +15,9 @@ import {
   confirmationsFor,
   defaultChecked,
   failureMessage,
+  foldSettled,
+  foldView,
+  isSettled,
   groupCount,
   isRunActive,
   parseOverview,
@@ -559,4 +562,45 @@ test('a group row counts what applies and its button runs what is missing', () =
   );
   assert.equal(failed.view.node, 'failed');
   assert.equal(failed.attention, true);
+});
+
+test('installed rows fold into one row, and nothing else does (#35)', () => {
+  const view = (id, result) =>
+    stepFromCheck(catalog, item(id), { id, pinnedVersion: item(id).pinnedVersion, ...result });
+  assert.equal(isSettled(view('git', { status: 'installed' })), true);
+  assert.equal(isSettled(view('git', { status: 'missing' })), false);
+  assert.equal(
+    isSettled(view('node', { status: 'version-mismatch', foundVersion: '20.0.0' })),
+    false,
+  );
+  assert.equal(isSettled(view('git', { status: 'timeout' })), false);
+  // Installed, but something is still worth saying.
+  assert.equal(isSettled(view('git', { status: 'installed', notOnPath: true })), false);
+  const failed = stepFromCheck(
+    catalog,
+    item('git'),
+    { id: 'git', pinnedVersion: item('git').pinnedVersion, status: 'missing' },
+    { lastRun: { id: 'git', status: 'failed' } },
+  );
+  assert.equal(isSettled(failed), false);
+
+  const rows = ['a', 'b', 'c'];
+  assert.deepEqual(
+    foldSettled(rows, (row) => row !== 'b'),
+    { shown: ['b'], folded: ['a', 'c'] },
+  );
+  // One settled row alone is not worth a fold row.
+  assert.deepEqual(
+    foldSettled(rows, (row) => row === 'b'),
+    { shown: rows, folded: [] },
+  );
+  assert.deepEqual(
+    foldSettled(rows, () => false),
+    { shown: rows, folded: [] },
+  );
+
+  const fold = foldView('installed-base', ['Git', 'Node.js']);
+  assert.equal(fold.label, '설치된 항목 2개');
+  assert.equal(fold.description, 'Git, Node.js');
+  assert.equal(fold.node, 'done');
 });

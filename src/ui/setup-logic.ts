@@ -518,6 +518,35 @@ export function byGroup<Row extends { group: string }>(catalog: SetupCatalog, ro
   });
 }
 
+/** A row with nothing left to say: installed, with no note and no unmet part (SPEC 3.2, #35). */
+export function isSettled(view: StepView) {
+  return view.node === 'done' && !view.notes.length && !view.parts.length && !view.manual;
+}
+
+/**
+ * Splits a list's rows into those shown and those folded into "설치된 항목 N개". One settled row
+ * alone stays shown, because a fold row would only replace it.
+ */
+export function foldSettled<Row>(rows: Row[], settled: (row: Row) => boolean) {
+  const folded = rows.filter(settled);
+  if (folded.length < 2) return { shown: rows, folded: [] as Row[] };
+  return { shown: rows.filter((row) => !folded.includes(row)), folded };
+}
+
+/** The fold row of a list (DESIGN 5.6). */
+export function foldView(id: string, names: string[]): StepView {
+  return {
+    id,
+    label: `설치된 항목 ${names.length}개`,
+    description: names.join(', '),
+    node: 'done',
+    meta: '모두 설치됨',
+    notes: [],
+    parts: [],
+    elevating: false,
+  };
+}
+
 export function groupsOfRun(catalog: SetupCatalog, run: RunProgress) {
   const ids = new Set(run.items.map((entry) => entry.id));
   return catalog.items.filter((item) => ids.has(item.id)).map((item) => item.group as string);
