@@ -47,6 +47,10 @@ One fact, one place.
 - The integration branch is `{{branchPrefix}}_develop`.
 - Task branches are `{{branchPrefix}}_<task>`.
 - A project's own CLAUDE.md wins where it names other branches.
+- A Paseo workspace made with Paseo's button gets a random name (such as `splendid-pelican`): its branch is the same as its worktree folder name and has no `_`. Once the first message tells you the task, name it after the task, before anything else:
+  - Only if the branch has no upstream and no PR: rename it to the task-branch name above with `git branch -m`, `<task>` in lowercase letters, digits, and hyphens.
+  - Set the workspace title to the same name with Paseo's `rename_workspace` tool.
+  - Leave the folder name. Skip the main checkout and branches already named by the rule.
 
 ## Work tracking (GitHub Issues)
 When a project tracks work in GitHub Issues:
