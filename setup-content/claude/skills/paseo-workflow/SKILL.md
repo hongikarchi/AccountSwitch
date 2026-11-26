@@ -50,16 +50,18 @@ The user says "Paseo 방식으로 세팅해줘", or the first request of a conve
    - `provider: "claude/<model>"`, the current default model from `mcp__paseo__list_models`
    - `settings.modeId` that matches the user's usual mode
    - a title with the issue number
-   - a self-contained brief: the issue number, "work in place, no new worktree, don't touch the main checkout", the files and rules that matter, how to verify, PR and merge rules (merge only when every check on the latest commit passes), what to update in the issue, and "reply at the end in the user's language, short".
+   - a self-contained brief: the issue number, "work in place, no new worktree, don't touch the main checkout", the files and rules that matter, how to verify, PR and merge rules (merge only when every check on the latest commit passes), what to update in the issue, the waiting rule below, and "reply at the end in the user's language, short".
+   - Waiting rule, in the brief's words: "Nothing wakes you when CI or a deploy finishes, so never end your turn to wait. Wait in the same turn with a foreground command that blocks until it is done, for example `gh pr checks <n> --watch`. If the command times out, run it again."
 6. Tell the user which tab was created, and that its Changes panel shows the work.
 
 Independent tasks can run in parallel. Before handing out two tasks that may claim the same sequential numbers or the same files, assign them up front. Examples: ADR numbers, migration numbers, error codes, local ports.
 
 ## 3. When a task agent finishes
 
-1. Verify; don't relay. Check that the PR merged, that every check on its final commit passed (`gh pr view <n> --json statusCheckRollup`), and that the deploy or health check succeeded where relevant.
-2. Report to the user in plain words: what changed, what they should check, and anything the agent chose for them.
-3. **Back up what git does not keep. Never skip this step.** Archiving deletes the worktree for good, gitignored files included. A user lost renders, reference images, and an uploaded drawing this way.
+1. If the agent's last reply says it is waiting (for CI, a review, or a deploy), it is not done: nothing will wake it. Send it a prompt (`mcp__paseo__send_agent_prompt`) to resume and wait in the same turn with a blocking command, then wait for its next finish.
+2. Verify; don't relay. Check that the PR merged, that every check on its final commit passed (`gh pr view <n> --json statusCheckRollup`), and that the deploy or health check succeeded where relevant.
+3. Report to the user in plain words: what changed, what they should check, and anything the agent chose for them.
+4. **Back up what git does not keep. Never skip this step.** Archiving deletes the worktree for good, gitignored files included. A user lost renders, reference images, and an uploaded drawing this way.
    1. List the worktree's untracked and ignored files: `git -C <worktree> status --ignored --porcelain`. `??` marks untracked, `!!` ignored; a path ending in `/` is a whole folder.
    2. Leave out folders that install or build rebuilds, at any depth: `node_modules`, `.venv`, `venv`, `__pycache__`, `dist`, `build`, `.next`, `.turbo`, `.cache`, `target`, `.pytest_cache`. Also leave out the gitignored files copied in from the main checkout (section 2, step 4); the main checkout still has them.
    3. Copy the rest, keeping relative paths, to `<backup folder>/<task branch>/<YYYY-MM-DD>/`.
@@ -67,7 +69,7 @@ Independent tasks can run in parallel. Before handing out two tasks that may cla
    5. Tell the user what was copied and where. Say so when there was nothing to copy.
 
    If the project records no backup folder, ask the user before archiving. If a copy failed or a size differs, do not archive; tell the user which files. Never delete anything from the backup folder.
-4. Archive the workspace (`mcp__paseo__archive_workspace`) only after step 3 succeeded. Paseo removes the worktree. If the user said they want to look at the Changes panel first, wait for their word.
+5. Archive the workspace (`mcp__paseo__archive_workspace`) only after step 4 succeeded. Paseo removes the worktree. If the user said they want to look at the Changes panel first, wait for their word.
 
 ## Notes
 
