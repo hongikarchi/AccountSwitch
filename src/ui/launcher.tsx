@@ -5,14 +5,19 @@ import { providers, type Provider } from '../core/providers.ts';
 import {
   cliNames,
   failureMessage,
+  modelsSchema,
+  paseoModel,
   shellReplySchema,
+  viaPaseo,
+  type Models,
   statusSchema,
   typedFolder,
 } from './launcher-logic.ts';
 
 // "Claude 열기" and "GPT 열기" (SPEC 4, DESIGN 5.3). The desktop window opens the folder dialog
 // and the terminal itself and answers only a failure; in a browser there is no window to ask, so
-// the page asks for a path and the engine opens the terminal.
+// the page asks for a path and the engine opens the terminal. With Paseo (SPEC 4.1) the window only
+// picks the folder and the engine makes the agent and shows it in Paseo.
 
 declare global {
   interface Window {
@@ -33,6 +38,10 @@ const labels: Record<Provider, string> = {
   'claude-cli': 'Claude 열기',
   'codex-cli': 'GPT 열기',
 };
+const modelLabels: Record<Provider, string> = {
+  'claude-cli': 'Claude 모델',
+  'codex-cli': 'GPT 모델',
+};
 
 const problemOf = (error: unknown, provider: Provider) => {
   const { code, message } = error as { code?: string; message?: string };
@@ -44,6 +53,9 @@ const problemOf = (error: unknown, provider: Provider) => {
 export function useLauncher() {
   const [status, setStatus] = useState<z.infer<typeof statusSchema>>();
   const [failure, setFailure] = useState<string>();
+  const [models, setModels] = useState<Models>();
+  const [opening, setOpening] = useState<Partial<Record<Provider, boolean>>>({});
+  const paseo = viaPaseo(status);
 
   const recheck = useCallback(() => {
     void api('/launcher')
@@ -68,43 +80,82 @@ export function useLauncher() {
     return () => clearInterval(timer);
   }, [waiting, recheck]);
 
+  // Paseo's models: when Paseo is found, and again on focus (the engine keeps them a while).
+  const loadModels = useCallback(() => {
+    void api('/launcher/models')
+      .then((value) => setModels(modelsSchema.parse(value)))
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (!paseo) return;
+    loadModels();
+    window.addEventListener('focus', loadModels);
+    return () => window.removeEventListener('focus', loadModels);
+  }, [paseo, loadModels]);
+
+  /** The model a button opens Paseo with; undefined: it opens the terminal. */
+  const modelFor = useCallback(
+    (provider: Provider) => paseoModel(status, models, provider),
+    [status, models],
+  );
+
+  const choose = useCallback((provider: Provider, model: string) => {
+    setModels((now) => now && { ...now, [provider]: { ...now[provider], chosen: model } });
+    void api('/launcher/models', 'PUT', { provider, model }).catch(() => undefined);
+  }, []);
+
+  /** The engine opens the folder: in Paseo when Paseo is there, else a terminal. */
+  const openInEngine = useCallback(
+    async (provider: Provider, folder: string) => {
+      const model = modelFor(provider);
+      setOpening((now) => ({ ...now, [provider]: true }));
+      try {
+        if (paseo) await api('/launcher/paseo', 'POST', { provider, folder, model });
+        else await api('/launcher/open', 'POST', { provider, folder });
+        return undefined;
+      } catch (error) {
+        // The folder, the CLI or Paseo may have gone away.
+        recheck();
+        return problemOf(error, provider);
+      } finally {
+        setOpening((now) => ({ ...now, [provider]: false }));
+      }
+    },
+    [recheck, modelFor, paseo],
+  );
+
   useEffect(() => {
     if (!shell) return;
     const answer = ({ data }: { data: unknown }) => {
       const reply = shellReplySchema.safeParse(data).data;
       if (!reply) return;
+      if (reply.type === 'launcher.picked') {
+        void openInEngine(reply.provider, reply.folder).then(setFailure);
+        return;
+      }
       setFailure(failureMessage(reply.reason, reply.provider));
       // The folder or the CLI may have gone away.
       recheck();
     };
     shell.addEventListener('message', answer);
     return () => shell.removeEventListener('message', answer);
-  }, [recheck]);
+  }, [recheck, openInEngine]);
 
-  /** The desktop window's way: its folder dialog, then the terminal. */
-  const open = useCallback((provider: Provider) => {
-    setFailure(undefined);
-    shell?.postMessage({ type: 'launcher.open', provider });
-  }, []);
-
-  /** The browser's way: answers with what went wrong, if anything. */
-  const openInEngine = useCallback(
-    async (provider: Provider, folder: string) => {
-      try {
-        await api('/launcher/open', 'POST', { provider, folder });
-        return undefined;
-      } catch (error) {
-        // The folder or the CLI may have gone away.
-        recheck();
-        return problemOf(error, provider);
-      }
+  /** The desktop window's way: its folder dialog, then the terminal or Paseo. */
+  const open = useCallback(
+    (provider: Provider) => {
+      setFailure(undefined);
+      shell?.postMessage({
+        type: paseo ? 'launcher.pick' : 'launcher.open',
+        provider,
+      });
     },
-    [recheck],
+    [paseo],
   );
 
   const dismiss = useCallback(() => setFailure(undefined), []);
 
-  return { status, failure, open, openInEngine, dismiss };
+  return { status, failure, models, opening, modelFor, choose, open, openInEngine, dismiss };
 }
 type Launcher = ReturnType<typeof useLauncher>;
 
@@ -178,6 +229,8 @@ export function LauncherButton({ launcher, provider }: { launcher: Launcher; pro
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const installed = launcher.status?.installed[provider] === true;
+  const model = launcher.modelFor(provider);
+  const opening = launcher.opening[provider] === true;
 
   const closeAndFocus = useCallback(() => {
     setTyping(false);
@@ -218,11 +271,26 @@ export function LauncherButton({ launcher, provider }: { launcher: Launcher; pro
         if (to && !root.current?.contains(to)) setTyping(false);
       }}
     >
+      {model ? (
+        <select
+          className="launcher-model"
+          aria-label={modelLabels[provider]}
+          value={model}
+          disabled={!installed || opening}
+          onChange={(event) => launcher.choose(provider, event.target.value)}
+        >
+          {launcher.models?.[provider].models.map((m) => (
+            <option key={m.id} value={m.id}>
+              {m.label}
+            </option>
+          ))}
+        </select>
+      ) : null}
       <button
         ref={trigger}
         type="button"
         className="primary-button"
-        disabled={!installed}
+        disabled={!installed || opening}
         aria-describedby={installed ? undefined : HELP_ID}
         onClick={() => {
           if (shell) return launcher.open(provider);
@@ -230,7 +298,7 @@ export function LauncherButton({ launcher, provider }: { launcher: Launcher; pro
           setTyping((now) => !now);
         }}
       >
-        {labels[provider]}
+        {opening ? '여는 중…' : labels[provider]}
       </button>
       {typing ? <PathForm launcher={launcher} provider={provider} close={closeAndFocus} /> : null}
     </div>

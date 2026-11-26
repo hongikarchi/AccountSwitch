@@ -11,6 +11,7 @@ Order is chosen so the riskiest unknowns are measured early and every milestone 
 | M2 | Setup engine, read only: manifest, checks, PATH re-read, `GET /setup`, `POST /setup/check`; 설치 tab shows the stepper with real status | Correct status on the development PC (most items present) and in Windows Sandbox (nothing present) |
 | M3 | Installs, in this order: base (`git`, `node`, `uv`, `python`, `env`, `py-base`, `py-gis`, `py-3d`), then `claude`, `codex`, Blender group, Rhino group | Each item installs in Windows Sandbox from nothing (winget missing there, so the fallback path is exercised), re-check reports it installed, a new cmd window finds it on PATH |
 | M4 | Launcher: shell bridge, folder dialog, `cmd /K` running Claude Code or Codex CLI | Opens both in a folder with a Korean name and spaces |
+| M4b | Launcher through Paseo (SPEC 4.1, #45): model select, `launcher.pick`, engine route | With Paseo, each button makes an agent with the chosen model in a scratch folder with a Korean name, spaces and `&`, the Paseo window shows it, and a second press adds no second workspace; without Paseo the terminal opens as in M4. Test agents and workspaces are deleted afterwards |
 | M5 | Logo and icons | Approved concept, hand-drawn SVG, ICO and tray icons legible at 16 px on light and dark taskbars |
 | M6 | Release 0.3.0 | §4 checklist passed, user confirms, tag pushed |
 | Later | CAD (ZWCAD) after a hands-on test (ADR-004); macOS setup; terminal per account | – |

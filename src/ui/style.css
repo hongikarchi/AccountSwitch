@@ -843,6 +843,16 @@ select {
 .launcher {
   position: relative;
   flex: none;
+  /* A model select stays with its button when the row wraps (5.3). */
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.launcher-model {
+  max-width: 140px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-weight: 500;
 }
 /* The browser's path field, upward: the button is at the bottom of the tab. */
 .launcher-popover {

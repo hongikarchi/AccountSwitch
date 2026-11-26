@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Web.Script.Serialization;
 using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
@@ -97,7 +98,11 @@ namespace AccountSwitch.Desktop
             // An exception out of async void would end the program, so none may leave this method.
             try { message = new JavaScriptSerializer().DeserializeObject(e.WebMessageAsJson) as Dictionary<string, object>; }
             catch (Exception) { return; }
-            if (message == null || !message.TryGetValue("type", out object type) || !"launcher.open".Equals(type)) return;
+            if (message == null || !message.TryGetValue("type", out object type)) return;
+            // launcher.open: the folder dialog, then the terminal (SPEC 4). launcher.pick: only the
+            // folder dialog; the page has the engine open it in Paseo (SPEC 4.1).
+            bool pick = "launcher.pick".Equals(type);
+            if (!pick && !"launcher.open".Equals(type)) return;
             string provider = message.TryGetValue("provider", out object named) ? named as string : null;
             if (!CliLauncher.Knows(provider)) return;
             void Failed(string why) => PostToPage(new Dictionary<string, object>
@@ -114,7 +119,7 @@ namespace AccountSwitch.Desktop
             launching = true;
             try
             {
-                string reason = await OpenTerminal(provider);
+                string reason = pick ? PickForPaseo(provider) : await OpenTerminal(provider);
                 if (reason != null) Failed(reason);
             }
             catch (Exception)
@@ -144,6 +149,39 @@ namespace AccountSwitch.Desktop
             if (folder == null) return null;
             return await System.Threading.Tasks.Task.Run(() => CliLauncher.Open(provider, folder));
         }
+
+        /// <summary>
+        /// The folder dialog for Paseo (SPEC 4.1): answers launcher.picked with the folder. The failure
+        /// reason, or null when it answered or was cancelled.
+        /// </summary>
+        private string PickForPaseo(string provider)
+        {
+            string folder;
+            try
+            {
+                folder = FolderPicker.Pick(Handle, CliLauncher.Name(provider) + "를 열 폴더 선택", "이 폴더 열기");
+            }
+            catch (Exception)
+            {
+                return "DIALOG_FAILED";
+            }
+            if (folder == null) return null;
+            // This window holds the foreground right after the user's choice; let the Paseo window
+            // the engine is about to show take it, or Windows keeps it behind.
+            AllowSetForegroundWindow(AnyProcess);
+            PostToPage(new Dictionary<string, object>
+            {
+                ["type"] = "launcher.picked",
+                ["provider"] = provider,
+                ["folder"] = folder,
+            });
+            return null;
+        }
+
+        private const int AnyProcess = -1; // ASFW_ANY
+
+        [DllImport("user32.dll")]
+        private static extern bool AllowSetForegroundWindow(int processId);
 
         private bool IsOwnPage(string address) =>
             origin != null && address != null && (address == origin || address.StartsWith(origin + "/", StringComparison.Ordinal));

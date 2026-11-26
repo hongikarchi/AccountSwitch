@@ -9,14 +9,44 @@ const provider = z.enum(providers);
 export const statusSchema = z.object({
   platform: z.string(),
   installed: z.record(provider, z.boolean()),
+  /** Paseo's CLI is on this PC (SPEC 4.1); missing from an older engine. */
+  paseo: z.boolean().optional(),
 });
 
-/** The desktop window answers a `launcher.open` message only when it failed. */
-export const shellReplySchema = z.object({
-  type: z.literal('launcher.failed'),
+/** Paseo's models per service, and the one to show (SPEC 4.1). */
+export const modelsSchema = z.record(
   provider,
-  reason: z.string(),
-});
+  z.object({
+    models: z.array(z.object({ id: z.string(), label: z.string() })),
+    chosen: z.string().nullable(),
+  }),
+);
+export type Models = z.infer<typeof modelsSchema>;
+
+/** Paseo whenever it is found; the terminal only without it (SPEC 4.1). */
+export const viaPaseo = (status: z.infer<typeof statusSchema> | undefined) =>
+  status?.paseo === true;
+
+/** The model a button opens Paseo with; undefined: Paseo's default, or no Paseo (SPEC 4.1). */
+export function paseoModel(
+  status: z.infer<typeof statusSchema> | undefined,
+  models: Models | undefined,
+  service: Provider,
+) {
+  if (!viaPaseo(status)) return undefined;
+  const list = models?.[service];
+  if (!list?.chosen || !list.models.some((m) => m.id === list.chosen)) return undefined;
+  return list.chosen;
+}
+
+/**
+ * The desktop window answers `launcher.open` only when it failed, and `launcher.pick` with the
+ * folder chosen for Paseo or a failure.
+ */
+export const shellReplySchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('launcher.failed'), provider, reason: z.string() }),
+  z.object({ type: z.literal('launcher.picked'), provider, folder: z.string() }),
+]);
 
 /** What each button opens, in the words of the rest of the page. */
 export const cliNames: Record<Provider, string> = {
@@ -42,6 +72,8 @@ const messages: Record<string, string> = {
   UNSUPPORTED_PLATFORM: '터미널 열기는 Windows에서만 쓸 수 있어요',
   DIALOG_FAILED: '폴더 선택 창을 열지 못했어요. 다시 시도하세요',
   BUSY: '폴더 선택 창이 이미 열려 있거나 터미널을 여는 중이에요. 잠시 후 다시 시도하세요',
+  PASEO_UNAVAILABLE: 'Paseo를 찾지 못했어요. 설치 탭에서 먼저 설치하세요',
+  PASEO_FAILED: 'Paseo에서 대화를 만들지 못했어요. Paseo가 켜져 있는지 확인하고 다시 시도하세요',
 };
 
 /** The sentence for a failure of the button of this service. */
